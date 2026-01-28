@@ -1,14 +1,27 @@
 /**
  * ClaudeService - Handles Claude API calls for play style analysis.
+ * Uses a secure Cloudflare Worker proxy - no API key needed from users.
  */
 export class ClaudeService {
     constructor() {
+        // Secure worker endpoint (API key is stored server-side)
+        this.workerUrl = 'https://domino-api.mario-alonso-account.workers.dev';
+
+        // Fallback for local development with personal key
         this.storageKey = 'dominoAdvisor_claudeApiKey';
-        this.apiUrl = 'https://api.anthropic.com/v1/messages';
+        this.directApiUrl = 'https://api.anthropic.com/v1/messages';
     }
 
     /**
-     * Store API key in localStorage
+     * Check if the service is available (always true with worker)
+     * @returns {boolean}
+     */
+    hasApiKey() {
+        return true; // Worker handles the API key
+    }
+
+    /**
+     * Store API key in localStorage (for local dev only)
      * @param {string} key
      */
     setApiKey(key) {
@@ -20,7 +33,7 @@ export class ClaudeService {
     }
 
     /**
-     * Get stored API key
+     * Get stored API key (for local dev only)
      * @returns {string|null}
      */
     getApiKey() {
@@ -28,23 +41,11 @@ export class ClaudeService {
     }
 
     /**
-     * Check if API key is configured
-     * @returns {boolean}
-     */
-    hasApiKey() {
-        const key = this.getApiKey();
-        return key && key.length > 0;
-    }
-
-    /**
      * Get masked version of API key for display
      * @returns {string}
      */
     getMaskedKey() {
-        const key = this.getApiKey();
-        if (!key) return '';
-        if (key.length <= 12) return '***';
-        return key.substring(0, 7) + '...' + key.substring(key.length - 4);
+        return 'Using secure server';
     }
 
     /**
@@ -52,22 +53,13 @@ export class ClaudeService {
      * @returns {Promise<{success: boolean, message: string}>}
      */
     async testConnection() {
-        const key = this.getApiKey();
-        if (!key) {
-            return { success: false, message: 'No API key configured' };
-        }
-
         try {
-            const response = await fetch(this.apiUrl, {
+            const response = await fetch(this.workerUrl, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': key,
-                    'anthropic-version': '2023-06-01',
-                    'anthropic-dangerous-direct-browser-access': 'true'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: 'claude-3-haiku-20240307',
                     max_tokens: 10,
                     messages: [{ role: 'user', content: 'Hi' }]
                 })
@@ -78,10 +70,10 @@ export class ClaudeService {
             }
 
             const error = await response.json();
-            if (response.status === 401) {
-                return { success: false, message: 'Invalid API key' };
+            if (response.status === 429) {
+                return { success: false, message: error.error || 'Rate limit exceeded' };
             }
-            return { success: false, message: error.error?.message || 'API error' };
+            return { success: false, message: error.error || 'API error' };
         } catch (error) {
             return { success: false, message: 'Network error: ' + error.message };
         }
@@ -93,11 +85,6 @@ export class ClaudeService {
      * @returns {Promise<{success: boolean, analysis: string|null, error: string|null}>}
      */
     async analyzePlayStyle(matchHistory) {
-        const key = this.getApiKey();
-        if (!key) {
-            return { success: false, analysis: null, error: 'No API key configured' };
-        }
-
         const matchData = matchHistory.toJSON();
         const stats = matchHistory.getHumanStats();
         const keyMoments = matchHistory.getKeyMoments();
@@ -105,16 +92,12 @@ export class ClaudeService {
         const prompt = this._buildAnalysisPrompt(matchData, stats, keyMoments);
 
         try {
-            const response = await fetch(this.apiUrl, {
+            const response = await fetch(this.workerUrl, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': key,
-                    'anthropic-version': '2023-06-01',
-                    'anthropic-dangerous-direct-browser-access': 'true'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: 'claude-3-haiku-20240307',
                     max_tokens: 1024,
                     messages: [{ role: 'user', content: prompt }]
                 })
@@ -125,7 +108,7 @@ export class ClaudeService {
                 return {
                     success: false,
                     analysis: null,
-                    error: error.error?.message || 'API error'
+                    error: error.error || 'API error'
                 };
             }
 
