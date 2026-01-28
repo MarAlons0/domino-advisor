@@ -182,10 +182,6 @@ class DominoApp {
                     msg += ` (L:${left} R:${right})`;
                 }
             }
-            // Add AI reasoning for computer players
-            if (data.player !== 0 && data.reasoning) {
-                msg += ` - ${data.reasoning}`;
-            }
             this.log(msg, `player-${data.player}`);
 
             // Record this play for AI tracking (suit counts, play choice inference)
