@@ -387,6 +387,149 @@ Recommendation: {
 
 ---
 
+## Implementation Status
+
+### Completed Features
+
+#### Phase 1: Core Game Engine ✅
+- Tile set, dealing, and valid move detection
+- Game state management with full rules enforcement
+- Double-six first hand requirement
+- Counter-clockwise play order (0 → 1 → 2 → 3)
+- Domino, blocked, and closed game detection
+
+#### Phase 2: Basic UI ✅
+- Graphical tile rendering with pips
+- Chain visualization with row wrapping
+- Player hand display with playable tile highlighting
+- Score tracking (hand and match)
+- Game log with play history
+- End selection modal for tiles playable on both ends
+
+#### Phase 3: Smart AI + Advisor ✅
+- **SmartAI**: Implements strategic principles (suit strength, partner support, blocking, pip management, double management, end control)
+- **Tile counting**: Tracks played tiles and infers dead suits
+- **Play choice inference**: Deduces holdings from what players choose to play
+- **StrategicExplainer**: Generates rich explanations using traditional terminology
+
+##### Strategic Terminology in Explanations
+| Term | Usage in App |
+|------|--------------|
+| La Salida | Opening play signals strategy to partner |
+| Ahorcado | Playing double without cover (risky) |
+| Darle Pase | Forcing opponent to pass |
+| Cuadrar | Squaring the board (both ends same) |
+| La Puerta | Holding last tile of a suit (complete control) |
+| Cover | Having follow-up plays after a double |
+| Repeat | Playing to keep strong suit open |
+
+#### Phase 3.5: Match Debrief & LLM Analysis ✅
+- **MatchHistory**: Tracks all plays across entire match with state snapshots
+- **Play Evaluation**: Compares human moves to AI recommendations
+  - Optimal: Same tile and end as AI
+  - Good: Same tile, different end OR close score
+  - Questionable: Different tile, score difference 10-25 points
+  - Mistake: Different tile, score difference > 25 points
+- **DebriefUI**: Modal interface for post-match review
+  - Overview tab: Stats, key moments, LLM analysis
+  - Your Plays tab: All human moves with evaluations
+  - Full Match tab: Play-by-play for each hand
+- **Claude API Integration**: Play style analysis using Claude Haiku
+
+---
+
+### Project Architecture
+
+```
+domino-advisor/
+├── docs/                          # Deployed to GitHub Pages
+│   ├── index.html                 # Main HTML with game layout
+│   ├── css/
+│   │   └── styles.css             # All styling (table, modals, debrief)
+│   └── js/
+│       ├── main.js                # UI controller, event handling
+│       ├── models/
+│       │   ├── Tile.js            # Tile representation
+│       │   ├── Hand.js            # Player hand management
+│       │   ├── Chain.js           # Board chain with placed tiles
+│       │   ├── GameState.js       # Complete game state
+│       │   └── MatchHistory.js    # Match tracking for debrief
+│       ├── engine/
+│       │   ├── TileSet.js         # Full set generation
+│       │   ├── Dealer.js          # Dealing logic
+│       │   ├── Rules.js           # Move validation, win detection
+│       │   └── Game.js            # Game controller, event callbacks
+│       ├── ai/
+│       │   ├── RandomAI.js        # Simple random AI (unused)
+│       │   ├── SmartAI.js         # Strategic AI with principles
+│       │   └── StrategicExplainer.js  # Terminology-based explanations
+│       ├── services/
+│       │   └── ClaudeService.js   # Claude API integration
+│       └── ui/
+│           ├── SettingsUI.js      # Settings modal
+│           └── DebriefUI.js       # Match debrief modal
+└── domino_advisor_project.md      # This document
+```
+
+---
+
+### Deployment
+
+#### GitHub Pages (Frontend)
+- **Repository**: https://github.com/MarAlons0/domino-advisor
+- **Live URL**: https://maralons0.github.io/domino-advisor/
+- **Branch**: `main`
+- **Folder**: `/docs`
+
+#### Cloudflare Worker (API Proxy)
+- **Worker URL**: https://domino-api.mario-alonso-account.workers.dev
+- **Purpose**: Securely proxy Claude API requests without exposing API key
+
+##### Security Protections
+| Protection | Implementation |
+|------------|----------------|
+| API Key Security | Stored as Cloudflare secret, never exposed to client |
+| Domain Restriction | Only accepts requests from `maralons0.github.io` and `localhost:8000` |
+| Rate Limiting | 10 requests per hour per IP address |
+| Daily Cap | 100 requests per day across all users |
+| Spending Limits | Set in Anthropic dashboard as additional safeguard |
+
+##### Worker Files (separate repo)
+```
+domino-api/
+├── src/
+│   └── index.js          # Worker code with rate limiting
+├── wrangler.toml         # Cloudflare configuration
+└── package.json
+```
+
+---
+
+### Configuration
+
+#### AI Settings
+- **AI Delay**: 3000ms (3 seconds per move) for easier tracking
+- **AI Reasoning**: Displayed in game log for each computer move
+
+#### Rate Limits (Cloudflare Worker)
+```javascript
+const RATE_LIMIT_REQUESTS = 10;    // Per IP per hour
+const RATE_LIMIT_WINDOW = 3600;    // 1 hour
+const MAX_REQUESTS_PER_DAY = 100;  // Daily cap
+```
+
+---
+
+### Key Design Decisions
+
+1. **No user authentication required**: Game is fully playable without login
+2. **LLM analysis is optional**: Debrief works without it; Claude analysis enhances it
+3. **Secure by default**: Production uses Cloudflare Worker; users never see API keys
+4. **Mobile-friendly**: Responsive design works on phones and tablets
+5. **Strategic focus**: AI explains moves using traditional domino terminology
+
+---
+
 ## Notes for Development
 
 - The strategic principles section is the knowledge base—the AI and advisor should reference these explicitly
