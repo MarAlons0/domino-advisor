@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domino Advisor</title>
+    <link rel="stylesheet" href="css/styles.css?v=4">
+</head>
+<body>
+    <header class="app-header">
+        <h1>Domino Advisor</h1>
+        <button id="settings-btn" class="settings-btn" title="Settings">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+        </button>
+    </header>
+
+    <div class="game-wrapper">
+        <div class="table-area">
+            <!-- Scores -->
+            <div class="scores">
+                <div class="score-box your-team">
+                    <div class="score-label">Your Team</div>
+                    <div class="score-value" id="team-a-score">0</div>
+                </div>
+                <div class="score-box opponent-team">
+                    <div class="score-label">Opponents</div>
+                    <div class="score-value" id="team-b-score">0</div>
+                </div>
+            </div>
+
+            <!-- The Table -->
+            <div class="table">
+                <!-- Partner (top) -->
+                <div class="player-position player-top">
+                    <div class="player-info">
+                        <div class="player-name your-team" id="player-2-name">Partner</div>
+                        <div class="tile-count horizontal" id="player-2-tiles"></div>
+                    </div>
+                </div>
+
+                <!-- Opponent 2 (left) -->
+                <div class="player-position player-left">
+                    <div class="player-info">
+                        <div class="player-name opponent-team" id="player-3-name">Opp 2</div>
+                        <div class="tile-count vertical" id="player-3-tiles"></div>
+                    </div>
+                </div>
+
+                <!-- Chain Area (center) -->
+                <div class="chain-container">
+                    <div class="chain" id="chain">
+                        <div class="empty-table-message" id="empty-message">Click "New Game" to start</div>
+                    </div>
+                </div>
+
+                <!-- Opponent 1 (right) -->
+                <div class="player-position player-right">
+                    <div class="player-info">
+                        <div class="player-name opponent-team" id="player-1-name">Opp 1</div>
+                        <div class="tile-count vertical" id="player-1-tiles"></div>
+                    </div>
+                </div>
+
+                <!-- You (bottom) - indicator only, hand shown below -->
+                <div class="player-position player-bottom">
+                    <div class="player-info">
+                        <div class="player-name your-team" id="player-0-name">You</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Open Ends Indicator -->
+            <div class="open-ends" id="open-ends"></div>
+
+            <!-- Your Hand -->
+            <div class="hand-area">
+                <div class="hand-label">
+                    <span>Your Hand</span>
+                    <span id="hand-count"></span>
+                </div>
+                <div class="hand" id="hand"></div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls">
+                <button id="new-game-btn">New Game</button>
+                <button id="pass-btn" class="pass-btn" disabled>Pass</button>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="log-area">
+                <h3>Game Log</h3>
+                <div class="log" id="log"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- End Selection Modal -->
+    <div class="modal-overlay" id="modal-overlay"></div>
+    <div class="end-selection" id="end-selection">
+        <h3>Play on which end?</h3>
+        <div class="end-buttons">
+            <button class="end-btn" id="left-end-btn">Left</button>
+            <button class="end-btn" id="right-end-btn">Right</button>
+            <button class="end-btn secondary" id="cancel-end-btn">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Message Box -->
+    <div class="message-box" id="message-box">
+        <h2 id="message-title">Hand Complete</h2>
+        <p id="message-text"></p>
+        <div class="message-buttons">
+            <button id="continue-btn">Continue</button>
+            <button id="review-btn" class="review-btn" style="display: none;">Review Game</button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-overlay"></div>
+    <div class="settings-modal" id="settings-modal">
+        <div class="settings-header">
+            <h2>Settings</h2>
+            <button id="close-settings-btn" class="close-btn">&times;</button>
+        </div>
+        <div class="settings-content">
+            <div class="settings-section">
+                <h3>Claude API Key</h3>
+                <p class="settings-description">
+                    Enter your Claude API key to enable AI-powered play style analysis.
+                    Your key is stored locally and only sent to Anthropic's API.
+                </p>
+                <div class="api-key-input-group">
+                    <input type="password" id="api-key-input" placeholder="Enter your Claude API key..." />
+                    <button id="save-key-btn" class="save-btn">Save</button>
+                </div>
+                <div class="key-actions">
+                    <button id="test-key-btn" class="test-btn">Test Connection</button>
+                    <button id="clear-key-btn" class="clear-btn">Clear Key</button>
+                </div>
+                <div id="key-status" class="key-status"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debrief Modal -->
+    <div class="modal-overlay" id="debrief-overlay"></div>
+    <div class="debrief-modal" id="debrief-modal">
+        <div class="debrief-header">
+            <h2>Match Debrief</h2>
+            <p id="debrief-summary"></p>
+            <button id="close-debrief-btn" class="close-btn">&times;</button>
+        </div>
+        <div class="debrief-tabs">
+            <button class="tab-btn active" data-tab="overview">Overview</button>
+            <button class="tab-btn" data-tab="your-plays">Your Plays</button>
+            <button class="tab-btn" data-tab="full-match">Full Match</button>
+        </div>
+        <div class="debrief-content">
+            <!-- Overview Tab -->
+            <div class="tab-content active" id="tab-overview">
+                <div class="stat-cards">
+                    <div class="stat-card optimal">
+                        <div class="stat-value" id="stat-optimal">0</div>
+                        <div class="stat-label">Optimal</div>
+                    </div>
+                    <div class="stat-card good">
+                        <div class="stat-value" id="stat-good">0</div>
+                        <div class="stat-label">Good</div>
+                    </div>
+                    <div class="stat-card questionable">
+                        <div class="stat-value" id="stat-questionable">0</div>
+                        <div class="stat-label">Questionable</div>
+                    </div>
+                    <div class="stat-card mistake">
+                        <div class="stat-value" id="stat-mistake">0</div>
+                        <div class="stat-label">Mistake</div>
+                    </div>
+                </div>
+
+                <div class="key-moments-section">
+                    <h3>Key Moments to Review</h3>
+                    <div id="key-moments-list" class="moments-list"></div>
+                </div>
+
+                <div class="llm-analysis-section">
+                    <h3>Play Style Analysis</h3>
+                    <div id="llm-analysis-container">
+                        <button id="analyze-btn" class="analyze-btn">Analyze My Play Style</button>
+                        <div id="llm-loading" class="llm-loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <span>Analyzing your play style...</span>
+                        </div>
+                        <div id="llm-result" class="llm-result" style="display: none;"></div>
+                        <div id="llm-no-key" class="llm-no-key" style="display: none;">
+                            <p>Configure your Claude API key in <a href="#" id="open-settings-link">Settings</a> to enable play style analysis.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Your Plays Tab -->
+            <div class="tab-content" id="tab-your-plays">
+                <div id="your-plays-list" class="plays-list"></div>
+            </div>
+
+            <!-- Full Match Tab -->
+            <div class="tab-content" id="tab-full-match">
+                <div class="hand-selector">
+                    <label>Select Hand:</label>
+                    <select id="hand-select"></select>
+                </div>
+                <div id="full-match-plays" class="plays-list"></div>
+            </div>
+        </div>
+        <div class="debrief-footer">
+            <button id="debrief-close-btn">Close</button>
+            <button id="debrief-new-match-btn">New Match</button>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js?v=10"></script>
+</body>
+</html>
