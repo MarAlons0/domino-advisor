@@ -15,19 +15,17 @@ Fix viewable area on mobile devices where some tiles get hidden/cut off. Ensure 
 
 ---
 
-### 1. Bayesian Probability for AI Decision Making
-**Priority:** High
+### 1. AI Enhancements (Future)
+**Priority:** Medium
 **Complexity:** Medium
 
-Enhance computer player decision-making by incorporating the statistical probability tracking (HandTracker) into SmartAI move selection.
+Further enhancements to AI decision-making beyond initial implementation.
 
-**Current state:** HandTracker tracks tile probabilities based on passes and plays, but SmartAI uses simpler heuristics (inferredDeadSuits, signaledSuits).
-
-**Proposed changes:**
-- Use Bayesian inference to estimate opponent hand compositions
-- Factor probability distributions into move scoring
-- Weight blocking decisions by likelihood of success
-- Consider partner's likely holdings when choosing plays
+**Potential additions:**
+- Defensive priority (when opponent has 1-2 tiles)
+- Look-ahead simulation (Monte Carlo)
+- Configurable blocking threshold (currently 0.7)
+- AI personalities (aggressive, conservative, etc.)
 
 ---
 
@@ -179,6 +177,18 @@ Add Spanish language option.
 ---
 
 ## Completed Features
+
+### Probability-Based AI Decision Making (Jan 2026)
+- Enhanced HandTracker with Bayesian probability calculations
+  - `getProbability(player, tile)` - P(player holds tile) using N/M reasoning
+  - `getPassProbability(player, value)` - P(player lacks all tiles with value)
+  - `getBlockingProbability(player, v1, v2)` - P(cuadrar forces pass)
+- Priority override system in SmartAI:
+  - Priority 1: Winning move (domino)
+  - Priority 2: High-confidence blocking (cuadrar with P > 0.7)
+  - Priority 3: Partner support in first 8 plays
+  - Fallback: Weighted scoring
+- Fixes "mata la mano" where pip management overrode partner support
 
 ### User Manual / Help Modal (Jan 2026)
 - In-app help button in header (? icon)
