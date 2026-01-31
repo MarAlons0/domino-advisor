@@ -210,11 +210,8 @@ export class SmartAI {
         }
 
         // PRIORITY 3: Partner support in early game (first 8 plays)
-        console.log(`[chooseMove] Player ${playerIndex} checking partner support, playCount=${this.playCount}`);
         const partnerSupportMove = this._findPartnerSupportMove(validMoves, gameState, playerIndex, chain);
-        console.log(`[chooseMove] partnerSupportMove=`, partnerSupportMove ? `${partnerSupportMove.tile.toKey()} on ${partnerSupportMove.end}` : 'null');
         if (partnerSupportMove && this.playCount < 8) {
-            console.log(`[chooseMove] Using partner support move!`);
             return partnerSupportMove;
         }
 
@@ -294,36 +291,22 @@ export class SmartAI {
         const partnerIndex = GameState.getPartner(playerIndex);
         const partnerSuit = this.signaledSuits[partnerIndex];
 
-        // DEBUG
-        console.log(`[Partner Support] Player ${playerIndex}, partner ${partnerIndex}, partnerSuit=${partnerSuit}, playCount=${this.playCount}`);
-        console.log(`[Partner Support] signaledSuits=`, this.signaledSuits);
-        console.log(`[Partner Support] killedOwnSuit=`, this.killedOwnSuit);
-
         // No partner signal yet, or partner has killed their suit
         if (partnerSuit === null || this.killedOwnSuit[partnerIndex]) {
-            console.log(`[Partner Support] Returning null - no signal or killed suit`);
             return null;
         }
 
         // Find moves that leave partner's suit open
         const partnerSupportMoves = [];
 
-        console.log(`[Partner Support] Chain ends: L=${chain.leftEnd}, R=${chain.rightEnd}`);
-        console.log(`[Partner Support] Valid moves:`, validMoves.map(m => `${m.tile.toKey()} on ${m.end}`));
-
         for (const move of validMoves) {
             const { newLeftEnd, newRightEnd } = this._getEndsAfterPlay(move, chain);
 
-            console.log(`[Partner Support] Move ${move.tile.toKey()} on ${move.end} -> L=${newLeftEnd}, R=${newRightEnd}`);
-
             // Check if this move leaves partner's suit as one of the open ends
             if (newLeftEnd === partnerSuit || newRightEnd === partnerSuit) {
-                console.log(`[Partner Support] -> SUPPORTS partner (${partnerSuit})`);
                 partnerSupportMoves.push(move);
             }
         }
-
-        console.log(`[Partner Support] Found ${partnerSupportMoves.length} supporting moves`);
 
         if (partnerSupportMoves.length === 0) {
             return null;
