@@ -57,9 +57,15 @@ h1 .version {
     text-decoration: underline;
 }
 
-.settings-btn {
+.header-buttons {
     position: absolute;
     right: 0;
+    display: flex;
+    gap: 5px;
+}
+
+.settings-btn,
+.help-btn {
     background: transparent;
     border: none;
     color: #888;
@@ -69,7 +75,8 @@ h1 .version {
     transition: color 0.2s, background 0.2s;
 }
 
-.settings-btn:hover {
+.settings-btn:hover,
+.help-btn:hover {
     color: #00d4ff;
     background: rgba(0, 212, 255, 0.1);
 }
@@ -685,6 +692,89 @@ button:disabled {
 
 .review-btn:hover {
     background: #4f46e5;
+}
+
+/* Settings Modal */
+/* Help Modal */
+.help-modal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #16213e;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    z-index: 101;
+    width: 90%;
+    max-width: 500px;
+    max-height: 85vh;
+    overflow: hidden;
+    display: none;
+    flex-direction: column;
+}
+
+.help-modal.visible {
+    display: flex;
+}
+
+.help-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #0f3460;
+    flex-shrink: 0;
+}
+
+.help-header h2 {
+    margin: 0;
+    color: #00d4ff;
+    font-size: 1.2rem;
+}
+
+.help-content {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.help-section {
+    margin-bottom: 20px;
+}
+
+.help-section:last-child {
+    margin-bottom: 0;
+}
+
+.help-section h3 {
+    color: #00d4ff;
+    font-size: 1rem;
+    margin: 0 0 10px 0;
+    border-bottom: 1px solid #0f3460;
+    padding-bottom: 5px;
+}
+
+.help-section p {
+    margin: 0 0 10px 0;
+    color: #ccc;
+    line-height: 1.5;
+}
+
+.help-section ol,
+.help-section ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #ccc;
+}
+
+.help-section li {
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.help-section strong {
+    color: #fff;
 }
 
 /* Settings Modal */

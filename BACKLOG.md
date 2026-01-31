@@ -56,7 +56,7 @@ Add a settings panel to let users adjust the relative importance of different st
 
 ## Features from Project Roadmap (Not Yet Implemented)
 
-### 4. Training Mode (Phase 4 from Project Doc)
+### 3. Training Mode
 **Priority:** High
 **Complexity:** High
 
@@ -71,7 +71,7 @@ Structured lessons teaching strategic concepts through guided play.
 
 ---
 
-### 5. Position Analyzer
+### 4. Position Analyzer
 **Priority:** Medium
 **Complexity:** Medium
 
@@ -85,7 +85,7 @@ Analyze arbitrary game positions without playing a full game.
 
 ---
 
-### 6. Game Save/Replay
+### 5. Game Save/Replay
 **Priority:** Low
 **Complexity:** Medium
 
@@ -99,7 +99,7 @@ Save and replay completed games for study.
 
 ---
 
-### 7. Pass Indicators on UI
+### 6. Pass Indicators on UI
 **Priority:** Medium
 **Complexity:** Low
 
@@ -113,7 +113,7 @@ Show visual indicators when players have passed on specific suits.
 
 ---
 
-### 8. Real-time vs Review Feedback Mode
+### 7. Real-time vs Review Feedback Mode
 **Priority:** Low
 **Complexity:** Medium
 
@@ -126,7 +126,7 @@ Toggle between immediate feedback and end-of-hand review.
 
 ---
 
-### 9. "Why Did I Lose?" Analysis
+### 8. "Why Did I Lose?" Analysis
 **Priority:** Low
 **Complexity:** Medium
 
@@ -139,7 +139,7 @@ Explain blocked game outcomes.
 
 ---
 
-### 10. Bonus Scoring (Regional Variants)
+### 9. Bonus Scoring (Regional Variants)
 **Priority:** Low
 **Complexity:** Low
 
@@ -152,7 +152,7 @@ Support optional regional scoring bonuses.
 
 ---
 
-### 11. Glossary Tooltips
+### 10. Glossary Tooltips
 **Priority:** Low
 **Complexity:** Low
 
@@ -165,7 +165,7 @@ Teach traditional terminology through the UI.
 
 ---
 
-### 12. Spanish Language Support
+### 11. Spanish Language Support
 **Priority:** Low
 **Complexity:** Medium
 
@@ -179,6 +179,12 @@ Add Spanish language option.
 ---
 
 ## Completed Features
+
+### User Manual / Help Modal (Jan 2026)
+- In-app help button in header (? icon)
+- Modal with game overview, how to play, scoring rules
+- Feature explanations (Quiz, Attribution, Debrief)
+- Strategy tips for beginners
 
 ### Player Color Coding & Tile Attribution (Jan 2026)
 - 4 distinct player colors: You (cyan), Opp 1 (coral), Partner (green), Opp 2 (orange)

@@ -162,6 +162,12 @@ class DominoApp {
         // Attribution toggle
         this.attributionToggle = document.getElementById('attribution-toggle');
         this.playerLegend = document.getElementById('player-legend');
+
+        // Help modal
+        this.helpBtn = document.getElementById('help-btn');
+        this.helpModal = document.getElementById('help-modal');
+        this.helpOverlay = document.getElementById('help-overlay');
+        this.closeHelpBtn = document.getElementById('close-help-btn');
     }
 
     initUIModules() {
@@ -176,6 +182,39 @@ class DominoApp {
         // Pass quiz storage and hand tracker to debrief UI
         this.debriefUI.quizStorage = this.quizStorage;
         this.debriefUI.handTracker = this.handTracker;
+
+        // Initialize help modal handlers
+        this._initHelpModal();
+    }
+
+    _initHelpModal() {
+        if (this.helpBtn) {
+            this.helpBtn.addEventListener('click', () => this.showHelp());
+        }
+        if (this.closeHelpBtn) {
+            this.closeHelpBtn.addEventListener('click', () => this.hideHelp());
+        }
+        if (this.helpOverlay) {
+            this.helpOverlay.addEventListener('click', () => this.hideHelp());
+        }
+    }
+
+    showHelp() {
+        if (this.helpModal) {
+            this.helpModal.classList.add('visible');
+        }
+        if (this.helpOverlay) {
+            this.helpOverlay.classList.add('visible');
+        }
+    }
+
+    hideHelp() {
+        if (this.helpModal) {
+            this.helpModal.classList.remove('visible');
+        }
+        if (this.helpOverlay) {
+            this.helpOverlay.classList.remove('visible');
+        }
     }
 
     initQuizElements() {

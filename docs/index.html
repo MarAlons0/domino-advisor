@@ -4,18 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Domino Advisor v0.2</title>
-    <link rel="stylesheet" href="css/styles.css?v=7">
+    <link rel="stylesheet" href="css/styles.css?v=8">
 </head>
 <body>
     <header class="app-header">
         <h1>Domino Advisor <span class="version">v0.2</span></h1>
         <p class="attribution">Created by <a href="https://looking4nature.com" target="_blank" rel="noopener">Mario Alonso</a></p>
-        <button id="settings-btn" class="settings-btn" title="Settings">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-        </button>
+        <div class="header-buttons">
+            <button id="help-btn" class="help-btn" title="Help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+            </button>
+            <button id="settings-btn" class="settings-btn" title="Settings">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+            </button>
+        </div>
     </header>
 
     <div class="game-wrapper">
@@ -179,6 +188,59 @@
         </div>
     </div>
 
+    <!-- Help Modal -->
+    <div class="modal-overlay" id="help-overlay"></div>
+    <div class="help-modal" id="help-modal">
+        <div class="help-header">
+            <h2>How to Play</h2>
+            <button id="close-help-btn" class="close-btn">&times;</button>
+        </div>
+        <div class="help-content">
+            <section class="help-section">
+                <h3>About the Game</h3>
+                <p>Domino Advisor simulates <strong>4-player partnership dominoes</strong> (Cuban/Puerto Rican style). You and your partner (across the table) play against two opponents. First team to 100 points wins the match.</p>
+            </section>
+
+            <section class="help-section">
+                <h3>How to Play</h3>
+                <ol>
+                    <li><strong>New Game</strong> - Click to start a new match. The player with the double-six leads.</li>
+                    <li><strong>Play a tile</strong> - Click a tile in your hand to play it. If it can only connect one way, it plays automatically. If it can connect to either end, you'll choose which end.</li>
+                    <li><strong>Pass</strong> - If you can't play, the Pass button enables. Click it to pass your turn.</li>
+                </ol>
+            </section>
+
+            <section class="help-section">
+                <h3>Scoring</h3>
+                <ul>
+                    <li><strong>Domino</strong> - A player plays their last tile. Their team scores the total pips in opponents' hands.</li>
+                    <li><strong>Blocked game</strong> - No one can play. The team with fewer pips wins the difference.</li>
+                    <li><strong>Match</strong> - First team to 100 points wins.</li>
+                </ul>
+            </section>
+
+            <section class="help-section">
+                <h3>Features</h3>
+                <ul>
+                    <li><strong>Quiz Me</strong> - Test your ability to predict what tiles other players hold based on their plays and passes.</li>
+                    <li><strong>Show who played</strong> - Toggle to see color-coded indicators showing who played each tile on the chain.</li>
+                    <li><strong>Match Debrief</strong> - After the match ends, review your plays and get feedback on optimal choices.</li>
+                    <li><strong>Play Style Analysis</strong> - In the debrief, use your Claude API key to get personalized analysis of your playing style.</li>
+                </ul>
+            </section>
+
+            <section class="help-section">
+                <h3>Strategy Tips</h3>
+                <ul>
+                    <li><strong>Track passes</strong> - When someone passes, they lack both open-end values. Remember this!</li>
+                    <li><strong>Support your partner</strong> - Notice what suits your partner plays and try to keep those open.</li>
+                    <li><strong>Manage doubles</strong> - Play doubles when you have "cover" (other tiles in that suit).</li>
+                    <li><strong>Count tiles</strong> - There are 7 tiles per suit. Track what's been played.</li>
+                </ul>
+            </section>
+        </div>
+    </div>
+
     <!-- Settings Modal -->
     <div class="modal-overlay" id="settings-overlay"></div>
     <div class="settings-modal" id="settings-modal">
@@ -320,6 +382,6 @@
         </div>
     </div>
 
-    <script type="module" src="js/main.js?v=14"></script>
+    <script type="module" src="js/main.js?v=15"></script>
 </body>
 </html>
