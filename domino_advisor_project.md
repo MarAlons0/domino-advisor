@@ -1,5 +1,16 @@
 # Domino Advisor - Project Definition
 
+**Current Version**: v0.2 (Beta)
+
+## Version History
+
+| Version | Date | Highlights |
+|---------|------|------------|
+| v0.2 | Jan 2026 | Quiz mode, hand tracking, player color coding, tile attribution |
+| v0.1 | Jan 2026 | Initial release: game engine, SmartAI, match debrief, Claude analysis |
+
+---
+
 ## Project Overview
 
 **Domino Advisor** is a web-based training tool and game simulator for Mexican-style partnership dominoes. The application teaches strategic thinking through detailed, principle-based explanations of optimal plays while allowing users to play against AI opponents or analyze specific game situations.
@@ -436,6 +447,111 @@ Recommendation: {
   - Full Match tab: Play-by-play for each hand
 - **Claude API Integration**: Play style analysis using Claude Haiku
 
+#### v0.2: Quiz Mode & Hand Tracking ✅
+- **HandTracker**: Probability tracking for all 28 tiles
+  - Tracks known tile locations (played, in human's hand, unknown)
+  - Maintains `possibleHolders` set for each unknown tile
+  - Records passes to infer dead suits per player
+  - Provides `getProbability(player, tile)` for likelihood estimates
+  - Scores quiz predictions against actual hands
+- **Quiz Mode**: Test ability to predict opponent hands mid-game
+  - "Quiz Me" button opens prediction modal
+  - Select target player (Opp 1, Partner, Opp 2)
+  - Shows known facts (tile count, dead suits from passes)
+  - Visual tile picker grid for predictions
+  - Scoring: +10 correct, -5 wrong, -2 missed
+- **QuizStorage**: Persists quiz history to localStorage
+  - Tracks accuracy over time per player position
+  - Calculates improvement trends
+- **Predictions Tab**: New debrief tab showing quiz performance
+  - Match quiz statistics
+  - Historical accuracy by player
+  - Deduction timeline (what you could have known)
+
+#### v0.2: Player Color Coding ✅
+- **4 distinct player colors**:
+  - You (Player 0): Cyan `#00d4ff`
+  - Opponent 1: Coral `#ff6b6b`
+  - Partner (Player 2): Green `#22c55e`
+  - Opponent 2: Orange `#f59e0b`
+- **Tile Attribution Toggle**: Shows who played each tile on chain
+  - Colored indicator dots with initials (Y, 1, P, 2)
+  - Subtle glow effect on tiles
+  - Color legend when enabled
+- **Chain tracks player**: Each `PlacedTile` now stores `playedBy` index
+- **Consistent colors**: Player names, game log, and tiles all use same colors
+
+---
+
+### Computer AI: How SmartAI Works
+
+The three computer-controlled players (Opponent 1, Partner, Opponent 2) all use the same `SmartAI` class. There is no randomness or difficulty adjustment—all AI players use identical strategic logic.
+
+#### AI Decision Process
+
+1. **Get valid moves** from `Rules.getValidMoves()`
+2. **If only one move**: Play it (no decision needed)
+3. **Score each valid move** using 8 strategic factors
+4. **Select highest-scoring move**
+5. **Generate explanation** using `StrategicExplainer`
+
+#### Move Scoring Factors
+
+Each potential move is scored by summing these weighted factors:
+
+| Factor | Weight | Logic |
+|--------|--------|-------|
+| **Suit Strength** | +10 per tile | Prefer playing from suits where you have multiple tiles |
+| **Double Management** | +25 with cover, -15 without | Prioritize unloading doubles when you have follow-up plays |
+| **Partner Support** | +15 to +25 | Play to partner's signaled suit (la salida) |
+| **Blocking Potential** | +15 to +20 | Leave ends on suits opponents have passed on |
+| **Pip Management** | +1.5 per pip (early), +0.5 (late) | Play high-pip tiles early to reduce risk |
+| **End Control** | +5 per tile | Keep your strong suits on open ends |
+| **Tile Counting Bonus** | +10 or -10 | Prefer leaving suits with many tiles still out |
+| **Avoid Dead Suits** | -30 | Never leave a dead suit as the only option |
+
+#### AI State Tracking
+
+The AI maintains per-hand state that resets each hand:
+
+```javascript
+playerSalida[4]        // Opening play suit for each player
+suitCounts[7]          // Tiles played per suit (0-6)
+inferredDeadSuits[4]   // Sets of suits each player lacks
+signaledSuits[4]       // Each player's strong suit signal
+killedOwnSuit[4]       // Whether player abandoned their signal
+```
+
+#### Inference Logic
+
+**From passes**: When a player passes, they lack tiles for both open end values:
+```javascript
+inferredDeadSuits[player].add(leftEnd);
+inferredDeadSuits[player].add(rightEnd);
+```
+
+**From play choices**: If a player avoids their own signaled suit when they had a choice, they may be out:
+```javascript
+if (avoided === signaledSuit && playedOn !== signaledSuit) {
+    killedOwnSuit[player] = true;
+    inferredDeadSuits[player].add(signaledSuit);
+}
+```
+
+#### AI Limitations (Current)
+
+- **No look-ahead**: Evaluates only immediate move, not future consequences
+- **No Monte Carlo simulation**: Doesn't simulate random hands to estimate outcomes
+- **No Bayesian probability**: Uses binary "has/lacks" inference, not probability distributions
+- **Uniform for all AI players**: Partner and opponents use identical logic
+- **Fixed weights**: Strategic factor weights are hardcoded, not tunable
+
+#### Future AI Improvements (Backlog)
+
+1. **Bayesian probability integration**: Use HandTracker's probability model in move scoring
+2. **Configurable strategy weights**: Let users adjust AI aggressiveness, partner focus, etc.
+3. **Difficulty levels**: Adjust inference depth or add controlled randomness
+
 ---
 
 ### Project Architecture
@@ -445,15 +561,15 @@ domino-advisor/
 ├── docs/                          # Deployed to GitHub Pages
 │   ├── index.html                 # Main HTML with game layout
 │   ├── css/
-│   │   └── styles.css             # All styling (table, modals, debrief)
+│   │   └── styles.css             # All styling (table, modals, debrief, quiz)
 │   └── js/
-│       ├── main.js                # UI controller, event handling
+│       ├── main.js                # UI controller, event handling, quiz modal
 │       ├── models/
 │       │   ├── Tile.js            # Tile representation
 │       │   ├── Hand.js            # Player hand management
-│       │   ├── Chain.js           # Board chain with placed tiles
+│       │   ├── Chain.js           # Board chain with placed tiles + playedBy
 │       │   ├── GameState.js       # Complete game state
-│       │   └── MatchHistory.js    # Match tracking for debrief
+│       │   └── MatchHistory.js    # Match tracking for debrief + quiz results
 │       ├── engine/
 │       │   ├── TileSet.js         # Full set generation
 │       │   ├── Dealer.js          # Dealing logic
@@ -462,12 +578,15 @@ domino-advisor/
 │       ├── ai/
 │       │   ├── RandomAI.js        # Simple random AI (unused)
 │       │   ├── SmartAI.js         # Strategic AI with principles
-│       │   └── StrategicExplainer.js  # Terminology-based explanations
+│       │   ├── StrategicExplainer.js  # Terminology-based explanations
+│       │   └── HandTracker.js     # Tile probability tracking for quiz mode
 │       ├── services/
-│       │   └── ClaudeService.js   # Claude API integration
+│       │   ├── ClaudeService.js   # Claude API integration
+│       │   └── QuizStorage.js     # localStorage for quiz history
 │       └── ui/
 │           ├── SettingsUI.js      # Settings modal
-│           └── DebriefUI.js       # Match debrief modal
+│           └── DebriefUI.js       # Match debrief modal + predictions tab
+├── BACKLOG.md                     # Feature backlog and roadmap
 └── domino_advisor_project.md      # This document
 ```
 
