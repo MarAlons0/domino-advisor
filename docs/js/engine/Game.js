@@ -107,7 +107,7 @@ export class Game {
 
         // Execute the play
         hand.remove(tile);
-        chain.play(tile, end);
+        chain.play(tile, end, this.state.currentPlayer);
         this.state.recordPlay(tile, end);
 
         // Record play in match history

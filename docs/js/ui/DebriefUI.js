@@ -8,6 +8,8 @@ export class DebriefUI {
     constructor() {
         this.claudeService = new ClaudeService();
         this.matchHistory = null;
+        this.quizStorage = null;  // Set by main.js
+        this.handTracker = null;  // Set by main.js
         this.isInitialized = false;
         this.onNewMatch = null;
         this.onOpenSettings = null;
@@ -48,6 +50,15 @@ export class DebriefUI {
         this.llmResult = document.getElementById('llm-result');
         this.llmNoKey = document.getElementById('llm-no-key');
         this.openSettingsLink = document.getElementById('open-settings-link');
+
+        // Predictions tab elements
+        this.predictionStats = document.getElementById('prediction-stats');
+        this.accuracyOverall = document.getElementById('accuracy-overall');
+        this.accuracyOpp1 = document.getElementById('accuracy-opp1');
+        this.accuracyPartner = document.getElementById('accuracy-partner');
+        this.accuracyOpp2 = document.getElementById('accuracy-opp2');
+        this.accuracyTrend = document.getElementById('accuracy-trend');
+        this.deductionTimelineList = document.getElementById('deduction-timeline-list');
 
         if (!this.modal) {
             console.warn('DebriefUI: Debrief modal not found in DOM');
@@ -132,6 +143,7 @@ export class DebriefUI {
         this._updateYourPlays();
         this._updateHandSelector();
         this._updateLLMSection();
+        this._updatePredictionsTab();
     }
 
     /**
@@ -164,6 +176,11 @@ export class DebriefUI {
         // Render full match if switching to that tab
         if (tabId === 'full-match') {
             this._renderFullMatch();
+        }
+
+        // Render predictions if switching to that tab
+        if (tabId === 'predictions') {
+            this._updatePredictionsTab();
         }
     }
 
@@ -403,5 +420,141 @@ export class DebriefUI {
             this.llmResult.style.display = 'block';
             this.analyzeBtn.style.display = 'block';
         }
+    }
+
+    /**
+     * Update the Predictions tab content
+     * @private
+     */
+    _updatePredictionsTab() {
+        this._updateMatchQuizStats();
+        this._updateHistoricalAccuracy();
+        this._updateDeductionTimeline();
+    }
+
+    /**
+     * Update match quiz statistics
+     * @private
+     */
+    _updateMatchQuizStats() {
+        if (!this.predictionStats || !this.matchHistory) return;
+
+        const quizStats = this.matchHistory.getQuizStats();
+
+        if (quizStats.totalQuizzes === 0) {
+            this.predictionStats.innerHTML = '<div class="empty-state">No quizzes taken this match. Click "Quiz Me" during gameplay to test your prediction skills!</div>';
+            return;
+        }
+
+        this.predictionStats.innerHTML = `
+            <div class="prediction-stat-row">
+                <span class="stat-label">Quizzes Taken</span>
+                <span class="stat-value">${quizStats.totalQuizzes}</span>
+            </div>
+            <div class="prediction-stat-row">
+                <span class="stat-label">Average Score</span>
+                <span class="stat-value">${quizStats.avgScore}</span>
+            </div>
+            <div class="prediction-stat-row">
+                <span class="stat-label">Correct Predictions</span>
+                <span class="stat-value">${quizStats.totalCorrect}</span>
+            </div>
+            <div class="prediction-stat-row">
+                <span class="stat-label">Wrong Predictions</span>
+                <span class="stat-value">${quizStats.totalWrong}</span>
+            </div>
+            <div class="prediction-stat-row">
+                <span class="stat-label">Accuracy</span>
+                <span class="stat-value">${quizStats.accuracy}%</span>
+            </div>
+        `;
+    }
+
+    /**
+     * Update historical accuracy display
+     * @private
+     */
+    _updateHistoricalAccuracy() {
+        if (!this.quizStorage) return;
+
+        const stats = this.quizStorage.getAccuracyStats();
+
+        // Update overall accuracy
+        if (this.accuracyOverall) {
+            this.accuracyOverall.textContent = stats.overall.totalQuizzes > 0
+                ? `${stats.overall.accuracy}%`
+                : '--%';
+        }
+
+        // Update per-player accuracy
+        if (this.accuracyOpp1) {
+            this.accuracyOpp1.textContent = stats.byPlayer[1].quizzes > 0
+                ? `${stats.byPlayer[1].accuracy}%`
+                : '--%';
+        }
+
+        if (this.accuracyPartner) {
+            this.accuracyPartner.textContent = stats.byPlayer[2].quizzes > 0
+                ? `${stats.byPlayer[2].accuracy}%`
+                : '--%';
+        }
+
+        if (this.accuracyOpp2) {
+            this.accuracyOpp2.textContent = stats.byPlayer[3].quizzes > 0
+                ? `${stats.byPlayer[3].accuracy}%`
+                : '--%';
+        }
+
+        // Update trend
+        if (this.accuracyTrend) {
+            const trend = this.quizStorage.getAccuracyTrend();
+
+            if (trend.trend === 'insufficient_data') {
+                this.accuracyTrend.textContent = 'Take more quizzes to see your improvement trend.';
+                this.accuracyTrend.className = 'accuracy-trend stable';
+            } else {
+                const trendText = trend.trend === 'improving'
+                    ? `Improving! Recent: ${trend.recent}%, Previous: ${trend.previous}%`
+                    : trend.trend === 'declining'
+                    ? `Declining. Recent: ${trend.recent}%, Previous: ${trend.previous}%`
+                    : `Stable. Recent: ${trend.recent}%, Previous: ${trend.previous}%`;
+
+                this.accuracyTrend.textContent = trendText;
+                this.accuracyTrend.className = `accuracy-trend ${trend.trend}`;
+            }
+        }
+    }
+
+    /**
+     * Update deduction timeline
+     * @private
+     */
+    _updateDeductionTimeline() {
+        if (!this.deductionTimelineList || !this.handTracker) return;
+
+        const history = this.handTracker.getDeductionHistory();
+
+        if (history.length === 0) {
+            this.deductionTimelineList.innerHTML = '<div class="empty-state">No deductions recorded for this hand.</div>';
+            return;
+        }
+
+        // Show only pass-related deductions (most interesting for learning)
+        const passDeductions = history.filter(d => d.type === 'pass');
+
+        if (passDeductions.length === 0) {
+            this.deductionTimelineList.innerHTML = '<div class="empty-state">No passes recorded this hand. Passes reveal which suits opponents lack.</div>';
+            return;
+        }
+
+        this.deductionTimelineList.innerHTML = passDeductions.map(d => `
+            <div class="timeline-item ${d.type}">
+                <div class="timeline-header">
+                    <span class="timeline-play">After play #${d.playIndex}</span>
+                    <span class="timeline-type">${d.type}</span>
+                </div>
+                <p class="timeline-description">${d.description}</p>
+            </div>
+        `).join('');
     }
 }

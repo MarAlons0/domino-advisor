@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Domino Advisor</title>
-    <link rel="stylesheet" href="css/styles.css?v=4">
+    <title>Domino Advisor v0.2</title>
+    <link rel="stylesheet" href="css/styles.css?v=7">
 </head>
 <body>
     <header class="app-header">
-        <h1>Domino Advisor</h1>
+        <h1>Domino Advisor <span class="version">v0.2</span></h1>
         <p class="attribution">Created by <a href="https://looking4nature.com" target="_blank" rel="noopener">Mario Alonso</a></p>
         <button id="settings-btn" class="settings-btn" title="Settings">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -37,7 +37,7 @@
                 <!-- Partner (top) -->
                 <div class="player-position player-top">
                     <div class="player-info">
-                        <div class="player-name your-team" id="player-2-name">Partner</div>
+                        <div class="player-name player-color-2" id="player-2-name">Partner</div>
                         <div class="tile-count horizontal" id="player-2-tiles"></div>
                     </div>
                 </div>
@@ -45,7 +45,7 @@
                 <!-- Opponent 2 (left) -->
                 <div class="player-position player-left">
                     <div class="player-info">
-                        <div class="player-name opponent-team" id="player-3-name">Opp 2</div>
+                        <div class="player-name player-color-3" id="player-3-name">Opp 2</div>
                         <div class="tile-count vertical" id="player-3-tiles"></div>
                     </div>
                 </div>
@@ -60,7 +60,7 @@
                 <!-- Opponent 1 (right) -->
                 <div class="player-position player-right">
                     <div class="player-info">
-                        <div class="player-name opponent-team" id="player-1-name">Opp 1</div>
+                        <div class="player-name player-color-1" id="player-1-name">Opp 1</div>
                         <div class="tile-count vertical" id="player-1-tiles"></div>
                     </div>
                 </div>
@@ -68,13 +68,27 @@
                 <!-- You (bottom) - indicator only, hand shown below -->
                 <div class="player-position player-bottom">
                     <div class="player-info">
-                        <div class="player-name your-team" id="player-0-name">You</div>
+                        <div class="player-name player-color-0" id="player-0-name">You</div>
                     </div>
                 </div>
             </div>
 
             <!-- Open Ends Indicator -->
             <div class="open-ends" id="open-ends"></div>
+
+            <!-- Attribution Toggle & Legend -->
+            <div class="attribution-area">
+                <label class="attribution-toggle">
+                    <input type="checkbox" id="attribution-toggle">
+                    Show who played each tile
+                </label>
+                <div class="player-legend" id="player-legend" style="display: none;">
+                    <div class="legend-item"><span class="legend-dot player-0"></span><span class="legend-label">You</span></div>
+                    <div class="legend-item"><span class="legend-dot player-1"></span><span class="legend-label">Opp 1</span></div>
+                    <div class="legend-item"><span class="legend-dot player-2"></span><span class="legend-label">Partner</span></div>
+                    <div class="legend-item"><span class="legend-dot player-3"></span><span class="legend-label">Opp 2</span></div>
+                </div>
+            </div>
 
             <!-- Your Hand -->
             <div class="hand-area">
@@ -88,6 +102,7 @@
             <!-- Controls -->
             <div class="controls">
                 <button id="new-game-btn">New Game</button>
+                <button id="quiz-btn" class="quiz-btn" disabled>Quiz Me</button>
                 <button id="pass-btn" class="pass-btn" disabled>Pass</button>
             </div>
         </div>
@@ -119,6 +134,48 @@
         <div class="message-buttons">
             <button id="continue-btn">Continue</button>
             <button id="review-btn" class="review-btn" style="display: none;">Review Game</button>
+        </div>
+    </div>
+
+    <!-- Quiz Modal -->
+    <div class="modal-overlay" id="quiz-overlay"></div>
+    <div class="quiz-modal" id="quiz-modal">
+        <div class="quiz-header">
+            <h2>Predict Opponent's Hand</h2>
+            <button id="close-quiz-btn" class="close-btn">&times;</button>
+        </div>
+        <div class="quiz-content">
+            <div class="quiz-target-selector">
+                <label>Who do you want to predict?</label>
+                <div class="quiz-target-buttons">
+                    <button class="target-btn" data-player="1">Opp 1</button>
+                    <button class="target-btn" data-player="2">Partner</button>
+                    <button class="target-btn" data-player="3">Opp 2</button>
+                </div>
+            </div>
+            <div class="quiz-context" id="quiz-context">
+                <p>Select a player to see what you know about their hand.</p>
+            </div>
+            <div class="quiz-tile-picker" id="quiz-tile-picker">
+                <p class="picker-instructions">Select tiles you think they hold:</p>
+                <div class="tile-grid" id="quiz-tile-grid"></div>
+                <div class="selection-count">
+                    Selected: <span id="quiz-selection-count">0</span> / <span id="quiz-target-count">7</span> tiles
+                </div>
+            </div>
+            <div class="quiz-actions">
+                <button id="submit-quiz-btn" class="submit-quiz-btn" disabled>Check Prediction</button>
+                <button id="skip-quiz-btn" class="skip-quiz-btn">Cancel</button>
+            </div>
+        </div>
+        <div class="quiz-result" id="quiz-result" style="display: none;">
+            <h3 id="quiz-result-title">Results</h3>
+            <div class="quiz-score">
+                <span class="score-label">Score:</span>
+                <span class="score-value" id="quiz-score-value">0</span>
+            </div>
+            <div class="quiz-breakdown" id="quiz-breakdown"></div>
+            <button id="quiz-done-btn" class="quiz-done-btn">Done</button>
         </div>
     </div>
 
@@ -161,6 +218,7 @@
             <button class="tab-btn active" data-tab="overview">Overview</button>
             <button class="tab-btn" data-tab="your-plays">Your Plays</button>
             <button class="tab-btn" data-tab="full-match">Full Match</button>
+            <button class="tab-btn" data-tab="predictions">Predictions</button>
         </div>
         <div class="debrief-content">
             <!-- Overview Tab -->
@@ -218,6 +276,43 @@
                 </div>
                 <div id="full-match-plays" class="plays-list"></div>
             </div>
+
+            <!-- Predictions Tab -->
+            <div class="tab-content" id="tab-predictions">
+                <div class="predictions-summary">
+                    <h3>Quiz Performance This Match</h3>
+                    <div class="prediction-stats" id="prediction-stats">
+                        <div class="empty-state">No quizzes taken this match.</div>
+                    </div>
+                </div>
+                <div class="predictions-history">
+                    <h3>Historical Accuracy</h3>
+                    <div class="accuracy-cards" id="accuracy-cards">
+                        <div class="accuracy-card">
+                            <div class="accuracy-label">Overall</div>
+                            <div class="accuracy-value" id="accuracy-overall">--%</div>
+                        </div>
+                        <div class="accuracy-card">
+                            <div class="accuracy-label">Opp 1</div>
+                            <div class="accuracy-value" id="accuracy-opp1">--%</div>
+                        </div>
+                        <div class="accuracy-card">
+                            <div class="accuracy-label">Partner</div>
+                            <div class="accuracy-value" id="accuracy-partner">--%</div>
+                        </div>
+                        <div class="accuracy-card">
+                            <div class="accuracy-label">Opp 2</div>
+                            <div class="accuracy-value" id="accuracy-opp2">--%</div>
+                        </div>
+                    </div>
+                    <div class="accuracy-trend" id="accuracy-trend"></div>
+                </div>
+                <div class="deduction-timeline">
+                    <h3>Information Timeline</h3>
+                    <p class="timeline-description">Key deductions you could have made during the match:</p>
+                    <div id="deduction-timeline-list" class="timeline-list"></div>
+                </div>
+            </div>
         </div>
         <div class="debrief-footer">
             <button id="debrief-close-btn">Close</button>
@@ -225,6 +320,6 @@
         </div>
     </div>
 
-    <script type="module" src="js/main.js?v=11"></script>
+    <script type="module" src="js/main.js?v=14"></script>
 </body>
 </html>

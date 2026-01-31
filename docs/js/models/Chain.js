@@ -6,6 +6,7 @@ import { Tile } from './Tile.js';
  * @property {Tile} tile - The tile
  * @property {number} leftValue - Value shown on left side (toward left end of chain)
  * @property {number} rightValue - Value shown on right side (toward right end of chain)
+ * @property {number} playedBy - Player index (0-3) who played this tile
  */
 
 /**
@@ -64,15 +65,17 @@ export class Chain {
      * Play a tile on the chain.
      * @param {Tile} tile - The tile to play
      * @param {string} end - 'left' or 'right'
+     * @param {number} [playedBy=-1] - Player index (0-3) who played this tile
      * @returns {boolean} True if play was successful
      */
-    play(tile, end) {
+    play(tile, end, playedBy = -1) {
         if (this.isEmpty()) {
             // First tile - by convention, low on left, high on right
             this.placedTiles.push({
                 tile: tile,
                 leftValue: tile.low,
-                rightValue: tile.high
+                rightValue: tile.high,
+                playedBy: playedBy
             });
             this.leftEnd = tile.low;
             this.rightEnd = tile.high;
@@ -90,7 +93,8 @@ export class Chain {
             this.placedTiles.unshift({
                 tile: tile,
                 leftValue: newLeftEnd,
-                rightValue: connectingValue
+                rightValue: connectingValue,
+                playedBy: playedBy
             });
             this.leftEnd = newLeftEnd;
 
@@ -105,7 +109,8 @@ export class Chain {
             this.placedTiles.push({
                 tile: tile,
                 leftValue: connectingValue,
-                rightValue: newRightEnd
+                rightValue: newRightEnd,
+                playedBy: playedBy
             });
             this.rightEnd = newRightEnd;
 
@@ -169,7 +174,8 @@ export class Chain {
             chain.placedTiles.push({
                 tile: new Tile(pt.tile.high, pt.tile.low),
                 leftValue: pt.leftValue,
-                rightValue: pt.rightValue
+                rightValue: pt.rightValue,
+                playedBy: pt.playedBy
             });
         });
         chain.leftEnd = this.leftEnd;

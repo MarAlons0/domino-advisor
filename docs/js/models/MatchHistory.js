@@ -19,6 +19,17 @@ import { GameState } from './GameState.js';
  *       isHuman: boolean,
  *       evaluation: 'optimal' | 'good' | 'questionable' | 'mistake' | null
  *     }],
+ *     quizResults: [{
+ *       playIndex: number,
+ *       targetPlayer: number,
+ *       userPrediction: string[],
+ *       actualHand: string[],
+ *       score: number,
+ *       correct: number,
+ *       wrong: number,
+ *       missed: number,
+ *       timestamp: number
+ *     }],
  *     result: { reason, winner, points, finalHands }
  *   }]
  * }
@@ -39,6 +50,7 @@ export class MatchHistory {
             handNumber: handNumber,
             startingPlayer: startingPlayer,
             plays: [],
+            quizResults: [],
             result: null
         };
         this.hands.push(this.currentHand);
@@ -251,6 +263,95 @@ export class MatchHistory {
      */
     getHand(handNumber) {
         return this.hands.find(h => h.handNumber === handNumber) || null;
+    }
+
+    /**
+     * Record a quiz result for the current hand
+     * @param {object} quizResult - { targetPlayer, userPrediction, actualHand, score, correct, wrong, missed }
+     */
+    recordQuizResult(quizResult) {
+        if (!this.currentHand) {
+            console.warn('MatchHistory: No current hand to record quiz');
+            return;
+        }
+
+        const record = {
+            playIndex: this.currentHand.plays.length,
+            targetPlayer: quizResult.targetPlayer,
+            userPrediction: quizResult.userPrediction,
+            actualHand: quizResult.actualHand,
+            score: quizResult.score,
+            correct: quizResult.correct,
+            wrong: quizResult.wrong,
+            missed: quizResult.missed,
+            timestamp: Date.now()
+        };
+
+        this.currentHand.quizResults.push(record);
+    }
+
+    /**
+     * Get all quiz results for the match
+     * @returns {Array}
+     */
+    getQuizResults() {
+        const results = [];
+        for (const hand of this.hands) {
+            for (const quiz of (hand.quizResults || [])) {
+                results.push({
+                    handNumber: hand.handNumber,
+                    ...quiz
+                });
+            }
+        }
+        return results;
+    }
+
+    /**
+     * Get quiz statistics for the match
+     * @returns {object}
+     */
+    getQuizStats() {
+        const results = this.getQuizResults();
+
+        if (results.length === 0) {
+            return {
+                totalQuizzes: 0,
+                totalScore: 0,
+                avgScore: 0,
+                totalCorrect: 0,
+                totalWrong: 0,
+                totalMissed: 0,
+                accuracy: 0
+            };
+        }
+
+        let totalScore = 0;
+        let totalCorrect = 0;
+        let totalWrong = 0;
+        let totalMissed = 0;
+
+        for (const quiz of results) {
+            totalScore += quiz.score || 0;
+            totalCorrect += quiz.correct || 0;
+            totalWrong += quiz.wrong || 0;
+            totalMissed += quiz.missed || 0;
+        }
+
+        const totalPredictions = totalCorrect + totalWrong;
+        const accuracy = totalPredictions > 0
+            ? Math.round((totalCorrect / totalPredictions) * 100)
+            : 0;
+
+        return {
+            totalQuizzes: results.length,
+            totalScore: totalScore,
+            avgScore: Math.round(totalScore / results.length),
+            totalCorrect: totalCorrect,
+            totalWrong: totalWrong,
+            totalMissed: totalMissed,
+            accuracy: accuracy
+        };
     }
 
     /**

@@ -1,8 +1,11 @@
 import { Game } from './engine/Game.js';
 import { GameState } from './models/GameState.js';
 import { SmartAI } from './ai/SmartAI.js';
+import { HandTracker } from './ai/HandTracker.js';
 import { DebriefUI } from './ui/DebriefUI.js';
 import { SettingsUI } from './ui/SettingsUI.js';
+import { QuizStorage } from './services/QuizStorage.js';
+import { Tile } from './models/Tile.js';
 
 /**
  * Pip positions for each value 0-6
@@ -81,8 +84,17 @@ class DominoApp {
     constructor() {
         this.game = new Game();
         this.ai = new SmartAI();
+        this.handTracker = new HandTracker();
+        this.quizStorage = new QuizStorage();
         this.selectedTile = null;
         this.aiDelay = 3000; // 3 seconds per AI move
+
+        // Quiz state
+        this.quizTargetPlayer = null;
+        this.quizSelectedTiles = new Set();
+
+        // Attribution toggle state
+        this.showTileAttribution = false;
 
         // UI modules
         this.debriefUI = new DebriefUI();
@@ -92,6 +104,7 @@ class DominoApp {
         this.initEventHandlers();
         this.initGameCallbacks();
         this.initUIModules();
+        this.initQuizElements();
     }
 
     initElements() {
@@ -126,6 +139,7 @@ class DominoApp {
 
         // Buttons
         this.newGameBtn = document.getElementById('new-game-btn');
+        this.quizBtn = document.getElementById('quiz-btn');
         this.passBtn = document.getElementById('pass-btn');
 
         // End selection modal
@@ -144,6 +158,10 @@ class DominoApp {
 
         // Log
         this.logContainer = document.getElementById('log');
+
+        // Attribution toggle
+        this.attributionToggle = document.getElementById('attribution-toggle');
+        this.playerLegend = document.getElementById('player-legend');
     }
 
     initUIModules() {
@@ -154,6 +172,61 @@ class DominoApp {
         this.debriefUI.init();
         this.debriefUI.onNewMatch = () => this.startNewGame();
         this.debriefUI.onOpenSettings = () => this.settingsUI.show();
+
+        // Pass quiz storage and hand tracker to debrief UI
+        this.debriefUI.quizStorage = this.quizStorage;
+        this.debriefUI.handTracker = this.handTracker;
+    }
+
+    initQuizElements() {
+        // Quiz modal elements
+        this.quizModal = document.getElementById('quiz-modal');
+        this.quizOverlay = document.getElementById('quiz-overlay');
+        this.closeQuizBtn = document.getElementById('close-quiz-btn');
+        this.quizContext = document.getElementById('quiz-context');
+        this.quizTileGrid = document.getElementById('quiz-tile-grid');
+        this.quizSelectionCount = document.getElementById('quiz-selection-count');
+        this.quizTargetCount = document.getElementById('quiz-target-count');
+        this.submitQuizBtn = document.getElementById('submit-quiz-btn');
+        this.skipQuizBtn = document.getElementById('skip-quiz-btn');
+        this.quizResult = document.getElementById('quiz-result');
+        this.quizScoreValue = document.getElementById('quiz-score-value');
+        this.quizBreakdown = document.getElementById('quiz-breakdown');
+        this.quizDoneBtn = document.getElementById('quiz-done-btn');
+        this.targetBtns = document.querySelectorAll('.target-btn');
+
+        // Quiz event handlers
+        if (this.quizBtn) {
+            this.quizBtn.addEventListener('click', () => this.showQuizModal());
+        }
+
+        if (this.closeQuizBtn) {
+            this.closeQuizBtn.addEventListener('click', () => this.hideQuizModal());
+        }
+
+        if (this.quizOverlay) {
+            this.quizOverlay.addEventListener('click', () => this.hideQuizModal());
+        }
+
+        if (this.skipQuizBtn) {
+            this.skipQuizBtn.addEventListener('click', () => this.hideQuizModal());
+        }
+
+        if (this.submitQuizBtn) {
+            this.submitQuizBtn.addEventListener('click', () => this.submitQuiz());
+        }
+
+        if (this.quizDoneBtn) {
+            this.quizDoneBtn.addEventListener('click', () => this.hideQuizModal());
+        }
+
+        // Target player selection
+        this.targetBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const player = parseInt(btn.dataset.player, 10);
+                this.selectQuizTarget(player);
+            });
+        });
     }
 
     initEventHandlers() {
@@ -166,6 +239,30 @@ class DominoApp {
 
         this.continueBtn.addEventListener('click', () => this.handleContinue());
         this.reviewBtn.addEventListener('click', () => this.showDebrief());
+
+        // Attribution toggle
+        if (this.attributionToggle) {
+            this.attributionToggle.addEventListener('change', () => {
+                this.showTileAttribution = this.attributionToggle.checked;
+                if (this.playerLegend) {
+                    this.playerLegend.style.display = this.showTileAttribution ? 'flex' : 'none';
+                }
+                // Re-render the chain with the new setting
+                const state = this.game.getState();
+                if (state && state.chain) {
+                    this.renderChain(state.chain);
+                }
+            });
+        }
+    }
+
+    updateQuizButton() {
+        const state = this.game.getState();
+        // Enable quiz button during gameplay (after at least one play)
+        const canQuiz = state.gamePhase === 'playing' && !state.chain.isEmpty();
+        if (this.quizBtn) {
+            this.quizBtn.disabled = !canQuiz;
+        }
     }
 
     initGameCallbacks() {
@@ -188,6 +285,12 @@ class DominoApp {
             const leftEnd = data.openEndsBefore?.left ?? null;
             const rightEnd = data.openEndsBefore?.right ?? null;
             this.ai.recordPlay(data.player, data.tile, data.end, leftEnd, rightEnd);
+
+            // Record for hand tracker (probability tracking)
+            this.handTracker.recordPlay(data.player, data.tile);
+
+            // Update quiz button state
+            this.updateQuizButton();
         };
 
         this.game.onPass = (data) => {
@@ -199,6 +302,9 @@ class DominoApp {
 
             // Record this pass for AI tracking (inferred dead suits)
             this.ai.recordPass(data.player, leftEnd, rightEnd);
+
+            // Record for hand tracker (probability tracking)
+            this.handTracker.recordPass(data.player, leftEnd, rightEnd);
         };
 
         this.game.onHandEnd = (data) => {
@@ -221,8 +327,14 @@ class DominoApp {
         this.ai.resetForNewHand();
         this.game.newMatch();
 
-        const starterName = GameState.getPlayerName(this.game.getState().currentPlayer);
+        // Initialize hand tracker with human's hand
+        const state = this.game.getState();
+        this.handTracker.initHand(state.hands[0]);
+
+        const starterName = GameState.getPlayerName(state.currentPlayer);
         this.log(`${starterName} has the double-six and starts`, 'system');
+
+        this.updateQuizButton();
 
         if (!this.game.isHumanTurn()) {
             this.scheduleAITurn();
@@ -330,6 +442,20 @@ class DominoApp {
             }
 
             const domino = createDominoElement(leftVal, rightVal, orientation, isDouble);
+
+            // Add player attribution if enabled
+            if (this.showTileAttribution && pt.playedBy !== undefined && pt.playedBy >= 0) {
+                domino.classList.add('show-player', `played-by-${pt.playedBy}`);
+
+                // Add player indicator dot
+                const indicator = document.createElement('div');
+                indicator.className = `player-indicator player-${pt.playedBy}`;
+                // Use initials: Y, 1, P, 2
+                const initials = ['Y', '1', 'P', '2'];
+                indicator.textContent = initials[pt.playedBy];
+                domino.appendChild(indicator);
+            }
+
             currentRow.appendChild(domino);
         });
 
@@ -570,6 +696,12 @@ class DominoApp {
             this.ai.resetForNewHand();
             this.game.newHand();
 
+            // Initialize hand tracker with new human hand
+            const newState = this.game.getState();
+            this.handTracker.initHand(newState.hands[0]);
+
+            this.updateQuizButton();
+
             if (!this.game.isHumanTurn()) {
                 this.scheduleAITurn();
             }
@@ -601,6 +733,275 @@ class DominoApp {
 
     clearLog() {
         this.logContainer.innerHTML = '';
+    }
+
+    // ==================== Quiz Modal Methods ====================
+
+    showQuizModal() {
+        // Reset quiz state
+        this.quizTargetPlayer = null;
+        this.quizSelectedTiles = new Set();
+
+        // Reset UI
+        this.targetBtns.forEach(btn => btn.classList.remove('active'));
+        if (this.quizContext) {
+            this.quizContext.innerHTML = '<p>Select a player to see what you know about their hand.</p>';
+        }
+        if (this.quizTileGrid) {
+            this.quizTileGrid.innerHTML = '';
+        }
+        if (this.submitQuizBtn) {
+            this.submitQuizBtn.disabled = true;
+        }
+        if (this.quizResult) {
+            this.quizResult.style.display = 'none';
+        }
+        if (document.querySelector('.quiz-content')) {
+            document.querySelector('.quiz-content').style.display = 'block';
+        }
+
+        // Show modal
+        if (this.quizModal) {
+            this.quizModal.classList.add('visible');
+        }
+        if (this.quizOverlay) {
+            this.quizOverlay.classList.add('visible');
+        }
+    }
+
+    hideQuizModal() {
+        if (this.quizModal) {
+            this.quizModal.classList.remove('visible');
+        }
+        if (this.quizOverlay) {
+            this.quizOverlay.classList.remove('visible');
+        }
+    }
+
+    selectQuizTarget(player) {
+        this.quizTargetPlayer = player;
+        this.quizSelectedTiles = new Set();
+
+        // Update target buttons
+        this.targetBtns.forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.player, 10) === player);
+        });
+
+        // Update context with known facts
+        this.updateQuizContext(player);
+
+        // Render tile picker
+        this.renderQuizTilePicker(player);
+
+        // Update selection count
+        this.updateQuizSelectionCount();
+    }
+
+    updateQuizContext(player) {
+        if (!this.quizContext) return;
+
+        const facts = this.handTracker.getKnownFacts(player);
+        const playerName = this.handTracker.getPlayerName(player);
+
+        let html = `<p><strong>${playerName}</strong> has <strong>${facts.tileCount}</strong> tiles.</p>`;
+
+        if (facts.deadSuits.length > 0) {
+            html += '<div class="known-facts">';
+            html += `<div class="fact">Lacks tiles with: ${facts.deadSuits.join(', ')}</div>`;
+            html += '</div>';
+        }
+
+        this.quizContext.innerHTML = html;
+    }
+
+    renderQuizTilePicker(player) {
+        if (!this.quizTileGrid) return;
+
+        const unplayedTiles = this.handTracker.getUnplayedTiles();
+        const facts = this.handTracker.getKnownFacts(player);
+
+        // Sort tiles for display (by high value, then low value)
+        unplayedTiles.sort((a, b) => {
+            if (a.high !== b.high) return b.high - a.high;
+            return b.low - a.low;
+        });
+
+        this.quizTileGrid.innerHTML = '';
+
+        for (const tile of unplayedTiles) {
+            const key = tile.toKey();
+            const isImpossible = facts.deadSuits.some(suit => tile.hasValue(suit));
+
+            const domino = this.createQuizTileElement(tile);
+            domino.dataset.tileKey = key;
+
+            if (isImpossible) {
+                domino.classList.add('impossible');
+                domino.title = 'Player cannot have this tile (passed on this suit)';
+            }
+
+            domino.addEventListener('click', () => this.toggleQuizTileSelection(key, domino, isImpossible));
+
+            this.quizTileGrid.appendChild(domino);
+        }
+
+        // Update target count
+        if (this.quizTargetCount) {
+            this.quizTargetCount.textContent = facts.tileCount;
+        }
+    }
+
+    createQuizTileElement(tile) {
+        const div = document.createElement('div');
+        div.className = 'domino vertical';
+
+        const createHalf = (value) => {
+            const positions = PIP_POSITIONS[value] || [];
+            const pips = positions.map(pos => `<div class="pip ${pos}"></div>`).join('');
+            return `<div class="domino-half">${pips}</div>`;
+        };
+
+        div.innerHTML = createHalf(tile.high) + createHalf(tile.low);
+        return div;
+    }
+
+    toggleQuizTileSelection(key, domino, isImpossible) {
+        if (isImpossible) {
+            // Still allow selection but show warning
+        }
+
+        if (this.quizSelectedTiles.has(key)) {
+            this.quizSelectedTiles.delete(key);
+            domino.classList.remove('selected');
+        } else {
+            this.quizSelectedTiles.add(key);
+            domino.classList.add('selected');
+        }
+
+        this.updateQuizSelectionCount();
+    }
+
+    updateQuizSelectionCount() {
+        if (this.quizSelectionCount) {
+            this.quizSelectionCount.textContent = this.quizSelectedTiles.size;
+        }
+
+        // Enable submit if at least one tile is selected
+        if (this.submitQuizBtn) {
+            this.submitQuizBtn.disabled = this.quizSelectedTiles.size === 0;
+        }
+    }
+
+    submitQuiz() {
+        if (this.quizTargetPlayer === null) return;
+
+        const state = this.game.getState();
+        const actualHand = state.hands[this.quizTargetPlayer];
+        const predictedKeys = Array.from(this.quizSelectedTiles);
+
+        // Score the prediction
+        const result = this.handTracker.scoreQuizPrediction(
+            this.quizTargetPlayer,
+            predictedKeys,
+            actualHand
+        );
+
+        // Record in match history
+        const matchHistory = this.game.getMatchHistory();
+        matchHistory.recordQuizResult({
+            targetPlayer: this.quizTargetPlayer,
+            userPrediction: predictedKeys,
+            actualHand: actualHand.getTiles().map(t => t.toKey()),
+            score: result.score,
+            correct: result.correct,
+            wrong: result.wrong,
+            missed: result.missed
+        });
+
+        // Save to persistent storage
+        this.quizStorage.saveQuizResult({
+            targetPlayer: this.quizTargetPlayer,
+            score: result.score,
+            correct: result.correct,
+            wrong: result.wrong,
+            missed: result.missed
+        });
+
+        // Show results
+        this.showQuizResult(result);
+    }
+
+    showQuizResult(result) {
+        // Hide content, show result
+        if (document.querySelector('.quiz-content')) {
+            document.querySelector('.quiz-content').style.display = 'none';
+        }
+        if (this.quizResult) {
+            this.quizResult.style.display = 'block';
+        }
+
+        // Update score
+        if (this.quizScoreValue) {
+            this.quizScoreValue.textContent = result.score;
+        }
+
+        // Build breakdown
+        if (this.quizBreakdown) {
+            let html = `
+                <div class="breakdown-row correct">
+                    <span class="label">Correct predictions</span>
+                    <span class="value">+${result.correct * 10} (${result.correct} tiles)</span>
+                </div>
+                <div class="breakdown-row wrong">
+                    <span class="label">Wrong predictions</span>
+                    <span class="value">-${result.wrong * 5} (${result.wrong} tiles)</span>
+                </div>
+                <div class="breakdown-row missed">
+                    <span class="label">Missed tiles</span>
+                    <span class="value">-${result.missed * 2} (${result.missed} tiles)</span>
+                </div>
+            `;
+
+            // Show tile details
+            const details = result.details;
+            if (details.correct.length > 0 || details.wrong.length > 0 || details.missed.length > 0) {
+                html += '<div class="quiz-tiles-display">';
+
+                if (details.correct.length > 0) {
+                    html += '<h4>Correctly predicted:</h4>';
+                    html += '<div class="quiz-tiles-row">';
+                    for (const key of details.correct) {
+                        const tile = Tile.fromKey(key);
+                        html += `<span class="tile-mini correct">${tile.toString()}</span>`;
+                    }
+                    html += '</div>';
+                }
+
+                if (details.wrong.length > 0) {
+                    html += '<h4>Incorrectly predicted:</h4>';
+                    html += '<div class="quiz-tiles-row">';
+                    for (const key of details.wrong) {
+                        const tile = Tile.fromKey(key);
+                        html += `<span class="tile-mini wrong">${tile.toString()}</span>`;
+                    }
+                    html += '</div>';
+                }
+
+                if (details.missed.length > 0) {
+                    html += '<h4>Missed (they had but you didn\'t predict):</h4>';
+                    html += '<div class="quiz-tiles-row">';
+                    for (const key of details.missed) {
+                        const tile = Tile.fromKey(key);
+                        html += `<span class="tile-mini missed">${tile.toString()}</span>`;
+                    }
+                    html += '</div>';
+                }
+
+                html += '</div>';
+            }
+
+            this.quizBreakdown.innerHTML = html;
+        }
     }
 }
 
