@@ -144,7 +144,10 @@ export class HandTracker {
     }
 
     /**
-     * Get probability that a specific player holds a specific tile
+     * Get probability that a specific player holds a specific tile.
+     * Uses Bayesian reasoning: P(player has tile) = (player's tiles) / (possible tiles for player)
+     * adjusted by whether this specific tile is possible for them.
+     *
      * @param {number} player - Player index (1-3 for computer players)
      * @param {Tile|string} tile - Tile or tile key
      * @returns {number} Probability 0-1
@@ -167,8 +170,112 @@ export class HandTracker {
             return 0;
         }
 
-        // Equal probability among possible holders
-        return 1 / holders.size;
+        // Count how many tiles this player could possibly hold
+        const possibleTilesForPlayer = this._countPossibleTilesForPlayer(player);
+        const playerTileCount = this.tileCounts[player];
+
+        if (possibleTilesForPlayer === 0) {
+            return 0;
+        }
+
+        // Base probability: player has N tiles out of M possible
+        // P(player has this specific tile) ≈ N / M
+        return Math.min(1, playerTileCount / possibleTilesForPlayer);
+    }
+
+    /**
+     * Count how many unknown tiles a player could possibly hold
+     * (tiles where they are still a possible holder)
+     * @private
+     */
+    _countPossibleTilesForPlayer(player) {
+        let count = 0;
+        for (const tile of this.allTiles) {
+            const key = tile.toKey();
+            if (this.knownLocations.get(key) !== 'unknown') continue;
+
+            const holders = this.possibleHolders.get(key);
+            if (holders && holders.has(player)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Get probability that a player will pass on a given value.
+     * P(pass on V) = P(player has no tile containing V)
+     *
+     * @param {number} player - Player index (1-3 for computer players)
+     * @param {number} value - The suit value (0-6)
+     * @returns {number} Probability 0-1 that player cannot play on this value
+     */
+    getPassProbability(player, value) {
+        // If we know they've already passed on this value, 100% they'll pass again
+        if (this.deadSuits[player].has(value)) {
+            return 1.0;
+        }
+
+        // Count tiles with this value that the player could have
+        const tilesWithValue = [];
+        for (const tile of this.allTiles) {
+            if (!tile.hasValue(value)) continue;
+
+            const key = tile.toKey();
+            if (this.knownLocations.get(key) !== 'unknown') continue;
+
+            const holders = this.possibleHolders.get(key);
+            if (holders && holders.has(player)) {
+                tilesWithValue.push(tile);
+            }
+        }
+
+        if (tilesWithValue.length === 0) {
+            // No possible tiles with this value - certain pass
+            return 1.0;
+        }
+
+        // Probability they have NONE of these tiles
+        // Simplified: if they have N tiles and M possible tiles contain value V
+        // P(has at least one V) ≈ 1 - ((possible - M) / possible) ^ N
+        // But for simplicity, we use: P(has at least one V) ≈ M * (N / possible)
+        const possibleTiles = this._countPossibleTilesForPlayer(player);
+        const playerTileCount = this.tileCounts[player];
+
+        if (possibleTiles === 0) return 1.0;
+
+        // Expected number of tiles with this value they hold
+        const expectedCount = tilesWithValue.length * (playerTileCount / possibleTiles);
+
+        // P(they have at least one) ≈ 1 - e^(-expectedCount) for Poisson approximation
+        // Simplified: use 1 - (1 - p)^n where p = 1/possibleTiles for each tile
+        const probHasNone = Math.pow(1 - (playerTileCount / possibleTiles), tilesWithValue.length);
+
+        return Math.max(0, Math.min(1, probHasNone));
+    }
+
+    /**
+     * Get probability of successfully blocking a player by making both ends
+     * show specific values (cuadrar).
+     *
+     * @param {number} player - Player to block (1-3)
+     * @param {number} value1 - First end value
+     * @param {number} value2 - Second end value (can be same as value1)
+     * @returns {number} Probability 0-1 that player will be forced to pass
+     */
+    getBlockingProbability(player, value1, value2) {
+        if (value1 === value2) {
+            // Cuadrar - both ends same value
+            return this.getPassProbability(player, value1);
+        }
+
+        // Player must lack BOTH values to be blocked
+        const passProb1 = this.getPassProbability(player, value1);
+        const passProb2 = this.getPassProbability(player, value2);
+
+        // P(lacks both) ≈ P(lacks value1) * P(lacks value2)
+        // This is approximate - assumes independence which isn't quite true
+        return passProb1 * passProb2;
     }
 
     /**

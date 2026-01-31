@@ -86,6 +86,9 @@ class DominoApp {
         this.ai = new SmartAI();
         this.handTracker = new HandTracker();
         this.quizStorage = new QuizStorage();
+
+        // Connect HandTracker to SmartAI for probability-based decisions
+        this.ai.setHandTracker(this.handTracker);
         this.selectedTile = null;
         this.aiDelay = 3000; // 3 seconds per AI move
 

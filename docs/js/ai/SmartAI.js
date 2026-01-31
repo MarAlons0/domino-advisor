@@ -13,11 +13,27 @@ import { StrategicExplainer } from './StrategicExplainer.js';
  * 5. Pip Management - prefer playing high-pip tiles early
  * 6. Tile Counting - track what's been played to know what's out
  * 7. Play Choice Inference - deduce holdings from what players choose to play
+ *
+ * Priority Override System (v0.3):
+ * Before weighted scoring, check priority conditions in order:
+ * 1. Winning move (domino)
+ * 2. High-confidence blocking (cuadrar with P > 0.7)
+ * 3. Partner support (first 8 plays of hand)
+ * Falls back to weighted scoring for all other decisions.
  */
 export class SmartAI {
     constructor() {
         this.explainer = new StrategicExplainer();
+        this.handTracker = null; // Set by game controller
         this.resetForNewHand();
+    }
+
+    /**
+     * Set the HandTracker reference for probability-based decisions
+     * @param {HandTracker} tracker
+     */
+    setHandTracker(tracker) {
+        this.handTracker = tracker;
     }
 
     /**
@@ -40,6 +56,9 @@ export class SmartAI {
 
         // Track if a player has "killed" their own signaled suit
         this.killedOwnSuit = [false, false, false, false];
+
+        // Track number of plays in this hand (for early-game priority rules)
+        this.playCount = 0;
     }
 
     /**
@@ -52,6 +71,9 @@ export class SmartAI {
      * @param {number} rightEnd - Right end value before play (null if first play)
      */
     recordPlay(playerIndex, tile, end, leftEnd, rightEnd) {
+        // Increment play count
+        this.playCount++;
+
         // Update suit counts
         if (tile.isDouble()) {
             this.suitCounts[tile.high] += 2; // Double counts as 2 for that suit
@@ -148,6 +170,14 @@ export class SmartAI {
 
     /**
      * Choose the best move for the AI player.
+     * Uses priority override system before falling back to weighted scoring.
+     *
+     * Priority order:
+     * 1. Winning move (domino)
+     * 2. High-confidence blocking (cuadrar with P > 0.7)
+     * 3. Partner support (first 8 plays)
+     * 4. Weighted scoring (fallback)
+     *
      * @param {GameState} gameState - The current game state
      * @param {number} playerIndex - Which player the AI is playing as
      * @returns {{tile: Tile, end: string, reasoning: string}|null}
@@ -167,7 +197,25 @@ export class SmartAI {
             return { ...validMoves[0], reasoning: 'Only valid move' };
         }
 
-        // Score each move and pick the best
+        // PRIORITY 1: Check for winning move (domino)
+        const winningMove = this._findWinningMove(validMoves, hand);
+        if (winningMove) {
+            return { ...winningMove, reasoning: 'Winning move - domino!' };
+        }
+
+        // PRIORITY 2: Check for high-confidence blocking opportunity
+        const blockingMove = this._findHighConfidenceBlock(validMoves, gameState, playerIndex, chain);
+        if (blockingMove) {
+            return blockingMove;
+        }
+
+        // PRIORITY 3: Partner support in early game (first 8 plays)
+        const partnerSupportMove = this._findPartnerSupportMove(validMoves, gameState, playerIndex, chain);
+        if (partnerSupportMove && this.playCount < 8) {
+            return partnerSupportMove;
+        }
+
+        // FALLBACK: Score each move and pick the best
         const scoredMoves = validMoves.map(move => ({
             ...move,
             score: this.scoreMove(move, gameState, playerIndex),
@@ -188,6 +236,136 @@ export class SmartAI {
         );
 
         return bestMove;
+    }
+
+    /**
+     * Find a winning move (playing last tile)
+     * @private
+     */
+    _findWinningMove(validMoves, hand) {
+        if (hand.size() !== 1) return null;
+
+        // If we only have one tile, any valid move is a winning move
+        return validMoves.length > 0 ? validMoves[0] : null;
+    }
+
+    /**
+     * Find a high-confidence blocking opportunity (cuadrar)
+     * @private
+     */
+    _findHighConfidenceBlock(validMoves, gameState, playerIndex, chain) {
+        if (!this.handTracker) return null;
+
+        const opponents = this.getOpponents(playerIndex);
+        const BLOCK_THRESHOLD = 0.7; // 70% confidence required
+
+        let bestBlockMove = null;
+        let bestBlockProb = 0;
+
+        for (const move of validMoves) {
+            // Determine what ends would be after this play
+            const { newLeftEnd, newRightEnd } = this._getEndsAfterPlay(move, chain);
+
+            // Check blocking probability against each opponent
+            for (const opp of opponents) {
+                const blockProb = this.handTracker.getBlockingProbability(opp, newLeftEnd, newRightEnd);
+
+                if (blockProb >= BLOCK_THRESHOLD && blockProb > bestBlockProb) {
+                    bestBlockProb = blockProb;
+                    bestBlockMove = {
+                        ...move,
+                        reasoning: `High-confidence block (${Math.round(blockProb * 100)}%) - cuadrar to force opponent pass`
+                    };
+                }
+            }
+        }
+
+        return bestBlockMove;
+    }
+
+    /**
+     * Find a move that supports partner's signaled suit
+     * @private
+     */
+    _findPartnerSupportMove(validMoves, gameState, playerIndex, chain) {
+        const partnerIndex = GameState.getPartner(playerIndex);
+        const partnerSuit = this.signaledSuits[partnerIndex];
+
+        // No partner signal yet, or partner has killed their suit
+        if (partnerSuit === null || this.killedOwnSuit[partnerIndex]) {
+            return null;
+        }
+
+        // Find moves that leave partner's suit open
+        const partnerSupportMoves = [];
+
+        for (const move of validMoves) {
+            const { newLeftEnd, newRightEnd } = this._getEndsAfterPlay(move, chain);
+
+            // Check if this move leaves partner's suit as one of the open ends
+            if (newLeftEnd === partnerSuit || newRightEnd === partnerSuit) {
+                partnerSupportMoves.push(move);
+            }
+        }
+
+        if (partnerSupportMoves.length === 0) {
+            return null;
+        }
+
+        // If multiple moves support partner, pick the one with best weighted score
+        if (partnerSupportMoves.length === 1) {
+            return {
+                ...partnerSupportMoves[0],
+                reasoning: `Supporting partner's ${partnerSuit}s (la salida)`
+            };
+        }
+
+        // Score the support moves and pick best
+        const scoredMoves = partnerSupportMoves.map(move => ({
+            ...move,
+            score: this.scoreMove(move, gameState, playerIndex)
+        }));
+        scoredMoves.sort((a, b) => b.score.total - a.score.total);
+
+        return {
+            ...scoredMoves[0],
+            reasoning: `Supporting partner's ${partnerSuit}s (la salida)`
+        };
+    }
+
+    /**
+     * Get the open ends after a hypothetical play
+     * @private
+     */
+    _getEndsAfterPlay(move, chain) {
+        if (chain.isEmpty()) {
+            // First play - both ends are the tile values
+            return {
+                newLeftEnd: move.tile.low,
+                newRightEnd: move.tile.high
+            };
+        }
+
+        const currentLeftEnd = chain.leftEnd;
+        const currentRightEnd = chain.rightEnd;
+
+        if (move.end === 'left') {
+            // Playing on left end
+            const connectValue = currentLeftEnd;
+            const newLeftEnd = move.tile.getOtherValue(connectValue);
+            return {
+                newLeftEnd: newLeftEnd === -1 ? connectValue : newLeftEnd,
+                newRightEnd: currentRightEnd
+            };
+        } else {
+            // Playing on right end
+            const connectValue = currentRightEnd;
+            const newRightEnd = move.tile.getOtherValue(connectValue);
+            return {
+                newLeftEnd: currentLeftEnd,
+                newRightEnd: newRightEnd === -1 ? connectValue : newRightEnd
+            };
+        }
     }
 
     /**
