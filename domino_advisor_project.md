@@ -545,12 +545,136 @@ if (avoided === signaledSuit && playedOn !== signaledSuit) {
 - **No Bayesian probability**: Uses binary "has/lacks" inference, not probability distributions
 - **Uniform for all AI players**: Partner and opponents use identical logic
 - **Fixed weights**: Strategic factor weights are hardcoded, not tunable
+- **Strategy conflicts**: When multiple strategies suggest different moves (e.g., pip management vs. partner support), weighted scoring can produce suboptimal results
+
+---
+
+### Planned: Probability-Based AI Enhancement
+
+This section documents the planned enhancement to integrate probability-based reasoning into SmartAI.
+
+#### Problem Statement
+
+Current strategies sometimes conflict. Example: Partner opens with 6|6, opponent plays 6|5. The partner's ally should attack the 5 (supporting partner's signal). But if pip management scores higher, the AI might play another 6 instead—"mata la mano" (killing the hand). We need a principled way to resolve such conflicts.
+
+#### Design Philosophy
+
+1. **Early hand**: Rely primarily on heuristic rules (current weighted scoring)
+2. **As data accumulates**: Probability-based reasoning gradually takes precedence
+3. **Key principle**: High-confidence tactical opportunities (e.g., blocking/cuadrar) should override general strategy when probability supports them
+
+#### Strategy Priority Hierarchy
+
+Instead of purely weighted scoring, moves are evaluated by priority level:
+
+| Priority | Strategy | When It Applies |
+|----------|----------|-----------------|
+| 1 | **Winning move** | Can domino this turn |
+| 2 | **High-confidence block** | Can cuadrar with P > 0.7 that opponent passes |
+| 3 | **Partner support** | Partner signaled a suit (especially first 8 plays) |
+| 4 | **Defensive** | Opponent close to winning (1-2 tiles) |
+| 5 | **Double management** | Have exposed doubles without cover |
+| 6 | **Suit/End control** | Maintain flexibility |
+| 7 | **Pip management** | Tiebreaker only |
+
+**Key rule**: Partner support in the first 8 plays of a hand should always trump pip management (except for winning moves).
+
+#### Probability Model
+
+For P(player X holds tile T):
+
+**Hard constraints (P = 0):**
+- Tile is in my hand
+- Tile has been played
+- Tile contains a value X passed on (dead suit)
+
+**Soft inference:**
+```
+Remaining unknown tiles = 28 - played - myHand
+Possible tiles for X = unknown tiles - tiles with X's dead suits
+P(X holds T) = (X's tile count) / (possible tiles for X)
+```
+
+**Example calculation (mid-hand):**
+- 10 tiles played, I have 5 → 13 unknown tiles among 3 players
+- Opp 1 has 4 tiles, passed on 3s and 5s → eliminates ~8 tiles from possibilities
+- Only ~5 tiles Opp 1 could possibly hold
+- P(Opp 1 has any specific possible tile) ≈ 4/5 = 0.8
+
+#### Blocking Probability (Cuadrar)
+
+To evaluate "can I block player X with value V?":
+```
+P(X passes on V) = 1 - P(X has any tile containing V)
+```
+
+If a move makes both chain ends values where P(opponent passes) > 0.7, that's a high-confidence blocking opportunity worth pursuing even if other strategies suggest different plays.
+
+#### Implementation Approach: Incremental Overrides
+
+Rather than rewriting the scoring system entirely, we add **priority checks that can override** the weighted result:
+
+```javascript
+selectMove(moves) {
+  // Priority overrides (checked first, in order)
+  const winningMove = moves.find(m => this.isWinningMove(m));
+  if (winningMove) return winningMove;
+
+  const blockingMove = this.findHighConfidenceBlock(moves, probabilities);
+  if (blockingMove) return blockingMove;
+
+  const partnerSupport = this.findPartnerSupportMove(moves, turnNumber);
+  if (partnerSupport && turnNumber <= 8) return partnerSupport;
+
+  // Fall back to weighted scoring for everything else
+  return this.selectByWeightedScore(moves);
+}
+```
+
+**Benefits of this approach:**
+- Lower risk than full rewrite
+- Each override can be tested in isolation
+- Gradual migration of logic into priority checks
+- Weighted scoring remains as fallback/tiebreaker
+
+#### Implementation Phases
+
+**Phase 1**: Enhance HandTracker
+- `getProbability(player, tile)` → 0.0 to 1.0
+- `getPassProbability(player, value)` → chance they can't play on that value
+
+**Phase 2**: Add "Partner Support" Override
+- Detect when partner has signaled (la salida)
+- In first 8 plays, prioritize supporting partner's suit
+- Override pip management to prevent "mata la mano"
+
+**Phase 3**: Add "High-Confidence Block" Override
+- Use probability model to identify cuadrar opportunities
+- Only trigger when confidence exceeds threshold (e.g., 0.7)
+
+**Phase 4**: Add defensive and other priority checks
+
+#### Future: AI Personalities
+
+Once the priority system is stable, we could randomly assign "personalities" to each AI player at match start:
+
+| Personality | Behavior Modification |
+|-------------|----------------------|
+| Aggressive | Lower blocking confidence threshold, more cuadrar attempts |
+| Conservative | Higher confidence thresholds, prefer safe plays |
+| Partner-focused | Stronger partner support priority |
+| Opportunistic | More weight on pip management and double unloading |
+
+This would make games more varied and realistic.
+
+---
 
 #### Future AI Improvements (Backlog)
 
-1. **Bayesian probability integration**: Use HandTracker's probability model in move scoring
+1. **Bayesian probability integration**: Use HandTracker's probability model in move scoring (in progress)
 2. **Configurable strategy weights**: Let users adjust AI aggressiveness, partner focus, etc.
 3. **Difficulty levels**: Adjust inference depth or add controlled randomness
+4. **AI personalities**: Randomly assign behavioral profiles to computer players
 
 ---
 
