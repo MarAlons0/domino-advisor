@@ -2,20 +2,7 @@
 
 ## Pending Features
 
-### 0. Mobile Viewport Fix
-**Priority:** High
-**Complexity:** Low
-
-Fix viewable area on mobile devices where some tiles get hidden/cut off. Ensure all tiles in hand and on chain are visible and scrollable.
-
-**Issues to address:**
-- Hand area may overflow on small screens
-- Chain area scrolling may not work properly
-- Controls may be hard to tap
-
----
-
-### 1. AI Enhancements (Future)
+### 0. AI Enhancements (Future)
 **Priority:** Medium
 **Complexity:** Medium
 
@@ -29,7 +16,7 @@ Further enhancements to AI decision-making beyond initial implementation.
 
 ---
 
-### 2. Configurable AI Strategy Weights
+### 1. Configurable AI Strategy Weights
 **Priority:** Medium
 **Complexity:** Medium
 
@@ -54,7 +41,7 @@ Add a settings panel to let users adjust the relative importance of different st
 
 ## Features from Project Roadmap (Not Yet Implemented)
 
-### 3. Training Mode
+### 2. Training Mode
 **Priority:** High
 **Complexity:** High
 
@@ -69,7 +56,7 @@ Structured lessons teaching strategic concepts through guided play.
 
 ---
 
-### 4. Position Analyzer
+### 3. Position Analyzer
 **Priority:** Medium
 **Complexity:** Medium
 
@@ -83,7 +70,7 @@ Analyze arbitrary game positions without playing a full game.
 
 ---
 
-### 5. Game Save/Replay
+### 4. Game Save/Replay
 **Priority:** Low
 **Complexity:** Medium
 
@@ -97,7 +84,7 @@ Save and replay completed games for study.
 
 ---
 
-### 6. Pass Indicators on UI
+### 5. Pass Indicators on UI
 **Priority:** Medium
 **Complexity:** Low
 
@@ -111,7 +98,7 @@ Show visual indicators when players have passed on specific suits.
 
 ---
 
-### 7. Real-time vs Review Feedback Mode
+### 6. Real-time vs Review Feedback Mode
 **Priority:** Low
 **Complexity:** Medium
 
@@ -124,7 +111,7 @@ Toggle between immediate feedback and end-of-hand review.
 
 ---
 
-### 8. "Why Did I Lose?" Analysis
+### 7. "Why Did I Lose?" Analysis
 **Priority:** Low
 **Complexity:** Medium
 
@@ -137,7 +124,7 @@ Explain blocked game outcomes.
 
 ---
 
-### 9. Bonus Scoring (Regional Variants)
+### 8. Bonus Scoring (Regional Variants)
 **Priority:** Low
 **Complexity:** Low
 
@@ -150,7 +137,7 @@ Support optional regional scoring bonuses.
 
 ---
 
-### 10. Glossary Tooltips
+### 9. Glossary Tooltips
 **Priority:** Low
 **Complexity:** Low
 
@@ -163,7 +150,7 @@ Teach traditional terminology through the UI.
 
 ---
 
-### 11. Spanish Language Support
+### 10. Spanish Language Support
 **Priority:** Low
 **Complexity:** Medium
 
@@ -177,6 +164,15 @@ Add Spanish language option.
 ---
 
 ## Completed Features
+
+### Mobile Viewport Fix (Feb 2026)
+- Responsive layout for phones (480px) and very small screens (360px)
+- Smaller dominoes on chain and hand for mobile
+- Horizontal scrolling for hand tiles (prevents overflow)
+- Larger touch targets (44px minimum) for buttons
+- Full-width modal buttons for easier tapping
+- Scrollable debrief tabs
+- Compact table layout with adjusted grid cells
 
 ### Probability-Based AI Decision Making (Jan 2026)
 - Enhanced HandTracker with Bayesian probability calculations
