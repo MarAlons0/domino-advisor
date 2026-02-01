@@ -264,11 +264,12 @@ h1 .version {
     justify-content: flex-start;
 }
 
-/* Turn connector between rows */
+/* Turn connector between rows - L-shaped to show direction */
 .chain-turn {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
+    padding: 2px 0;
 }
 
 .chain-turn.left-side {
@@ -276,10 +277,65 @@ h1 .version {
 }
 
 .turn-connector {
-    width: 4px;
+    position: relative;
+    width: 24px;
     height: 20px;
-    background: rgba(255,255,255,0.3);
-    border-radius: 2px;
+}
+
+/* Right-side turn: chain goes right-to-left on next row */
+/* L-shape: vertical down, then horizontal left */
+.turn-connector::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4px;
+    height: 100%;
+    background: rgba(255,255,255,0.4);
+    border-radius: 2px 2px 0 0;
+}
+
+.turn-connector::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.4);
+    border-radius: 0 0 0 2px;
+}
+
+/* Arrow indicator */
+.turn-connector .arrow {
+    position: absolute;
+    bottom: -2px;
+    left: -4px;
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-right: 6px solid rgba(255,255,255,0.5);
+}
+
+/* Left-side turn: chain goes left-to-right on next row */
+/* L-shape: vertical down, then horizontal right */
+.chain-turn.left-side .turn-connector::before {
+    right: auto;
+    left: 0;
+}
+
+.chain-turn.left-side .turn-connector::after {
+    right: auto;
+    left: 0;
+    border-radius: 0 0 2px 0;
+}
+
+.chain-turn.left-side .turn-connector .arrow {
+    left: auto;
+    right: -4px;
+    border-right: none;
+    border-left: 6px solid rgba(255,255,255,0.5);
 }
 
 /* Domino Tile Styling */
