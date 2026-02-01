@@ -306,16 +306,16 @@ h1 .version {
     border-radius: 0 0 0 2px;
 }
 
-/* Arrow indicator */
+/* Arrow indicator - on right side where connection is */
 .turn-connector .arrow {
     position: absolute;
     bottom: -2px;
-    left: -4px;
+    right: -4px;
     width: 0;
     height: 0;
     border-top: 5px solid transparent;
     border-bottom: 5px solid transparent;
-    border-right: 6px solid rgba(255,255,255,0.5);
+    border-left: 6px solid rgba(255,255,255,0.5);
 }
 
 /* Left-side turn: chain goes left-to-right on next row */
@@ -332,10 +332,10 @@ h1 .version {
 }
 
 .chain-turn.left-side .turn-connector .arrow {
-    left: auto;
-    right: -4px;
-    border-right: none;
-    border-left: 6px solid rgba(255,255,255,0.5);
+    right: auto;
+    left: -4px;
+    border-left: none;
+    border-right: 6px solid rgba(255,255,255,0.5);
 }
 
 /* Domino Tile Styling */
