@@ -442,7 +442,9 @@ class DominoApp {
         }
 
         const placedTiles = chain.getPlacedTiles();
-        const tilesPerRow = 8; // Max tiles per row before turning
+
+        // Calculate tiles per row based on available width
+        const tilesPerRow = this._calculateTilesPerRow();
 
         // Create the chain container
         const chainDiv = document.createElement('div');
@@ -507,6 +509,40 @@ class DominoApp {
         }
 
         this.chainContainer.appendChild(chainDiv);
+    }
+
+    /**
+     * Calculate optimal tiles per row based on available screen width.
+     * @returns {number} Number of tiles that fit per row
+     */
+    _calculateTilesPerRow() {
+        const screenWidth = window.innerWidth;
+
+        // Tile widths at different breakpoints (matching CSS)
+        // Desktop: 56px tile + 2px gap = 58px per tile
+        // Mobile (<=480px): 44px tile + 2px gap = 46px per tile
+        // Very small (<=360px): 38px tile + 2px gap = 40px per tile
+
+        // Chain container has padding and is inside the table grid
+        // Table has border (12px desktop, 8px mobile) and side columns (60px desktop, 45px mobile)
+        // Rough available width = screenWidth - 2*border - 2*sideColumn - 2*padding
+
+        if (screenWidth <= 360) {
+            // Very small screens: ~40px per tile, available ~200px
+            return 4;
+        } else if (screenWidth <= 480) {
+            // Mobile: ~46px per tile, available ~280px
+            return 5;
+        } else if (screenWidth <= 600) {
+            // Small tablet: ~50px per tile
+            return 6;
+        } else if (screenWidth <= 800) {
+            // Tablet
+            return 7;
+        } else {
+            // Desktop
+            return 8;
+        }
     }
 
     updateOpenEnds(chain) {
