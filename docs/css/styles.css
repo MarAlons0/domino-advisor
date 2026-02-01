@@ -1780,7 +1780,7 @@ button:disabled {
     margin: 0;
 }
 
-/* Responsive */
+/* Responsive - Tablet */
 @media (max-width: 800px) {
     .game-wrapper {
         flex-direction: column;
@@ -1817,5 +1817,418 @@ button:disabled {
 
     .accuracy-cards {
         grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Responsive - Mobile */
+@media (max-width: 480px) {
+    body {
+        padding: 5px;
+    }
+
+    /* Header adjustments */
+    .app-header {
+        margin-bottom: 12px;
+    }
+
+    h1 {
+        font-size: 1.2rem;
+    }
+
+    .attribution {
+        font-size: 8px;
+        bottom: -12px;
+    }
+
+    /* Table adjustments */
+    .table {
+        min-height: 280px;
+        border-width: 8px;
+        border-radius: 12px;
+        grid-template-rows: 45px 1fr 45px;
+        grid-template-columns: 45px 1fr 45px;
+    }
+
+    .player-name {
+        font-size: 9px;
+    }
+
+    .mini-tile {
+        width: 8px;
+        height: 14px;
+    }
+
+    .tile-count.vertical .mini-tile {
+        width: 14px;
+        height: 8px;
+    }
+
+    /* Smaller dominoes on chain for mobile */
+    .chain-container {
+        padding: 5px;
+    }
+
+    .chain .domino.horizontal {
+        width: 44px;
+        height: 22px;
+    }
+
+    .chain .domino.vertical {
+        width: 22px;
+        height: 44px;
+    }
+
+    .chain .domino .domino-half {
+        width: 20px;
+        height: 20px;
+        padding: 2px;
+    }
+
+    .chain .domino .pip {
+        width: 4px;
+        height: 4px;
+    }
+
+    .chain .domino.spinner {
+        width: 22px;
+        height: 44px;
+    }
+
+    /* Player indicator on chain tiles */
+    .player-indicator {
+        width: 10px;
+        height: 10px;
+        font-size: 6px;
+        top: -3px;
+        right: -3px;
+    }
+
+    /* Hand area - scrollable on mobile */
+    .hand-area {
+        padding: 8px;
+    }
+
+    .hand {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 4px;
+        padding-bottom: 5px;
+        justify-content: flex-start;
+    }
+
+    /* Hand dominoes - slightly smaller */
+    .hand .domino.horizontal {
+        width: 48px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+
+    .hand .domino .domino-half {
+        width: 22px;
+        height: 22px;
+        padding: 2px;
+    }
+
+    .hand .domino .pip {
+        width: 4px;
+        height: 4px;
+    }
+
+    /* Larger touch targets for controls */
+    .controls {
+        gap: 6px;
+    }
+
+    button {
+        padding: 12px 14px;
+        font-size: 12px;
+        min-height: 44px; /* Apple's minimum touch target */
+    }
+
+    .quiz-btn {
+        padding: 12px 10px;
+    }
+
+    /* Scores - more compact */
+    .scores {
+        padding: 6px;
+        gap: 20px;
+    }
+
+    .score-value {
+        font-size: 18px;
+    }
+
+    .score-label {
+        font-size: 10px;
+    }
+
+    /* Open ends indicator */
+    .open-ends {
+        font-size: 11px;
+    }
+
+    /* Attribution area */
+    .attribution-area {
+        margin-top: 5px;
+    }
+
+    .attribution-toggle {
+        font-size: 10px;
+    }
+
+    .player-legend {
+        gap: 8px;
+        font-size: 9px;
+    }
+
+    .legend-dot {
+        width: 8px;
+        height: 8px;
+    }
+
+    /* Sidebar / Log area */
+    .sidebar {
+        order: 1;
+    }
+
+    .log-area {
+        max-height: 120px;
+    }
+
+    .log {
+        font-size: 10px;
+    }
+
+    .log-area h3 {
+        font-size: 11px;
+    }
+
+    /* Modals - full screen on mobile */
+    .end-selection,
+    .message-box {
+        width: 90%;
+        max-width: none;
+        padding: 15px;
+    }
+
+    .end-buttons {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .end-btn {
+        padding: 14px 20px;
+        width: 100%;
+    }
+
+    .message-box p {
+        font-size: 11px;
+        max-height: 200px;
+    }
+
+    .message-buttons {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .message-buttons button {
+        width: 100%;
+    }
+
+    /* Quiz modal */
+    .quiz-modal {
+        width: 95%;
+        max-height: 90vh;
+    }
+
+    .quiz-header {
+        padding: 12px 15px;
+    }
+
+    .quiz-header h2 {
+        font-size: 1rem;
+    }
+
+    .quiz-content {
+        padding: 15px;
+    }
+
+    .quiz-target-buttons {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .target-btn {
+        padding: 12px;
+    }
+
+    .tile-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+    }
+
+    .quiz-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .submit-quiz-btn,
+    .skip-quiz-btn {
+        width: 100%;
+    }
+
+    /* Debrief modal */
+    .debrief-modal {
+        width: 98%;
+        max-height: 95vh;
+    }
+
+    .debrief-header {
+        padding: 12px 15px;
+    }
+
+    .debrief-header h2 {
+        font-size: 1.1rem;
+    }
+
+    .debrief-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tab-btn {
+        padding: 10px 12px;
+        font-size: 11px;
+        white-space: nowrap;
+    }
+
+    .debrief-content {
+        padding: 15px;
+    }
+
+    .stat-cards {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .stat-card {
+        padding: 10px;
+    }
+
+    .stat-value {
+        font-size: 22px;
+    }
+
+    .accuracy-cards {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .accuracy-card {
+        padding: 10px;
+    }
+
+    .accuracy-value {
+        font-size: 16px;
+    }
+
+    .debrief-footer {
+        padding: 12px 15px;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .debrief-footer button {
+        width: 100%;
+    }
+
+    /* Help modal */
+    .help-modal {
+        width: 95%;
+        max-height: 90vh;
+    }
+
+    .help-header {
+        padding: 12px 15px;
+    }
+
+    .help-content {
+        padding: 15px;
+    }
+
+    .help-section h3 {
+        font-size: 0.9rem;
+    }
+
+    .help-section p,
+    .help-section li {
+        font-size: 13px;
+    }
+
+    /* Settings modal */
+    .settings-modal {
+        width: 95%;
+    }
+
+    .settings-content {
+        padding: 15px;
+    }
+
+    .api-key-input-group {
+        flex-direction: column;
+    }
+
+    .key-actions {
+        flex-direction: column;
+    }
+
+    .key-actions button {
+        width: 100%;
+    }
+}
+
+/* Very small screens */
+@media (max-width: 360px) {
+    .table {
+        min-height: 240px;
+        grid-template-rows: 40px 1fr 40px;
+        grid-template-columns: 40px 1fr 40px;
+    }
+
+    .chain .domino.horizontal {
+        width: 38px;
+        height: 19px;
+    }
+
+    .chain .domino.vertical {
+        width: 19px;
+        height: 38px;
+    }
+
+    .chain .domino .domino-half {
+        width: 17px;
+        height: 17px;
+    }
+
+    .chain .domino .pip {
+        width: 3px;
+        height: 3px;
+    }
+
+    .hand .domino.horizontal {
+        width: 42px;
+        height: 21px;
+    }
+
+    .hand .domino .domino-half {
+        width: 19px;
+        height: 19px;
+    }
+
+    .tile-grid {
+        grid-template-columns: repeat(3, 1fr);
     }
 }
