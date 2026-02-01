@@ -1,13 +1,13 @@
 # Domino Advisor - Project Definition
 
-**Current Version**: v0.3 (Beta)
+**Current Version**: v0.2.1 (Beta)
 
 ## Version History
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| v0.3 | Jan 2026 | Probability-based AI with priority overrides, partner support fix, help modal |
-| v0.2 | Jan 2026 | Quiz mode, hand tracking, player color coding, tile attribution |
+| v0.2.1 | Feb 2026 | Mobile viewport fix, responsive chain layout, turn connectors |
+| v0.2 | Jan 2026 | Probability-based AI with priority overrides, partner support fix, help modal, quiz mode, hand tracking, player color coding, tile attribution |
 | v0.1 | Jan 2026 | Initial release: game engine, SmartAI, match debrief, Claude analysis |
 
 ---

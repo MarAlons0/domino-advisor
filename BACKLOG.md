@@ -173,6 +173,8 @@ Add Spanish language option.
 - Full-width modal buttons for easier tapping
 - Scrollable debrief tabs
 - Compact table layout with adjusted grid cells
+- Responsive tilesPerRow calculation based on screen width
+- L-shaped turn connectors with arrows showing chain flow direction
 
 ### Probability-Based AI Decision Making (Jan 2026)
 - Enhanced HandTracker with Bayesian probability calculations
