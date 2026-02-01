@@ -461,7 +461,7 @@ class DominoApp {
                     chainDiv.appendChild(currentRow);
                     // Add turn connector between rows (L-shaped with arrow)
                     const turn = document.createElement('div');
-                    turn.className = 'chain-turn' + (rowIndex % 2 === 1 ? ' left-side' : '');
+                    turn.className = 'chain-turn' + (rowIndex % 2 === 0 ? ' left-side' : '');
                     turn.innerHTML = '<div class="turn-connector"></div>';
                     chainDiv.appendChild(turn);
                 }
