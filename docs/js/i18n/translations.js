@@ -117,6 +117,8 @@ export const translations = {
         'quiz.recorded': 'Prediction Recorded',
         'quiz.predictionRecorded': 'You predicted {1} tiles for {0}.',
         'quiz.resultsAtEnd': 'Results will be revealed at the end of the hand!',
+        'quiz.resultsTitle': 'Quiz Results',
+        'quiz.predictionFor': 'Prediction for {0}:',
 
         // Help modal
         'help.title': 'How to Play',
@@ -338,6 +340,8 @@ export const translations = {
         'quiz.recorded': 'Predicción Registrada',
         'quiz.predictionRecorded': 'Predijiste {1} fichas para {0}.',
         'quiz.resultsAtEnd': '¡Los resultados se revelarán al final de la mano!',
+        'quiz.resultsTitle': 'Resultados del Quiz',
+        'quiz.predictionFor': 'Predicción para {0}:',
 
         // Help modal
         'help.title': 'Cómo Jugar',

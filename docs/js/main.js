@@ -760,6 +760,12 @@ class DominoApp {
             }
         }
 
+        // Show quiz results if any were taken this hand
+        const quizResultsText = this.getHandQuizResultsText();
+        if (quizResultsText) {
+            text += quizResultsText;
+        }
+
         this.messageTitle.textContent = title;
         this.messageText.textContent = text;
         this.messageBox.classList.toggle('opponent-win', !isYourTeam);
@@ -774,6 +780,42 @@ class DominoApp {
         } else {
             this.log(t('log.tie'), 'system');
         }
+    }
+
+    getHandQuizResultsText() {
+        const matchHistory = this.game.getMatchHistory();
+        if (!matchHistory || !matchHistory.currentHand) return '';
+
+        const quizResults = matchHistory.currentHand.quizResults || [];
+        if (quizResults.length === 0) return '';
+
+        let text = `\n\n--- ${t('quiz.resultsTitle')} ---`;
+
+        for (const quiz of quizResults) {
+            const playerName = GameState.getPlayerName(quiz.targetPlayer);
+
+            // Calculate which tiles were correct, wrong, missed
+            const predicted = new Set(quiz.userPrediction);
+            const actual = new Set(quiz.actualHand);
+            const correct = quiz.userPrediction.filter(t => actual.has(t));
+            const wrong = quiz.userPrediction.filter(t => !actual.has(t));
+            const missed = quiz.actualHand.filter(t => !predicted.has(t));
+
+            text += `\n\n${t('quiz.predictionFor', playerName)}`;
+            text += `\n${t('quiz.score')}: ${quiz.score} ${t('debrief.predictions.points')}`;
+
+            if (correct.length > 0) {
+                text += `\n✓ ${t('quiz.correct')}: ${correct.join(' ')}`;
+            }
+            if (wrong.length > 0) {
+                text += `\n✗ ${t('quiz.wrong')}: ${wrong.join(' ')}`;
+            }
+            if (missed.length > 0) {
+                text += `\n? ${t('quiz.missed')}: ${missed.join(' ')}`;
+            }
+        }
+
+        return text;
     }
 
     showMatchEndMessage(data) {
