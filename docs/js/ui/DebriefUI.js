@@ -448,6 +448,7 @@ export class DebriefUI {
     _updateMatchQuizStats() {
         if (!this.predictionStats || !this.matchHistory) return;
 
+        const quizResults = this.matchHistory.getQuizResults();
         const quizStats = this.matchHistory.getQuizStats();
 
         if (quizStats.totalQuizzes === 0) {
@@ -455,28 +456,106 @@ export class DebriefUI {
             return;
         }
 
+        // Build detailed results for each quiz
+        let detailedHtml = '';
+        for (const quiz of quizResults) {
+            const playerName = this._getPlayerName(quiz.targetPlayer);
+            detailedHtml += `
+                <div class="quiz-result-card">
+                    <div class="quiz-result-header">
+                        <span class="quiz-target">${t('debrief.predictions.predictedFor', playerName)}</span>
+                        <span class="quiz-score-badge">${quiz.score} ${t('debrief.predictions.points')}</span>
+                    </div>
+                    <div class="quiz-result-breakdown">
+                        <div class="quiz-stat correct">
+                            <span class="label">${t('quiz.correct')}</span>
+                            <span class="value">${quiz.correct}</span>
+                        </div>
+                        <div class="quiz-stat wrong">
+                            <span class="label">${t('quiz.wrong')}</span>
+                            <span class="value">${quiz.wrong}</span>
+                        </div>
+                        <div class="quiz-stat missed">
+                            <span class="label">${t('quiz.missed')}</span>
+                            <span class="value">${quiz.missed}</span>
+                        </div>
+                    </div>
+                    ${this._renderQuizTileDetails(quiz)}
+                </div>
+            `;
+        }
+
+        // Summary stats
         this.predictionStats.innerHTML = `
-            <div class="prediction-stat-row">
-                <span class="stat-label">${t('debrief.predictions.quizzesTaken')}</span>
-                <span class="stat-value">${quizStats.totalQuizzes}</span>
+            <div class="quiz-results-detail">
+                <h4>${t('debrief.predictions.yourPredictions')}</h4>
+                ${detailedHtml}
             </div>
-            <div class="prediction-stat-row">
-                <span class="stat-label">${t('debrief.predictions.avgScore')}</span>
-                <span class="stat-value">${quizStats.avgScore}</span>
-            </div>
-            <div class="prediction-stat-row">
-                <span class="stat-label">${t('debrief.predictions.correctPredictions')}</span>
-                <span class="stat-value">${quizStats.totalCorrect}</span>
-            </div>
-            <div class="prediction-stat-row">
-                <span class="stat-label">${t('debrief.predictions.wrongPredictions')}</span>
-                <span class="stat-value">${quizStats.totalWrong}</span>
-            </div>
-            <div class="prediction-stat-row">
-                <span class="stat-label">${t('debrief.predictions.accuracy')}</span>
-                <span class="stat-value">${quizStats.accuracy}%</span>
+            <div class="quiz-summary">
+                <h4>${t('debrief.predictions.matchSummary')}</h4>
+                <div class="prediction-stat-row">
+                    <span class="stat-label">${t('debrief.predictions.quizzesTaken')}</span>
+                    <span class="stat-value">${quizStats.totalQuizzes}</span>
+                </div>
+                <div class="prediction-stat-row">
+                    <span class="stat-label">${t('debrief.predictions.avgScore')}</span>
+                    <span class="stat-value">${quizStats.avgScore}</span>
+                </div>
+                <div class="prediction-stat-row">
+                    <span class="stat-label">${t('debrief.predictions.accuracy')}</span>
+                    <span class="stat-value">${quizStats.accuracy}%</span>
+                </div>
             </div>
         `;
+    }
+
+    /**
+     * Render tile details for a quiz result
+     * @private
+     */
+    _renderQuizTileDetails(quiz) {
+        // Calculate which tiles were correct, wrong, missed
+        const predicted = new Set(quiz.userPrediction);
+        const actual = new Set(quiz.actualHand);
+
+        const correct = quiz.userPrediction.filter(t => actual.has(t));
+        const wrong = quiz.userPrediction.filter(t => !actual.has(t));
+        const missed = quiz.actualHand.filter(t => !predicted.has(t));
+
+        let html = '<div class="quiz-tiles-detail">';
+
+        if (correct.length > 0) {
+            html += `<div class="tile-group correct">
+                <span class="group-label">${t('quiz.correctlyPredicted')}</span>
+                <div class="tiles">${correct.map(k => `<span class="tile-mini">${k}</span>`).join('')}</div>
+            </div>`;
+        }
+
+        if (wrong.length > 0) {
+            html += `<div class="tile-group wrong">
+                <span class="group-label">${t('quiz.incorrectlyPredicted')}</span>
+                <div class="tiles">${wrong.map(k => `<span class="tile-mini">${k}</span>`).join('')}</div>
+            </div>`;
+        }
+
+        if (missed.length > 0) {
+            html += `<div class="tile-group missed">
+                <span class="group-label">${t('quiz.missedTiles')}</span>
+                <div class="tiles">${missed.map(k => `<span class="tile-mini">${k}</span>`).join('')}</div>
+            </div>`;
+        }
+
+        html += '</div>';
+        return html;
+    }
+
+    /**
+     * Get player name by index
+     * @private
+     */
+    _getPlayerName(playerIndex) {
+        const names = [t('player.you'), t('player.opp1'), t('player.partner'), t('player.opp2')];
+        return names[playerIndex] || `Player ${playerIndex}`;
     }
 
     /**
