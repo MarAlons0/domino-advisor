@@ -157,6 +157,7 @@ class DominoApp {
         this.messageBox = document.getElementById('message-box');
         this.messageTitle = document.getElementById('message-title');
         this.messageText = document.getElementById('message-text');
+        this.messageGenin = document.getElementById('message-genin');
         this.continueBtn = document.getElementById('continue-btn');
         this.reviewBtn = document.getElementById('review-btn');
 
@@ -784,6 +785,11 @@ class DominoApp {
         this.messageBox.classList.toggle('opponent-win', !isYourTeam);
         this.messageBox.classList.add('visible');
         this.modalOverlay.classList.add('visible');
+
+        // Show celebrating Genín on match win
+        if (this.messageGenin) {
+            this.messageGenin.style.display = isYourTeam ? 'block' : 'none';
+        }
 
         this.continueBtn.textContent = t('btn.newMatch');
         this.reviewBtn.style.display = 'inline-block';

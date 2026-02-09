@@ -729,6 +729,12 @@ button:disabled {
     margin: 15px 0;
 }
 
+.message-genin {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 10px;
+}
+
 /* Open Ends Indicator */
 .open-ends {
     text-align: center;
@@ -792,6 +798,12 @@ button:disabled {
     padding: 15px 20px;
     border-bottom: 1px solid #0f3460;
     flex-shrink: 0;
+}
+
+.help-header-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .help-header h2 {
@@ -1463,6 +1475,12 @@ button:disabled {
     align-items: center;
     padding: 15px 20px;
     border-bottom: 1px solid #0f3460;
+}
+
+.quiz-header-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .quiz-header h2 {

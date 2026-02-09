@@ -189,12 +189,12 @@ Teach traditional terminology through the UI.
 - Traditional domino terminology preserved (tranque, cerró, dominó)
 - All UI elements, game messages, modals translated
 
-**Pending Genín Mascot Integration:**
-- Create mascot character "Genín" (doodle-style illustration based on Mario's father)
-- Use Genín as the "advisor" persona for didactic elements
-- Separates game play from teaching/analysis
-- Name plays on "genio" (genie/genius) who guides players
-- Appears in: Debrief modal, Quiz mode, Strategic tips
+**Genín Mascot Integration (Completed):**
+- Mascot character "Genín" (doodle-style illustration based on Mario's father)
+- Genín serves as the "advisor" persona for didactic elements
+- 4 poses: thinking (debrief), questioning (quiz), advising (help), celebrating (match win)
+- CSS filter: invert(1) converts black line art to white for dark UI
+- Appears in: Debrief modal header, Quiz modal header, Help modal header, Match win message
 
 ### Mobile Viewport Fix (Feb 2026)
 - Responsive layout for phones (480px) and very small screens (360px)

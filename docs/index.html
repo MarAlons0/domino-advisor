@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>7 Fichas v0.3.0</title>
-    <link rel="stylesheet" href="css/styles.css?v=14">
+    <link rel="stylesheet" href="css/styles.css?v=15">
 </head>
 <body>
     <header class="app-header">
@@ -146,6 +146,7 @@
 
     <!-- Message Box -->
     <div class="message-box" id="message-box">
+        <img src="img/genin-celebrating.png" alt="Genín" class="genin-avatar message-genin" id="message-genin" style="display: none;">
         <h2 id="message-title">Hand Complete</h2>
         <p id="message-text"></p>
         <div class="message-buttons">
@@ -158,7 +159,10 @@
     <div class="modal-overlay" id="quiz-overlay"></div>
     <div class="quiz-modal" id="quiz-modal">
         <div class="quiz-header">
-            <h2 data-i18n="quiz.title">Predict Opponent's Hand</h2>
+            <div class="quiz-header-content">
+                <img src="img/genin-questioning.png" alt="Genín" class="genin-avatar">
+                <h2 data-i18n="quiz.title">Call Their Hand</h2>
+            </div>
             <button id="close-quiz-btn" class="close-btn">&times;</button>
         </div>
         <div class="quiz-content">
@@ -200,7 +204,10 @@
     <div class="modal-overlay" id="help-overlay"></div>
     <div class="help-modal" id="help-modal">
         <div class="help-header">
-            <h2 data-i18n="help.title">How to Play</h2>
+            <div class="help-header-content">
+                <img src="img/genin-advising.png" alt="Genín" class="genin-avatar">
+                <h2 data-i18n="help.title">How to Play</h2>
+            </div>
             <button id="close-help-btn" class="close-btn">&times;</button>
         </div>
         <div class="help-content">
