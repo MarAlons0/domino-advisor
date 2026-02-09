@@ -1024,6 +1024,7 @@ class DominoApp {
         const state = this.game.getState();
         const actualHand = state.hands[this.quizTargetPlayer];
         const predictedKeys = Array.from(this.quizSelectedTiles);
+        const playerName = this.handTracker.getPlayerName(this.quizTargetPlayer);
 
         // Score the prediction
         const result = this.handTracker.scoreQuizPrediction(
@@ -1053,8 +1054,8 @@ class DominoApp {
             missed: result.missed
         });
 
-        // Show results
-        this.showQuizResult(result);
+        // Show confirmation instead of results (results shown at end of hand)
+        this.showQuizConfirmation(playerName, predictedKeys.length);
     }
 
     showQuizResult(result) {
@@ -1127,6 +1128,38 @@ class DominoApp {
             }
 
             this.quizBreakdown.innerHTML = html;
+        }
+    }
+
+    showQuizConfirmation(playerName, tileCount) {
+        // Hide content, show confirmation
+        if (document.querySelector('.quiz-content')) {
+            document.querySelector('.quiz-content').style.display = 'none';
+        }
+        if (this.quizResult) {
+            this.quizResult.style.display = 'block';
+        }
+
+        // Update to show confirmation message
+        if (this.quizScoreValue) {
+            this.quizScoreValue.textContent = '?';
+            this.quizScoreValue.style.color = '#8b5cf6';
+        }
+
+        // Show confirmation message instead of breakdown
+        if (this.quizBreakdown) {
+            this.quizBreakdown.innerHTML = `
+                <div class="quiz-confirmation">
+                    <p>${t('quiz.predictionRecorded', playerName, tileCount)}</p>
+                    <p class="quiz-hint">${t('quiz.resultsAtEnd')}</p>
+                </div>
+            `;
+        }
+
+        // Update result title
+        const resultTitle = document.getElementById('quiz-result-title');
+        if (resultTitle) {
+            resultTitle.textContent = t('quiz.recorded');
         }
     }
 }

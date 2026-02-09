@@ -114,6 +114,9 @@ export const translations = {
         'quiz.incorrectlyPredicted': 'Incorrectly predicted:',
         'quiz.missedTiles': 'Missed (they had but you didn\'t predict):',
         'quiz.done': 'Done',
+        'quiz.recorded': 'Prediction Recorded',
+        'quiz.predictionRecorded': 'You predicted {1} tiles for {0}.',
+        'quiz.resultsAtEnd': 'Results will be revealed at the end of the hand!',
 
         // Help modal
         'help.title': 'How to Play',
@@ -328,6 +331,9 @@ export const translations = {
         'quiz.incorrectlyPredicted': 'Incorrectamente predichas:',
         'quiz.missedTiles': 'Olvidadas (tenía pero no predijiste):',
         'quiz.done': 'Listo',
+        'quiz.recorded': 'Predicción Registrada',
+        'quiz.predictionRecorded': 'Predijiste {1} fichas para {0}.',
+        'quiz.resultsAtEnd': '¡Los resultados se revelarán al final de la mano!',
 
         // Help modal
         'help.title': 'Cómo Jugar',

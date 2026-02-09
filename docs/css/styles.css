@@ -1771,6 +1771,23 @@ button:disabled {
     padding: 12px 30px;
 }
 
+.quiz-confirmation {
+    text-align: center;
+    padding: 20px 10px;
+}
+
+.quiz-confirmation p {
+    margin: 0 0 10px 0;
+    color: #ddd;
+    font-size: 14px;
+}
+
+.quiz-confirmation .quiz-hint {
+    color: #8b5cf6;
+    font-style: italic;
+    font-size: 13px;
+}
+
 /* Predictions Tab in Debrief */
 .predictions-summary,
 .predictions-history,

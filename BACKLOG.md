@@ -2,6 +2,24 @@
 
 ## Pending Features
 
+### 0. Quiz Deferred Results
+**Priority:** High
+**Complexity:** Low
+
+Change quiz behavior so results are shown at end of hand instead of immediately.
+
+**Current behavior:**
+- Player takes quiz mid-hand, sees results immediately
+- This interrupts gameplay and player cannot finish the round
+
+**Desired behavior:**
+- Player makes predictions during the hand
+- Predictions are stored but not revealed
+- Results shown in debrief modal at end of hand
+- Player can continue playing after making predictions
+
+---
+
 ### 0. AI Decision Transparency (Developer Tool)
 **Priority:** Medium
 **Complexity:** Low
@@ -193,7 +211,8 @@ Teach traditional terminology through the UI.
 - Mascot character "Genín" (doodle-style illustration based on Mario's father)
 - Genín serves as the "advisor" persona for didactic elements
 - 4 poses: thinking (debrief), questioning (quiz), advising (help), celebrating (match win)
-- CSS filter: invert(1) converts black line art to white for dark UI
+- Black line art on light circular background for visibility
+- Introduces himself as "your domino coach" in the help modal
 - Appears in: Debrief modal header, Quiz modal header, Help modal header, Match win message
 
 ### Mobile Viewport Fix (Feb 2026)
