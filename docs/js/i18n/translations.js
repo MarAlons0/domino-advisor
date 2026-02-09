@@ -117,6 +117,7 @@ export const translations = {
 
         // Help modal
         'help.title': 'How to Play',
+        'help.genin.intro': 'Hi! I\'m <strong>Genín</strong>, your domino coach. I\'ll help you learn the strategies of partnership dominoes and improve your game. Let\'s play!',
         'help.about.title': 'About the Game',
         'help.about.text': '7 Fichas simulates <strong>4-player partnership dominoes</strong> (Cuban/Puerto Rican style). You and your partner (across the table) play against two opponents. First team to 100 points wins the match.',
         'help.howToPlay.title': 'How to Play',
@@ -330,6 +331,7 @@ export const translations = {
 
         // Help modal
         'help.title': 'Cómo Jugar',
+        'help.genin.intro': '¡Hola! Soy <strong>Genín</strong>, tu entrenador de dominó. Te ayudaré a aprender las estrategias del dominó de parejas y mejorar tu juego. ¡Vamos a jugar!',
         'help.about.title': 'Sobre el Juego',
         'help.about.text': '7 Fichas simula <strong>dominó de parejas</strong> (estilo cubano/puertorriqueño). Tú y tu pareja (al frente) juegan contra dos oponentes. El primer equipo en llegar a 100 puntos gana la partida.',
         'help.howToPlay.title': 'Cómo Jugar',
