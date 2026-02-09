@@ -1,5 +1,6 @@
 import { ClaudeService } from '../services/ClaudeService.js';
 import { GameState } from '../models/GameState.js';
+import { t, i18n } from '../i18n/i18n.js';
 
 /**
  * DebriefUI - Modal interface for post-match review.
@@ -196,7 +197,8 @@ export class DebriefUI {
         const total = stats.optimal + stats.good + stats.questionable + stats.mistake;
         const goodRate = total > 0 ? Math.round(((stats.optimal + stats.good) / total) * 100) : 0;
 
-        this.summaryEl.textContent = `${handCount} hand${handCount !== 1 ? 's' : ''} played. ${goodRate}% good moves.`;
+        const plural = handCount !== 1 ? 's' : '';
+        this.summaryEl.textContent = t('debrief.summary', handCount, plural, goodRate);
     }
 
     /**
@@ -224,26 +226,27 @@ export class DebriefUI {
         const moments = this.matchHistory.getKeyMoments();
 
         if (moments.length === 0) {
-            this.keyMomentsList.innerHTML = '<div class="empty-state">No significant mistakes or questionable plays. Great job!</div>';
+            this.keyMomentsList.innerHTML = `<div class="empty-state">${t('debrief.noMistakes')}</div>`;
             return;
         }
 
         this.keyMomentsList.innerHTML = moments.map(moment => {
             const play = moment.play;
             const isQuestionable = play.evaluation === 'questionable';
+            const evalLabel = t(`debrief.stat.${play.evaluation}`);
 
             return `
                 <div class="moment-item ${isQuestionable ? 'questionable' : ''}">
                     <div class="moment-header">
-                        <span class="moment-label">Hand ${moment.handNumber}, Play ${moment.playIndex + 1}</span>
-                        <span class="moment-badge ${play.evaluation}">${play.evaluation}</span>
+                        <span class="moment-label">${t('debrief.handPlay', moment.handNumber, moment.playIndex + 1)}</span>
+                        <span class="moment-badge ${play.evaluation}">${evalLabel}</span>
                     </div>
                     <div class="moment-played">
-                        Played ${play.tile ? play.tile.toString() : 'unknown'} on ${play.end}
+                        ${t('debrief.played', play.tile ? play.tile.toString() : 'unknown', play.end)}
                     </div>
                     ${play.aiRecommendation ? `
                         <div class="moment-recommended">
-                            AI recommended: ${play.aiRecommendation.tile?.toString() || 'unknown'} - "${play.aiRecommendation.reasoning}"
+                            ${t('debrief.aiRecommended', play.aiRecommendation.tile?.toString() || 'unknown', play.aiRecommendation.reasoning)}
                         </div>
                     ` : ''}
                 </div>
@@ -261,29 +264,30 @@ export class DebriefUI {
         const plays = this.matchHistory.getHumanPlays();
 
         if (plays.length === 0) {
-            this.yourPlaysList.innerHTML = '<div class="empty-state">No plays recorded yet.</div>';
+            this.yourPlaysList.innerHTML = `<div class="empty-state">${t('debrief.noPlays')}</div>`;
             return;
         }
 
         this.yourPlaysList.innerHTML = plays.map(item => {
             const play = item.play;
             const isPass = play.tile === null;
+            const evalLabel = play.evaluation ? t(`debrief.stat.${play.evaluation}`) : t('na');
 
             return `
                 <div class="play-item">
                     <div class="play-header">
-                        <span class="play-info">Hand ${item.handNumber}, Play ${item.playIndex + 1}</span>
+                        <span class="play-info">${t('debrief.handPlay', item.handNumber, item.playIndex + 1)}</span>
                         ${isPass
-                            ? '<span class="play-badge pass">Pass</span>'
-                            : `<span class="play-badge ${play.evaluation || ''}">${play.evaluation || 'N/A'}</span>`
+                            ? `<span class="play-badge pass">${t('pass')}</span>`
+                            : `<span class="play-badge ${play.evaluation || ''}">${evalLabel}</span>`
                         }
                     </div>
                     <div class="play-tile">
-                        ${isPass ? 'Passed (no valid moves)' : `Played ${play.tile.toString()} on ${play.end}`}
+                        ${isPass ? t('debrief.passed') : t('debrief.played', play.tile.toString(), play.end)}
                     </div>
                     ${!isPass && play.aiRecommendation ? `
                         <div class="play-recommendation">
-                            AI: ${play.aiRecommendation.tile?.toString() || 'unknown'} on ${play.aiRecommendation.end} - "${play.aiRecommendation.reasoning}"
+                            ${t('ai')}: ${play.aiRecommendation.tile?.toString() || 'unknown'} on ${play.aiRecommendation.end} - "${play.aiRecommendation.reasoning}"
                         </div>
                     ` : ''}
                 </div>
@@ -304,7 +308,7 @@ export class DebriefUI {
         for (let i = 1; i <= handCount; i++) {
             const option = document.createElement('option');
             option.value = i;
-            option.textContent = `Hand ${i}`;
+            option.textContent = t('debrief.hand', i);
             this.handSelect.appendChild(option);
         }
     }
@@ -320,7 +324,7 @@ export class DebriefUI {
         const hand = this.matchHistory.getHand(handNumber);
 
         if (!hand) {
-            this.fullMatchPlays.innerHTML = '<div class="empty-state">No plays for this hand.</div>';
+            this.fullMatchPlays.innerHTML = `<div class="empty-state">${t('debrief.noPlaysHand')}</div>`;
             return;
         }
 
@@ -330,10 +334,10 @@ export class DebriefUI {
             const isPass = play.tile === null;
 
             let badgeClass = isHuman ? (play.evaluation || '') : 'ai';
-            let badgeText = isHuman ? (play.evaluation || 'N/A') : 'AI';
+            let badgeText = isHuman ? (play.evaluation ? t(`debrief.stat.${play.evaluation}`) : t('na')) : t('ai');
             if (isPass) {
                 badgeClass = 'pass';
-                badgeText = 'Pass';
+                badgeText = t('pass');
             }
 
             return `
@@ -343,14 +347,14 @@ export class DebriefUI {
                         <span class="play-badge ${badgeClass}">${badgeText}</span>
                     </div>
                     <div class="play-tile">
-                        ${isPass ? 'Passed' : `Played ${play.tile.toString()} on ${play.end}`}
+                        ${isPass ? t('pass') : t('debrief.played', play.tile.toString(), play.end)}
                     </div>
                     ${!isPass && play.actualReasoning && !isHuman ? `
                         <div class="play-recommendation">${play.actualReasoning}</div>
                     ` : ''}
                     ${!isPass && isHuman && play.aiRecommendation ? `
                         <div class="play-recommendation">
-                            AI recommended: ${play.aiRecommendation.tile?.toString() || 'unknown'} - "${play.aiRecommendation.reasoning}"
+                            ${t('debrief.aiRecommended', play.aiRecommendation.tile?.toString() || 'unknown', play.aiRecommendation.reasoning)}
                         </div>
                     ` : ''}
                 </div>
@@ -359,14 +363,19 @@ export class DebriefUI {
 
         // Add result if available
         if (hand.result) {
+            const reasonText = hand.result.reason === 'domino' ? t('debrief.dominoResult') :
+                               hand.result.reason === 'closed' ? t('debrief.closedResult') : t('debrief.blockedResult');
+            const resultInfo = hand.result.winner >= 0
+                ? t('debrief.wins', GameState.getTeamName(hand.result.winner), hand.result.points)
+                : t('debrief.tieResult');
+
             const resultHtml = `
                 <div class="play-item" style="border-left: 3px solid #00d4ff;">
                     <div class="play-header">
-                        <span class="play-info">Hand Result</span>
+                        <span class="play-info">${t('debrief.handResult')}</span>
                     </div>
                     <div class="play-tile">
-                        ${hand.result.reason === 'domino' ? 'Domino!' : hand.result.reason === 'closed' ? 'Closed game' : 'Blocked'} -
-                        ${hand.result.winner >= 0 ? GameState.getTeamName(hand.result.winner) + ' wins ' + hand.result.points + ' points' : 'Tie'}
+                        ${reasonText} - ${resultInfo}
                     </div>
                 </div>
             `;
@@ -442,29 +451,29 @@ export class DebriefUI {
         const quizStats = this.matchHistory.getQuizStats();
 
         if (quizStats.totalQuizzes === 0) {
-            this.predictionStats.innerHTML = '<div class="empty-state">No quizzes taken this match. Click "Quiz Me" during gameplay to test your prediction skills!</div>';
+            this.predictionStats.innerHTML = `<div class="empty-state">${t('debrief.predictions.noQuizzes')}</div>`;
             return;
         }
 
         this.predictionStats.innerHTML = `
             <div class="prediction-stat-row">
-                <span class="stat-label">Quizzes Taken</span>
+                <span class="stat-label">${t('debrief.predictions.quizzesTaken')}</span>
                 <span class="stat-value">${quizStats.totalQuizzes}</span>
             </div>
             <div class="prediction-stat-row">
-                <span class="stat-label">Average Score</span>
+                <span class="stat-label">${t('debrief.predictions.avgScore')}</span>
                 <span class="stat-value">${quizStats.avgScore}</span>
             </div>
             <div class="prediction-stat-row">
-                <span class="stat-label">Correct Predictions</span>
+                <span class="stat-label">${t('debrief.predictions.correctPredictions')}</span>
                 <span class="stat-value">${quizStats.totalCorrect}</span>
             </div>
             <div class="prediction-stat-row">
-                <span class="stat-label">Wrong Predictions</span>
+                <span class="stat-label">${t('debrief.predictions.wrongPredictions')}</span>
                 <span class="stat-value">${quizStats.totalWrong}</span>
             </div>
             <div class="prediction-stat-row">
-                <span class="stat-label">Accuracy</span>
+                <span class="stat-label">${t('debrief.predictions.accuracy')}</span>
                 <span class="stat-value">${quizStats.accuracy}%</span>
             </div>
         `;
@@ -510,14 +519,14 @@ export class DebriefUI {
             const trend = this.quizStorage.getAccuracyTrend();
 
             if (trend.trend === 'insufficient_data') {
-                this.accuracyTrend.textContent = 'Take more quizzes to see your improvement trend.';
+                this.accuracyTrend.textContent = t('debrief.history.trend.insufficient');
                 this.accuracyTrend.className = 'accuracy-trend stable';
             } else {
                 const trendText = trend.trend === 'improving'
-                    ? `Improving! Recent: ${trend.recent}%, Previous: ${trend.previous}%`
+                    ? t('debrief.history.trend.improving', trend.recent, trend.previous)
                     : trend.trend === 'declining'
-                    ? `Declining. Recent: ${trend.recent}%, Previous: ${trend.previous}%`
-                    : `Stable. Recent: ${trend.recent}%, Previous: ${trend.previous}%`;
+                    ? t('debrief.history.trend.declining', trend.recent, trend.previous)
+                    : t('debrief.history.trend.stable', trend.recent, trend.previous);
 
                 this.accuracyTrend.textContent = trendText;
                 this.accuracyTrend.className = `accuracy-trend ${trend.trend}`;
@@ -535,7 +544,7 @@ export class DebriefUI {
         const history = this.handTracker.getDeductionHistory();
 
         if (history.length === 0) {
-            this.deductionTimelineList.innerHTML = '<div class="empty-state">No deductions recorded for this hand.</div>';
+            this.deductionTimelineList.innerHTML = `<div class="empty-state">${t('debrief.timeline.noDeductions')}</div>`;
             return;
         }
 
@@ -543,14 +552,14 @@ export class DebriefUI {
         const passDeductions = history.filter(d => d.type === 'pass');
 
         if (passDeductions.length === 0) {
-            this.deductionTimelineList.innerHTML = '<div class="empty-state">No passes recorded this hand. Passes reveal which suits opponents lack.</div>';
+            this.deductionTimelineList.innerHTML = `<div class="empty-state">${t('debrief.timeline.noPasses')}</div>`;
             return;
         }
 
         this.deductionTimelineList.innerHTML = passDeductions.map(d => `
             <div class="timeline-item ${d.type}">
                 <div class="timeline-header">
-                    <span class="timeline-play">After play #${d.playIndex}</span>
+                    <span class="timeline-play">${t('debrief.timeline.afterPlay', d.playIndex)}</span>
                     <span class="timeline-type">${d.type}</span>
                 </div>
                 <p class="timeline-description">${d.description}</p>

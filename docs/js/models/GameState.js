@@ -1,6 +1,7 @@
 import { Hand } from './Hand.js';
 import { Chain } from './Chain.js';
 import { Tile } from './Tile.js';
+import { t } from '../i18n/i18n.js';
 
 /**
  * GameState class containing the complete state of a domino game.
@@ -91,7 +92,7 @@ export class GameState {
      * @returns {string}
      */
     static getTeamName(team) {
-        return team === 0 ? 'Team A (You & Partner)' : 'Team B (Opponents)';
+        return team === 0 ? t('team.teamA') : t('team.teamB');
     }
 
     /**
@@ -100,8 +101,8 @@ export class GameState {
      * @returns {string}
      */
     static getPlayerName(player) {
-        const names = ['You', 'Opponent 1', 'Partner', 'Opponent 2'];
-        return names[player];
+        const keys = ['player.you', 'player.opponent1', 'player.partner', 'player.opponent2'];
+        return t(keys[player]);
     }
 
     /**

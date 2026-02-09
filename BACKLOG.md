@@ -2,6 +2,35 @@
 
 ## Pending Features
 
+### 0. AI Decision Transparency (Developer Tool)
+**Priority:** Medium
+**Complexity:** Low
+
+Add developer-only debugging interface to inspect AI decision-making process in real-time.
+
+**Requirements:**
+- View scoring breakdown for each valid move the AI is considering
+- Show weight contributions from each strategic factor:
+  - Suit strength, double management, partner support
+  - Blocking potential, pip management, end control
+  - Tile counting bonus, dead suit penalties
+- Display probability calculations from HandTracker:
+  - P(player holds tile) for each opponent/partner
+  - P(player lacks suit) based on passes
+  - P(blocking success) for cuadrar attempts
+- Toggle via URL parameter or keyboard shortcut (e.g., `?debug=true` or Ctrl+D)
+- Console logging or dedicated debug panel overlay
+- Does NOT appear in production/normal play
+- Helps validate AI logic and tune weights
+
+**Potential UI:**
+- Floating panel that appears on AI turns
+- Expandable table showing all valid moves with scores
+- Highlight chosen move and runner-up
+- Show probability matrix for tile locations
+
+---
+
 ### 0. AI Enhancements (Future)
 **Priority:** Medium
 **Complexity:** Medium
@@ -150,20 +179,22 @@ Teach traditional terminology through the UI.
 
 ---
 
-### 10. Spanish Language Support
-**Priority:** Low
-**Complexity:** Medium
-
-Add Spanish language option.
-
-**Requirements:**
-- Translate all UI text
-- Keep traditional terminology unchanged
-- Language toggle in settings
-
----
-
 ## Completed Features
+
+### 10. Spanish Language Support & Rebranding (Feb 2026)
+- Rebranded from "Domino Advisor" to "7 Fichas"
+- Full i18n system with EN/ES translations (~250 keys)
+- Language toggle in header (EN / ES)
+- Browser language detection with localStorage persistence
+- Traditional domino terminology preserved (tranque, cerró, dominó)
+- All UI elements, game messages, modals translated
+
+**Pending Genín Mascot Integration:**
+- Create mascot character "Genín" (doodle-style illustration based on Mario's father)
+- Use Genín as the "advisor" persona for didactic elements
+- Separates game play from teaching/analysis
+- Name plays on "genio" (genie/genius) who guides players
+- Appears in: Debrief modal, Quiz mode, Strategic tips
 
 ### Mobile Viewport Fix (Feb 2026)
 - Responsive layout for phones (480px) and very small screens (360px)

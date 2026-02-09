@@ -1,4 +1,5 @@
 import { ClaudeService } from '../services/ClaudeService.js';
+import { t, i18n } from '../i18n/i18n.js';
 
 /**
  * SettingsUI - Settings panel for API key configuration.
@@ -85,7 +86,7 @@ export class SettingsUI {
             this.apiKeyInput.value = '';
             this.apiKeyInput.placeholder = this.claudeService.hasApiKey()
                 ? this.claudeService.getMaskedKey()
-                : 'Enter your Claude API key...';
+                : t('settings.apiKey.placeholder');
         }
         this._updateKeyStatus();
     }
@@ -109,14 +110,14 @@ export class SettingsUI {
     _saveKey() {
         const key = this.apiKeyInput?.value?.trim();
         if (!key) {
-            this._showStatus('Please enter an API key', 'error');
+            this._showStatus(t('settings.apiKey.enterKey'), 'error');
             return;
         }
 
         this.claudeService.setApiKey(key);
         this.apiKeyInput.value = '';
         this.apiKeyInput.placeholder = this.claudeService.getMaskedKey();
-        this._showStatus('API key saved!', 'success');
+        this._showStatus(t('settings.apiKey.saved'), 'success');
         this._updateKeyStatus();
     }
 
@@ -126,11 +127,11 @@ export class SettingsUI {
      */
     async _testKey() {
         if (!this.claudeService.hasApiKey()) {
-            this._showStatus('No API key configured', 'error');
+            this._showStatus(t('settings.apiKey.noKey'), 'error');
             return;
         }
 
-        this._showStatus('Testing connection...', 'loading');
+        this._showStatus(t('settings.apiKey.testing'), 'loading');
         this.testKeyBtn.disabled = true;
 
         const result = await this.claudeService.testConnection();
@@ -147,9 +148,9 @@ export class SettingsUI {
         this.claudeService.setApiKey(null);
         if (this.apiKeyInput) {
             this.apiKeyInput.value = '';
-            this.apiKeyInput.placeholder = 'Enter your Claude API key...';
+            this.apiKeyInput.placeholder = t('settings.apiKey.placeholder');
         }
-        this._showStatus('API key cleared', 'info');
+        this._showStatus(t('settings.apiKey.cleared'), 'info');
         this._updateKeyStatus();
     }
 
@@ -172,10 +173,10 @@ export class SettingsUI {
         if (!this.keyStatus) return;
 
         if (this.claudeService.hasApiKey()) {
-            this.keyStatus.textContent = `Key configured: ${this.claudeService.getMaskedKey()}`;
+            this.keyStatus.textContent = t('settings.apiKey.configured', this.claudeService.getMaskedKey());
             this.keyStatus.className = 'key-status configured';
         } else {
-            this.keyStatus.textContent = 'No API key configured';
+            this.keyStatus.textContent = t('settings.apiKey.notConfigured');
             this.keyStatus.className = 'key-status not-configured';
         }
     }

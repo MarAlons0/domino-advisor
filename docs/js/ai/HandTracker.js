@@ -1,4 +1,5 @@
 import { Tile } from '../models/Tile.js';
+import { t } from '../i18n/i18n.js';
 
 /**
  * HandTracker - Maintains tile probability distributions for each player.
@@ -74,7 +75,7 @@ export class HandTracker {
         this.deductionHistory.push({
             playIndex: 0,
             type: 'init',
-            description: `Hand dealt. You have 7 tiles. Each other player has 7 tiles from the remaining 21.`
+            description: t('tracker.init')
         });
     }
 
@@ -131,14 +132,15 @@ export class HandTracker {
         // Record this deduction
         const playerName = this.getPlayerName(player);
         const suitNames = leftEnd === rightEnd
-            ? `${leftEnd}s`
-            : `${leftEnd}s and ${rightEnd}s`;
+            ? t('tracker.passedOnSingle', leftEnd)
+            : t('tracker.passedOnDouble', leftEnd, rightEnd);
+        const lacksSuits = rightEnd !== leftEnd ? `${leftEnd}, ${rightEnd}` : `${leftEnd}`;
 
         this.deductionHistory.push({
             playIndex: this.playedTiles.size,
             type: 'pass',
             player: player,
-            description: `${playerName} passed on ${suitNames}. They have no tiles with ${leftEnd}${rightEnd !== leftEnd ? ` or ${rightEnd}` : ''}.`,
+            description: t('tracker.passedOn', playerName, suitNames, lacksSuits),
             tilesEliminated: tilesEliminated
         });
     }
@@ -482,8 +484,8 @@ export class HandTracker {
      * @returns {string}
      */
     getPlayerName(player) {
-        const names = ['You', 'Opponent 1', 'Partner', 'Opponent 2'];
-        return names[player] || `Player ${player}`;
+        const keys = ['player.you', 'player.opponent1', 'player.partner', 'player.opponent2'];
+        return keys[player] ? t(keys[player]) : `Player ${player}`;
     }
 
     /**

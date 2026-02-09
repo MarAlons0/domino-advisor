@@ -3,14 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Domino Advisor v0.2.1</title>
-    <link rel="stylesheet" href="css/styles.css?v=12">
+    <title>7 Fichas v0.3.0</title>
+    <link rel="stylesheet" href="css/styles.css?v=13">
 </head>
 <body>
     <header class="app-header">
-        <h1>Domino Advisor <span class="version">v0.2.1</span></h1>
-        <p class="attribution">Created by <a href="https://looking4nature.com" target="_blank" rel="noopener">Mario Alonso</a></p>
+        <div class="brand">
+            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v0.3.0</span></h1>
+            <p class="subtitle" data-i18n="app.subtitle">Partnership Dominoes vs. AI</p>
+        </div>
+        <p class="attribution"><span data-i18n="app.createdBy">Created by</span> <a href="https://looking4nature.com" target="_blank" rel="noopener">Mario Alonso</a></p>
         <div class="header-buttons">
+            <button id="lang-toggle" class="lang-toggle" title="Language">
+                <span class="lang-option" data-lang="en">EN</span>
+                <span class="lang-separator">/</span>
+                <span class="lang-option" data-lang="es">ES</span>
+            </button>
             <button id="help-btn" class="help-btn" title="Help">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
@@ -32,11 +40,11 @@
             <!-- Scores -->
             <div class="scores">
                 <div class="score-box your-team">
-                    <div class="score-label">Your Team</div>
+                    <div class="score-label" data-i18n="team.yours">Your Team</div>
                     <div class="score-value" id="team-a-score">0</div>
                 </div>
                 <div class="score-box opponent-team">
-                    <div class="score-label">Opponents</div>
+                    <div class="score-label" data-i18n="team.opponents">Opponents</div>
                     <div class="score-value" id="team-b-score">0</div>
                 </div>
             </div>
@@ -46,7 +54,7 @@
                 <!-- Partner (top) -->
                 <div class="player-position player-top">
                     <div class="player-info">
-                        <div class="player-name player-color-2" id="player-2-name">Partner</div>
+                        <div class="player-name player-color-2" id="player-2-name" data-i18n="player.partner">Partner</div>
                         <div class="tile-count horizontal" id="player-2-tiles"></div>
                     </div>
                 </div>
@@ -54,7 +62,7 @@
                 <!-- Opponent 2 (left) -->
                 <div class="player-position player-left">
                     <div class="player-info">
-                        <div class="player-name player-color-3" id="player-3-name">Opp 2</div>
+                        <div class="player-name player-color-3" id="player-3-name" data-i18n="player.opp2">Opp 2</div>
                         <div class="tile-count vertical" id="player-3-tiles"></div>
                     </div>
                 </div>
@@ -62,14 +70,14 @@
                 <!-- Chain Area (center) -->
                 <div class="chain-container">
                     <div class="chain" id="chain">
-                        <div class="empty-table-message" id="empty-message">Click "New Game" to start</div>
+                        <div class="empty-table-message" id="empty-message" data-i18n="table.emptyStart">Click "New Game" to start</div>
                     </div>
                 </div>
 
                 <!-- Opponent 1 (right) -->
                 <div class="player-position player-right">
                     <div class="player-info">
-                        <div class="player-name player-color-1" id="player-1-name">Opp 1</div>
+                        <div class="player-name player-color-1" id="player-1-name" data-i18n="player.opp1">Opp 1</div>
                         <div class="tile-count vertical" id="player-1-tiles"></div>
                     </div>
                 </div>
@@ -77,7 +85,7 @@
                 <!-- You (bottom) - indicator only, hand shown below -->
                 <div class="player-position player-bottom">
                     <div class="player-info">
-                        <div class="player-name player-color-0" id="player-0-name">You</div>
+                        <div class="player-name player-color-0" id="player-0-name" data-i18n="player.you">You</div>
                     </div>
                 </div>
             </div>
@@ -89,20 +97,20 @@
             <div class="attribution-area">
                 <label class="attribution-toggle">
                     <input type="checkbox" id="attribution-toggle">
-                    Show who played each tile
+                    <span data-i18n="attribution.show">Show who played each tile</span>
                 </label>
                 <div class="player-legend" id="player-legend" style="display: none;">
-                    <div class="legend-item"><span class="legend-dot player-0"></span><span class="legend-label">You</span></div>
-                    <div class="legend-item"><span class="legend-dot player-1"></span><span class="legend-label">Opp 1</span></div>
-                    <div class="legend-item"><span class="legend-dot player-2"></span><span class="legend-label">Partner</span></div>
-                    <div class="legend-item"><span class="legend-dot player-3"></span><span class="legend-label">Opp 2</span></div>
+                    <div class="legend-item"><span class="legend-dot player-0"></span><span class="legend-label" data-i18n="player.you">You</span></div>
+                    <div class="legend-item"><span class="legend-dot player-1"></span><span class="legend-label" data-i18n="player.opp1">Opp 1</span></div>
+                    <div class="legend-item"><span class="legend-dot player-2"></span><span class="legend-label" data-i18n="player.partner">Partner</span></div>
+                    <div class="legend-item"><span class="legend-dot player-3"></span><span class="legend-label" data-i18n="player.opp2">Opp 2</span></div>
                 </div>
             </div>
 
             <!-- Your Hand -->
             <div class="hand-area">
                 <div class="hand-label">
-                    <span>Your Hand</span>
+                    <span data-i18n="hand.yourHand">Your Hand</span>
                     <span id="hand-count"></span>
                 </div>
                 <div class="hand" id="hand"></div>
@@ -110,16 +118,16 @@
 
             <!-- Controls -->
             <div class="controls">
-                <button id="new-game-btn">New Game</button>
-                <button id="quiz-btn" class="quiz-btn" disabled>Quiz Me</button>
-                <button id="pass-btn" class="pass-btn" disabled>Pass</button>
+                <button id="new-game-btn" data-i18n="btn.newGame">New Game</button>
+                <button id="quiz-btn" class="quiz-btn" disabled data-i18n="btn.quizMe">Quiz Me</button>
+                <button id="pass-btn" class="pass-btn" disabled data-i18n="btn.pass">Pass</button>
             </div>
         </div>
 
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="log-area">
-                <h3>Game Log</h3>
+                <h3 data-i18n="log.title">Game Log</h3>
                 <div class="log" id="log"></div>
             </div>
         </div>
@@ -128,11 +136,11 @@
     <!-- End Selection Modal -->
     <div class="modal-overlay" id="modal-overlay"></div>
     <div class="end-selection" id="end-selection">
-        <h3>Play on which end?</h3>
+        <h3 data-i18n="endSelect.title">Play on which end?</h3>
         <div class="end-buttons">
-            <button class="end-btn" id="left-end-btn">Left</button>
-            <button class="end-btn" id="right-end-btn">Right</button>
-            <button class="end-btn secondary" id="cancel-end-btn">Cancel</button>
+            <button class="end-btn" id="left-end-btn" data-i18n="endSelect.left">Left</button>
+            <button class="end-btn" id="right-end-btn" data-i18n="endSelect.right">Right</button>
+            <button class="end-btn secondary" id="cancel-end-btn" data-i18n="endSelect.cancel">Cancel</button>
         </div>
     </div>
 
@@ -141,8 +149,8 @@
         <h2 id="message-title">Hand Complete</h2>
         <p id="message-text"></p>
         <div class="message-buttons">
-            <button id="continue-btn">Continue</button>
-            <button id="review-btn" class="review-btn" style="display: none;">Review Game</button>
+            <button id="continue-btn" data-i18n="btn.continue">Continue</button>
+            <button id="review-btn" class="review-btn" style="display: none;" data-i18n="btn.review">Review Game</button>
         </div>
     </div>
 
@@ -150,41 +158,41 @@
     <div class="modal-overlay" id="quiz-overlay"></div>
     <div class="quiz-modal" id="quiz-modal">
         <div class="quiz-header">
-            <h2>Predict Opponent's Hand</h2>
+            <h2 data-i18n="quiz.title">Predict Opponent's Hand</h2>
             <button id="close-quiz-btn" class="close-btn">&times;</button>
         </div>
         <div class="quiz-content">
             <div class="quiz-target-selector">
-                <label>Who do you want to predict?</label>
+                <label data-i18n="quiz.selectPlayer">Who do you want to predict?</label>
                 <div class="quiz-target-buttons">
-                    <button class="target-btn" data-player="1">Opp 1</button>
-                    <button class="target-btn" data-player="2">Partner</button>
-                    <button class="target-btn" data-player="3">Opp 2</button>
+                    <button class="target-btn" data-player="1" data-i18n="player.opp1">Opp 1</button>
+                    <button class="target-btn" data-player="2" data-i18n="player.partner">Partner</button>
+                    <button class="target-btn" data-player="3" data-i18n="player.opp2">Opp 2</button>
                 </div>
             </div>
             <div class="quiz-context" id="quiz-context">
-                <p>Select a player to see what you know about their hand.</p>
+                <p data-i18n="quiz.selectPrompt">Select a player to see what you know about their hand.</p>
             </div>
             <div class="quiz-tile-picker" id="quiz-tile-picker">
-                <p class="picker-instructions">Select tiles you think they hold:</p>
+                <p class="picker-instructions" data-i18n="quiz.instructions">Select tiles you think they hold:</p>
                 <div class="tile-grid" id="quiz-tile-grid"></div>
                 <div class="selection-count">
-                    Selected: <span id="quiz-selection-count">0</span> / <span id="quiz-target-count">7</span> tiles
+                    <span data-i18n="quiz.selected">Selected: <span id="quiz-selection-count">0</span> / <span id="quiz-target-count">7</span> tiles</span>
                 </div>
             </div>
             <div class="quiz-actions">
-                <button id="submit-quiz-btn" class="submit-quiz-btn" disabled>Check Prediction</button>
-                <button id="skip-quiz-btn" class="skip-quiz-btn">Cancel</button>
+                <button id="submit-quiz-btn" class="submit-quiz-btn" disabled data-i18n="quiz.check">Check Prediction</button>
+                <button id="skip-quiz-btn" class="skip-quiz-btn" data-i18n="quiz.cancel">Cancel</button>
             </div>
         </div>
         <div class="quiz-result" id="quiz-result" style="display: none;">
-            <h3 id="quiz-result-title">Results</h3>
+            <h3 id="quiz-result-title" data-i18n="quiz.results">Results</h3>
             <div class="quiz-score">
-                <span class="score-label">Score:</span>
+                <span class="score-label" data-i18n="quiz.score">Score:</span>
                 <span class="score-value" id="quiz-score-value">0</span>
             </div>
             <div class="quiz-breakdown" id="quiz-breakdown"></div>
-            <button id="quiz-done-btn" class="quiz-done-btn">Done</button>
+            <button id="quiz-done-btn" class="quiz-done-btn" data-i18n="quiz.done">Done</button>
         </div>
     </div>
 
@@ -192,50 +200,50 @@
     <div class="modal-overlay" id="help-overlay"></div>
     <div class="help-modal" id="help-modal">
         <div class="help-header">
-            <h2>How to Play</h2>
+            <h2 data-i18n="help.title">How to Play</h2>
             <button id="close-help-btn" class="close-btn">&times;</button>
         </div>
         <div class="help-content">
             <section class="help-section">
-                <h3>About the Game</h3>
-                <p>Domino Advisor simulates <strong>4-player partnership dominoes</strong> (Cuban/Puerto Rican style). You and your partner (across the table) play against two opponents. First team to 100 points wins the match.</p>
+                <h3 data-i18n="help.about.title">About the Game</h3>
+                <p data-i18n="help.about.text" data-i18n-html>7 Fichas simulates <strong>4-player partnership dominoes</strong> (Cuban/Puerto Rican style). You and your partner (across the table) play against two opponents. First team to 100 points wins the match.</p>
             </section>
 
             <section class="help-section">
-                <h3>How to Play</h3>
+                <h3 data-i18n="help.howToPlay.title">How to Play</h3>
                 <ol>
-                    <li><strong>New Game</strong> - Click to start a new match. The player with the double-six leads.</li>
-                    <li><strong>Play a tile</strong> - Click a tile in your hand to play it. If it can only connect one way, it plays automatically. If it can connect to either end, you'll choose which end.</li>
-                    <li><strong>Pass</strong> - If you can't play, the Pass button enables. Click it to pass your turn.</li>
+                    <li data-i18n="help.howToPlay.newGame" data-i18n-html><strong>New Game</strong> - Click to start a new match. The player with the double-six leads.</li>
+                    <li data-i18n="help.howToPlay.playTile" data-i18n-html><strong>Play a tile</strong> - Click a tile in your hand to play it. If it can only connect one way, it plays automatically. If it can connect to either end, you'll choose which end.</li>
+                    <li data-i18n="help.howToPlay.pass" data-i18n-html><strong>Pass</strong> - If you can't play, the Pass button enables. Click it to pass your turn.</li>
                 </ol>
             </section>
 
             <section class="help-section">
-                <h3>Scoring</h3>
+                <h3 data-i18n="help.scoring.title">Scoring</h3>
                 <ul>
-                    <li><strong>Domino</strong> - A player plays their last tile. Their team scores the total pips in opponents' hands.</li>
-                    <li><strong>Blocked game</strong> - No one can play. The team with fewer pips wins the difference.</li>
-                    <li><strong>Match</strong> - First team to 100 points wins.</li>
+                    <li data-i18n="help.scoring.domino" data-i18n-html><strong>Domino</strong> - A player plays their last tile. Their team scores the total pips in opponents' hands.</li>
+                    <li data-i18n="help.scoring.blocked" data-i18n-html><strong>Blocked game</strong> - No one can play. The team with fewer pips wins the difference.</li>
+                    <li data-i18n="help.scoring.match" data-i18n-html><strong>Match</strong> - First team to 100 points wins.</li>
                 </ul>
             </section>
 
             <section class="help-section">
-                <h3>Features</h3>
+                <h3 data-i18n="help.features.title">Features</h3>
                 <ul>
-                    <li><strong>Quiz Me</strong> - Test your ability to predict what tiles other players hold based on their plays and passes.</li>
-                    <li><strong>Show who played</strong> - Toggle to see color-coded indicators showing who played each tile on the chain.</li>
-                    <li><strong>Match Debrief</strong> - After the match ends, review your plays and get feedback on optimal choices.</li>
-                    <li><strong>Play Style Analysis</strong> - In the debrief, use your Claude API key to get personalized analysis of your playing style.</li>
+                    <li data-i18n="help.features.quiz" data-i18n-html><strong>Quiz Me</strong> - Test your ability to predict what tiles other players hold based on their plays and passes.</li>
+                    <li data-i18n="help.features.showWho" data-i18n-html><strong>Show who played</strong> - Toggle to see color-coded indicators showing who played each tile on the chain.</li>
+                    <li data-i18n="help.features.debrief" data-i18n-html><strong>Match Debrief</strong> - After the match ends, review your plays and get feedback on optimal choices.</li>
+                    <li data-i18n="help.features.analysis" data-i18n-html><strong>Play Style Analysis</strong> - In the debrief, use your Claude API key to get personalized analysis of your playing style.</li>
                 </ul>
             </section>
 
             <section class="help-section">
-                <h3>Strategy Tips</h3>
+                <h3 data-i18n="help.strategy.title">Strategy Tips</h3>
                 <ul>
-                    <li><strong>Track passes</strong> - When someone passes, they lack both open-end values. Remember this!</li>
-                    <li><strong>Support your partner</strong> - Notice what suits your partner plays and try to keep those open.</li>
-                    <li><strong>Manage doubles</strong> - Play doubles when you have "cover" (other tiles in that suit).</li>
-                    <li><strong>Count tiles</strong> - There are 7 tiles per suit. Track what's been played.</li>
+                    <li data-i18n="help.strategy.track" data-i18n-html><strong>Track passes</strong> - When someone passes, they lack both open-end values. Remember this!</li>
+                    <li data-i18n="help.strategy.support" data-i18n-html><strong>Support your partner</strong> - Notice what suits your partner plays and try to keep those open.</li>
+                    <li data-i18n="help.strategy.doubles" data-i18n-html><strong>Manage doubles</strong> - Play doubles when you have "cover" (other tiles in that suit).</li>
+                    <li data-i18n="help.strategy.count" data-i18n-html><strong>Count tiles</strong> - There are 7 tiles per suit. Track what's been played.</li>
                 </ul>
             </section>
         </div>
@@ -245,23 +253,23 @@
     <div class="modal-overlay" id="settings-overlay"></div>
     <div class="settings-modal" id="settings-modal">
         <div class="settings-header">
-            <h2>Settings</h2>
+            <h2 data-i18n="settings.title">Settings</h2>
             <button id="close-settings-btn" class="close-btn">&times;</button>
         </div>
         <div class="settings-content">
             <div class="settings-section">
-                <h3>Claude API Key</h3>
-                <p class="settings-description">
+                <h3 data-i18n="settings.apiKey.title">Claude API Key</h3>
+                <p class="settings-description" data-i18n="settings.apiKey.description">
                     Enter your Claude API key to enable AI-powered play style analysis.
                     Your key is stored locally and only sent to Anthropic's API.
                 </p>
                 <div class="api-key-input-group">
-                    <input type="password" id="api-key-input" placeholder="Enter your Claude API key..." />
-                    <button id="save-key-btn" class="save-btn">Save</button>
+                    <input type="password" id="api-key-input" data-i18n-placeholder="settings.apiKey.placeholder" placeholder="Enter your Claude API key..." />
+                    <button id="save-key-btn" class="save-btn" data-i18n="settings.apiKey.save">Save</button>
                 </div>
                 <div class="key-actions">
-                    <button id="test-key-btn" class="test-btn">Test Connection</button>
-                    <button id="clear-key-btn" class="clear-btn">Clear Key</button>
+                    <button id="test-key-btn" class="test-btn" data-i18n="settings.apiKey.test">Test Connection</button>
+                    <button id="clear-key-btn" class="clear-btn" data-i18n="settings.apiKey.clear">Clear Key</button>
                 </div>
                 <div id="key-status" class="key-status"></div>
             </div>
@@ -272,15 +280,15 @@
     <div class="modal-overlay" id="debrief-overlay"></div>
     <div class="debrief-modal" id="debrief-modal">
         <div class="debrief-header">
-            <h2>Match Debrief</h2>
+            <h2 data-i18n="debrief.title">Match Debrief</h2>
             <p id="debrief-summary"></p>
             <button id="close-debrief-btn" class="close-btn">&times;</button>
         </div>
         <div class="debrief-tabs">
-            <button class="tab-btn active" data-tab="overview">Overview</button>
-            <button class="tab-btn" data-tab="your-plays">Your Plays</button>
-            <button class="tab-btn" data-tab="full-match">Full Match</button>
-            <button class="tab-btn" data-tab="predictions">Predictions</button>
+            <button class="tab-btn active" data-tab="overview" data-i18n="debrief.tab.overview">Overview</button>
+            <button class="tab-btn" data-tab="your-plays" data-i18n="debrief.tab.yourPlays">Your Plays</button>
+            <button class="tab-btn" data-tab="full-match" data-i18n="debrief.tab.fullMatch">Full Match</button>
+            <button class="tab-btn" data-tab="predictions" data-i18n="debrief.tab.predictions">Predictions</button>
         </div>
         <div class="debrief-content">
             <!-- Overview Tab -->
@@ -288,38 +296,38 @@
                 <div class="stat-cards">
                     <div class="stat-card optimal">
                         <div class="stat-value" id="stat-optimal">0</div>
-                        <div class="stat-label">Optimal</div>
+                        <div class="stat-label" data-i18n="debrief.stat.optimal">Optimal</div>
                     </div>
                     <div class="stat-card good">
                         <div class="stat-value" id="stat-good">0</div>
-                        <div class="stat-label">Good</div>
+                        <div class="stat-label" data-i18n="debrief.stat.good">Good</div>
                     </div>
                     <div class="stat-card questionable">
                         <div class="stat-value" id="stat-questionable">0</div>
-                        <div class="stat-label">Questionable</div>
+                        <div class="stat-label" data-i18n="debrief.stat.questionable">Questionable</div>
                     </div>
                     <div class="stat-card mistake">
                         <div class="stat-value" id="stat-mistake">0</div>
-                        <div class="stat-label">Mistake</div>
+                        <div class="stat-label" data-i18n="debrief.stat.mistake">Mistake</div>
                     </div>
                 </div>
 
                 <div class="key-moments-section">
-                    <h3>Key Moments to Review</h3>
+                    <h3 data-i18n="debrief.keyMoments">Key Moments to Review</h3>
                     <div id="key-moments-list" class="moments-list"></div>
                 </div>
 
                 <div class="llm-analysis-section">
-                    <h3>Play Style Analysis</h3>
+                    <h3 data-i18n="debrief.analysis.title">Play Style Analysis</h3>
                     <div id="llm-analysis-container">
-                        <button id="analyze-btn" class="analyze-btn">Analyze My Play Style</button>
+                        <button id="analyze-btn" class="analyze-btn" data-i18n="debrief.analysis.button">Analyze My Play Style</button>
                         <div id="llm-loading" class="llm-loading" style="display: none;">
                             <div class="spinner"></div>
-                            <span>Analyzing your play style...</span>
+                            <span data-i18n="debrief.analysis.loading">Analyzing your play style...</span>
                         </div>
                         <div id="llm-result" class="llm-result" style="display: none;"></div>
                         <div id="llm-no-key" class="llm-no-key" style="display: none;">
-                            <p>Configure your Claude API key in <a href="#" id="open-settings-link">Settings</a> to enable play style analysis.</p>
+                            <p data-i18n="debrief.analysis.noKey" data-i18n-html>Configure your Claude API key in <a href="#" id="open-settings-link">Settings</a> to enable play style analysis.</p>
                         </div>
                     </div>
                 </div>
@@ -333,7 +341,7 @@
             <!-- Full Match Tab -->
             <div class="tab-content" id="tab-full-match">
                 <div class="hand-selector">
-                    <label>Select Hand:</label>
+                    <label data-i18n="debrief.selectHand">Select Hand:</label>
                     <select id="hand-select"></select>
                 </div>
                 <div id="full-match-plays" class="plays-list"></div>
@@ -342,46 +350,46 @@
             <!-- Predictions Tab -->
             <div class="tab-content" id="tab-predictions">
                 <div class="predictions-summary">
-                    <h3>Quiz Performance This Match</h3>
+                    <h3 data-i18n="debrief.predictions.title">Quiz Performance This Match</h3>
                     <div class="prediction-stats" id="prediction-stats">
-                        <div class="empty-state">No quizzes taken this match.</div>
+                        <div class="empty-state" data-i18n="debrief.predictions.noQuizzes">No quizzes taken this match.</div>
                     </div>
                 </div>
                 <div class="predictions-history">
-                    <h3>Historical Accuracy</h3>
+                    <h3 data-i18n="debrief.history.title">Historical Accuracy</h3>
                     <div class="accuracy-cards" id="accuracy-cards">
                         <div class="accuracy-card">
-                            <div class="accuracy-label">Overall</div>
+                            <div class="accuracy-label" data-i18n="debrief.history.overall">Overall</div>
                             <div class="accuracy-value" id="accuracy-overall">--%</div>
                         </div>
                         <div class="accuracy-card">
-                            <div class="accuracy-label">Opp 1</div>
+                            <div class="accuracy-label" data-i18n="player.opp1">Opp 1</div>
                             <div class="accuracy-value" id="accuracy-opp1">--%</div>
                         </div>
                         <div class="accuracy-card">
-                            <div class="accuracy-label">Partner</div>
+                            <div class="accuracy-label" data-i18n="player.partner">Partner</div>
                             <div class="accuracy-value" id="accuracy-partner">--%</div>
                         </div>
                         <div class="accuracy-card">
-                            <div class="accuracy-label">Opp 2</div>
+                            <div class="accuracy-label" data-i18n="player.opp2">Opp 2</div>
                             <div class="accuracy-value" id="accuracy-opp2">--%</div>
                         </div>
                     </div>
                     <div class="accuracy-trend" id="accuracy-trend"></div>
                 </div>
                 <div class="deduction-timeline">
-                    <h3>Information Timeline</h3>
-                    <p class="timeline-description">Key deductions you could have made during the match:</p>
+                    <h3 data-i18n="debrief.timeline.title">Information Timeline</h3>
+                    <p class="timeline-description" data-i18n="debrief.timeline.description">Key deductions you could have made during the match:</p>
                     <div id="deduction-timeline-list" class="timeline-list"></div>
                 </div>
             </div>
         </div>
         <div class="debrief-footer">
-            <button id="debrief-close-btn">Close</button>
-            <button id="debrief-new-match-btn">New Match</button>
+            <button id="debrief-close-btn" data-i18n="btn.close">Close</button>
+            <button id="debrief-new-match-btn" data-i18n="btn.newMatch">New Match</button>
         </div>
     </div>
 
-    <script type="module" src="js/main.js?v=22"></script>
+    <script type="module" src="js/main.js?v=23"></script>
 </body>
 </html>

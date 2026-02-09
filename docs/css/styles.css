@@ -22,6 +22,10 @@ body {
     margin-bottom: 18px;
 }
 
+.brand {
+    text-align: center;
+}
+
 h1 {
     text-align: center;
     color: #00d4ff;
@@ -34,6 +38,13 @@ h1 .version {
     color: #666;
     font-weight: normal;
     vertical-align: middle;
+}
+
+.subtitle {
+    margin: 2px 0 0 0;
+    font-size: 11px;
+    color: #888;
+    font-weight: normal;
 }
 
 .attribution {
@@ -62,6 +73,44 @@ h1 .version {
     right: 0;
     display: flex;
     gap: 5px;
+    align-items: center;
+}
+
+/* Language Toggle */
+.lang-toggle {
+    background: transparent;
+    border: 1px solid #444;
+    color: #888;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    transition: border-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.lang-toggle:hover {
+    border-color: #00d4ff;
+}
+
+.lang-separator {
+    color: #444;
+    margin: 0 1px;
+}
+
+.lang-option {
+    transition: color 0.2s;
+}
+
+.lang-option.active {
+    color: #00d4ff;
+}
+
+.lang-option:not(.active) {
+    color: #666;
 }
 
 .settings-btn,

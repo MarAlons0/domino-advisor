@@ -6,6 +6,7 @@ import { DebriefUI } from './ui/DebriefUI.js';
 import { SettingsUI } from './ui/SettingsUI.js';
 import { QuizStorage } from './services/QuizStorage.js';
 import { Tile } from './models/Tile.js';
+import { t, i18n } from './i18n/i18n.js';
 
 /**
  * Pip positions for each value 0-6
@@ -188,6 +189,40 @@ class DominoApp {
 
         // Initialize help modal handlers
         this._initHelpModal();
+
+        // Initialize language toggle
+        this._initLanguageToggle();
+
+        // Update DOM with current language
+        i18n.updateDOM();
+
+        // Listen for language changes to update dynamic content
+        i18n.onLanguageChange(() => {
+            this._updateLanguageToggle();
+            // Re-render chain if game is active (for open ends text)
+            const state = this.game.getState();
+            if (state && state.chain) {
+                this.updateOpenEnds(state.chain);
+            }
+        });
+    }
+
+    _initLanguageToggle() {
+        const langToggle = document.getElementById('lang-toggle');
+        if (langToggle) {
+            langToggle.addEventListener('click', () => {
+                i18n.toggleLanguage();
+            });
+        }
+        this._updateLanguageToggle();
+    }
+
+    _updateLanguageToggle() {
+        const currentLang = i18n.getLanguage();
+        document.querySelectorAll('.lang-option').forEach(el => {
+            const lang = el.getAttribute('data-lang');
+            el.classList.toggle('active', lang === currentLang);
+        });
     }
 
     _initHelpModal() {
@@ -312,14 +347,16 @@ class DominoApp {
 
         this.game.onPlay = (data) => {
             const playerName = GameState.getPlayerName(data.player);
-            let msg = `${playerName} plays ${data.tile.toString()}`;
+            let msg;
             if (data.openEndsBefore) {
                 const { left, right } = data.openEndsBefore;
                 if (left === right) {
-                    msg += ` (open: ${left})`;
+                    msg = t('log.playsOpen', playerName, data.tile.toString(), left);
                 } else {
-                    msg += ` (L:${left} R:${right})`;
+                    msg = t('log.playsEnds', playerName, data.tile.toString(), left, right);
                 }
+            } else {
+                msg = t('log.plays', playerName, data.tile.toString());
             }
             this.log(msg, `player-${data.player}`);
 
@@ -340,7 +377,7 @@ class DominoApp {
             const state = this.game.getState();
             const leftEnd = state.chain.leftEnd;
             const rightEnd = state.chain.rightEnd;
-            this.log(`${playerName} passes (L:${leftEnd} R:${rightEnd})`, `player-${data.player}`);
+            this.log(t('log.passes', playerName, leftEnd, rightEnd), `player-${data.player}`);
 
             // Record this pass for AI tracking (inferred dead suits)
             this.ai.recordPass(data.player, leftEnd, rightEnd);
@@ -359,13 +396,13 @@ class DominoApp {
 
         this.game.onError = (msg) => {
             console.error('Game error:', msg);
-            this.log(`Error: ${msg}`, 'system');
+            this.log(t('log.error', msg), 'system');
         };
     }
 
     startNewGame() {
         this.clearLog();
-        this.log('Starting new match...', 'system');
+        this.log(t('log.newMatch'), 'system');
         this.ai.resetForNewHand();
         this.game.newMatch();
 
@@ -374,7 +411,7 @@ class DominoApp {
         this.handTracker.initHand(state.hands[0]);
 
         const starterName = GameState.getPlayerName(state.currentPlayer);
-        this.log(`${starterName} has the double-six and starts`, 'system');
+        this.log(t('log.starterHasDouble', starterName), 'system');
 
         this.updateQuizButton();
 
@@ -426,7 +463,7 @@ class DominoApp {
         }
 
         // Update hand count for player 0
-        this.handCount.textContent = `(${state.hands[0].size()} tiles)`;
+        this.handCount.textContent = `(${state.hands[0].size()} ${t('hand.tiles')})`;
     }
 
     renderChain(chain) {
@@ -435,7 +472,7 @@ class DominoApp {
         if (chain.isEmpty()) {
             const msg = document.createElement('div');
             msg.className = 'empty-table-message';
-            msg.textContent = 'Waiting for first tile...';
+            msg.textContent = t('table.waiting');
             msg.style.color = 'rgba(255,255,255,0.5)';
             this.chainContainer.appendChild(msg);
             return;
@@ -494,8 +531,13 @@ class DominoApp {
                 // Add player indicator dot
                 const indicator = document.createElement('div');
                 indicator.className = `player-indicator player-${pt.playedBy}`;
-                // Use initials: Y, 1, P, 2
-                const initials = ['Y', '1', 'P', '2'];
+                // Use translated initials
+                const initials = [
+                    t('attribution.initials.you'),
+                    t('attribution.initials.opp1'),
+                    t('attribution.initials.partner'),
+                    t('attribution.initials.opp2')
+                ];
                 indicator.textContent = initials[pt.playedBy];
                 domino.appendChild(indicator);
             }
@@ -552,7 +594,7 @@ class DominoApp {
         }
 
         this.openEndsDisplay.innerHTML = `
-            Open ends: <span>Left: ${chain.leftEnd}</span> <span>Right: ${chain.rightEnd}</span>
+            ${t('table.openEnds')} <span>${t('table.left')}: ${chain.leftEnd}</span> <span>${t('table.right')}: ${chain.rightEnd}</span>
         `;
     }
 
@@ -607,8 +649,8 @@ class DominoApp {
 
     showEndSelection(tile) {
         const state = this.game.getState();
-        this.leftEndBtn.textContent = `Left [${state.chain.leftEnd}]`;
-        this.rightEndBtn.textContent = `Right [${state.chain.rightEnd}]`;
+        this.leftEndBtn.textContent = `${t('table.left')} [${state.chain.leftEnd}]`;
+        this.rightEndBtn.textContent = `${t('table.right')} [${state.chain.rightEnd}]`;
         this.endSelection.classList.add('visible');
         this.modalOverlay.classList.add('visible');
     }
@@ -682,38 +724,38 @@ class DominoApp {
         let title, text;
         if (data.reason === 'domino') {
             const playerName = GameState.getPlayerName(data.dominoPlayer);
-            title = isYourTeam ? 'Hand Won!' : 'Hand Lost';
-            text = `${playerName} dominoed!\n${winnerName} scores ${data.points} points.`;
+            title = isYourTeam ? t('result.handWon') : t('result.handLost');
+            text = `${t('result.domino', playerName)}\n${t('result.dominoScore', winnerName, data.points)}`;
         } else if (data.reason === 'closed') {
             const playerName = GameState.getPlayerName(data.closingPlayer);
-            title = isYourTeam ? 'Hand Won!' : 'Hand Lost';
+            title = isYourTeam ? t('result.handWon') : t('result.handLost');
             if (data.winningTeam === -1) {
-                text = `${playerName} closed the game (cerró).\nTie - no points scored.`;
+                text = `${t('result.closed', playerName)}\n${t('result.closedTie')}`;
             } else {
-                text = `${playerName} closed the game (cerró).\n${winnerName} wins with fewer pips.\n+${data.points} points.`;
+                text = `${t('result.closed', playerName)}\n${t('result.closedWin', winnerName)}\n${t('result.points', data.points)}`;
             }
         } else {
-            title = isYourTeam ? 'Hand Won!' : 'Hand Lost';
+            title = isYourTeam ? t('result.handWon') : t('result.handLost');
             if (data.winningTeam === -1) {
-                text = `Game blocked (tranque).\nTie - no points scored.`;
+                text = `${t('result.blocked')}\n${t('result.blockedTie')}`;
             } else {
-                text = `Game blocked (tranque).\n${winnerName} wins with fewer pips.\n+${data.points} points.`;
+                text = `${t('result.blocked')}\n${t('result.blockedWin', winnerName)}\n${t('result.points', data.points)}`;
             }
         }
 
-        text += `\n\nMatch: ${data.matchScores[0]} - ${data.matchScores[1]}`;
+        text += `\n\n${t('result.matchScore', data.matchScores[0], data.matchScores[1])}`;
 
         // Show remaining tiles for all players
-        text += '\n\n--- Remaining Tiles ---';
+        text += `\n\n${t('result.remaining')}`;
         for (let i = 0; i < 4; i++) {
             const hand = state.hands[i];
             const playerName = GameState.getPlayerName(i);
             const pips = hand.pipCount();
             if (hand.isEmpty()) {
-                text += `\n${playerName}: (empty)`;
+                text += `\n${playerName}: ${t('result.empty')}`;
             } else {
-                const tiles = hand.getTiles().map(t => t.toString()).join(' ');
-                text += `\n${playerName} (${pips} pips): ${tiles}`;
+                const tiles = hand.getTiles().map(tile => tile.toString()).join(' ');
+                text += `\n${playerName} (${t('result.pips', pips)}): ${tiles}`;
             }
         }
 
@@ -723,13 +765,13 @@ class DominoApp {
         this.messageBox.classList.add('visible');
         this.modalOverlay.classList.add('visible');
 
-        const reasonText = data.reason === 'domino' ? 'Domino!' :
-                           data.reason === 'closed' ? 'Cerrado!' : 'Tranque!';
-        this.log(`--- ${reasonText} ---`, 'system');
+        const reasonText = data.reason === 'domino' ? t('log.domino') :
+                           data.reason === 'closed' ? t('log.cerrado') : t('log.tranque');
+        this.log(reasonText, 'system');
         if (data.winningTeam >= 0) {
-            this.log(`${winnerName} +${data.points} pts`, 'system');
+            this.log(t('log.teamPoints', winnerName, data.points), 'system');
         } else {
-            this.log(`Tie - no points`, 'system');
+            this.log(t('log.tie'), 'system');
         }
     }
 
@@ -737,17 +779,17 @@ class DominoApp {
         const winnerName = GameState.getTeamName(data.winner);
         const isYourTeam = data.winner === 0;
 
-        this.messageTitle.textContent = isYourTeam ? 'Match Won!' : 'Match Lost';
-        this.messageText.textContent = `${winnerName} wins!\n\nFinal: ${data.finalScores[0]} - ${data.finalScores[1]}`;
+        this.messageTitle.textContent = isYourTeam ? t('result.matchWon') : t('result.matchLost');
+        this.messageText.textContent = `${t('log.teamWins', winnerName)}\n\n${t('result.finalScore', data.finalScores[0], data.finalScores[1])}`;
         this.messageBox.classList.toggle('opponent-win', !isYourTeam);
         this.messageBox.classList.add('visible');
         this.modalOverlay.classList.add('visible');
 
-        this.continueBtn.textContent = 'New Match';
+        this.continueBtn.textContent = t('btn.newMatch');
         this.reviewBtn.style.display = 'inline-block';
 
-        this.log(`=== Match Over ===`, 'system');
-        this.log(`${winnerName} wins!`, 'system');
+        this.log(t('log.matchOver'), 'system');
+        this.log(t('log.teamWins', winnerName), 'system');
     }
 
     showDebrief() {
@@ -766,7 +808,7 @@ class DominoApp {
 
         const state = this.game.getState();
         if (state.gamePhase === 'matchOver') {
-            this.continueBtn.textContent = 'Continue';
+            this.continueBtn.textContent = t('btn.continue');
             this.reviewBtn.style.display = 'none';
             this.startNewGame();
         } else if (state.gamePhase === 'handOver') {
@@ -797,7 +839,7 @@ class DominoApp {
     logHandSeparator() {
         const separator = document.createElement('div');
         separator.className = 'log-separator';
-        separator.innerHTML = '<span>New Hand</span>';
+        separator.innerHTML = `<span>${t('log.newHand')}</span>`;
         this.logContainer.appendChild(separator);
         this.scrollLogToBottom();
     }
@@ -823,7 +865,7 @@ class DominoApp {
         // Reset UI
         this.targetBtns.forEach(btn => btn.classList.remove('active'));
         if (this.quizContext) {
-            this.quizContext.innerHTML = '<p>Select a player to see what you know about their hand.</p>';
+            this.quizContext.innerHTML = `<p>${t('quiz.selectPrompt')}</p>`;
         }
         if (this.quizTileGrid) {
             this.quizTileGrid.innerHTML = '';
@@ -881,11 +923,11 @@ class DominoApp {
         const facts = this.handTracker.getKnownFacts(player);
         const playerName = this.handTracker.getPlayerName(player);
 
-        let html = `<p><strong>${playerName}</strong> has <strong>${facts.tileCount}</strong> tiles.</p>`;
+        let html = `<p>${t('quiz.hasTiles', `<strong>${playerName}</strong>`, `<strong>${facts.tileCount}</strong>`)}</p>`;
 
         if (facts.deadSuits.length > 0) {
             html += '<div class="known-facts">';
-            html += `<div class="fact">Lacks tiles with: ${facts.deadSuits.join(', ')}</div>`;
+            html += `<div class="fact">${t('quiz.lacksTiles', facts.deadSuits.join(', '))}</div>`;
             html += '</div>';
         }
 
@@ -1027,16 +1069,16 @@ class DominoApp {
         if (this.quizBreakdown) {
             let html = `
                 <div class="breakdown-row correct">
-                    <span class="label">Correct predictions</span>
-                    <span class="value">+${result.correct * 10} (${result.correct} tiles)</span>
+                    <span class="label">${t('quiz.correct')}</span>
+                    <span class="value">+${result.correct * 10} (${result.correct} ${t('hand.tiles')})</span>
                 </div>
                 <div class="breakdown-row wrong">
-                    <span class="label">Wrong predictions</span>
-                    <span class="value">-${result.wrong * 5} (${result.wrong} tiles)</span>
+                    <span class="label">${t('quiz.wrong')}</span>
+                    <span class="value">-${result.wrong * 5} (${result.wrong} ${t('hand.tiles')})</span>
                 </div>
                 <div class="breakdown-row missed">
-                    <span class="label">Missed tiles</span>
-                    <span class="value">-${result.missed * 2} (${result.missed} tiles)</span>
+                    <span class="label">${t('quiz.missed')}</span>
+                    <span class="value">-${result.missed * 2} (${result.missed} ${t('hand.tiles')})</span>
                 </div>
             `;
 
@@ -1046,7 +1088,7 @@ class DominoApp {
                 html += '<div class="quiz-tiles-display">';
 
                 if (details.correct.length > 0) {
-                    html += '<h4>Correctly predicted:</h4>';
+                    html += `<h4>${t('quiz.correctlyPredicted')}</h4>`;
                     html += '<div class="quiz-tiles-row">';
                     for (const key of details.correct) {
                         const tile = Tile.fromKey(key);
@@ -1056,7 +1098,7 @@ class DominoApp {
                 }
 
                 if (details.wrong.length > 0) {
-                    html += '<h4>Incorrectly predicted:</h4>';
+                    html += `<h4>${t('quiz.incorrectlyPredicted')}</h4>`;
                     html += '<div class="quiz-tiles-row">';
                     for (const key of details.wrong) {
                         const tile = Tile.fromKey(key);
@@ -1066,7 +1108,7 @@ class DominoApp {
                 }
 
                 if (details.missed.length > 0) {
-                    html += '<h4>Missed (they had but you didn\'t predict):</h4>';
+                    html += `<h4>${t('quiz.missedTiles')}</h4>`;
                     html += '<div class="quiz-tiles-row">';
                     for (const key of details.missed) {
                         const tile = Tile.fromKey(key);
@@ -1086,5 +1128,5 @@ class DominoApp {
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new DominoApp();
-    console.log('Domino Advisor initialized. Click "New Game" to start!');
+    console.log('7 Fichas initialized. Click "New Game" to start!');
 });
