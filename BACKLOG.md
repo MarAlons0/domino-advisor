@@ -2,24 +2,6 @@
 
 ## Pending Features
 
-### 0. Quiz Deferred Results
-**Priority:** High
-**Complexity:** Low
-
-Change quiz behavior so results are shown at end of hand instead of immediately.
-
-**Current behavior:**
-- Player takes quiz mid-hand, sees results immediately
-- This interrupts gameplay and player cannot finish the round
-
-**Desired behavior:**
-- Player makes predictions during the hand
-- Predictions are stored but not revealed
-- Results shown in debrief modal at end of hand
-- Player can continue playing after making predictions
-
----
-
 ### 0. AI Decision Transparency (Developer Tool)
 **Priority:** Medium
 **Complexity:** Low
@@ -198,6 +180,12 @@ Teach traditional terminology through the UI.
 ---
 
 ## Completed Features
+
+### Quiz Deferred Results (Feb 2026)
+- Quiz predictions stored but results hidden until hand ends
+- Shows confirmation: "Prediction recorded, results at end of hand"
+- Results visible in debrief Predictions tab
+- Player can continue playing after making predictions
 
 ### 10. Spanish Language Support & Rebranding (Feb 2026)
 - Rebranded from "Domino Advisor" to "7 Fichas"
