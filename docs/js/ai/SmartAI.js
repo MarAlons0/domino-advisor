@@ -256,6 +256,17 @@ export class SmartAI {
         }
         if (blockingMove) {
             if (DEBUG_AI) {
+                // Also compute and show all move scores for comparison
+                debugInfo.scoredMoves = validMoves.map(move => {
+                    const staticScore = this.scoreMove(move, gameState, playerIndex);
+                    return {
+                        tile: move.tile.toString(),
+                        end: move.end,
+                        staticTotal: staticScore.total,
+                        factors: staticScore.factors,
+                        isChosen: move.tile.equals(blockingMove.tile) && move.end === blockingMove.end
+                    };
+                }).sort((a, b) => b.staticTotal - a.staticTotal);
                 debugInfo.chosen = blockingMove.tile.toString();
                 debugInfo.chosenReason = `PRIORITY 2: High-confidence block (P=${blockingMove.blockProb.toFixed(2)})`;
                 this._logDebug(debugInfo);
@@ -271,6 +282,17 @@ export class SmartAI {
         }
         if (partnerSupportMove && this.playCount < 8) {
             if (DEBUG_AI) {
+                // Also compute and show all move scores for comparison
+                debugInfo.scoredMoves = validMoves.map(move => {
+                    const staticScore = this.scoreMove(move, gameState, playerIndex);
+                    return {
+                        tile: move.tile.toString(),
+                        end: move.end,
+                        staticTotal: staticScore.total,
+                        factors: staticScore.factors,
+                        isChosen: move.tile.equals(partnerSupportMove.tile) && move.end === partnerSupportMove.end
+                    };
+                }).sort((a, b) => b.staticTotal - a.staticTotal);
                 debugInfo.chosen = partnerSupportMove.tile.toString();
                 debugInfo.chosenReason = 'PRIORITY 3: Partner support (early game)';
                 this._logDebug(debugInfo);
@@ -381,12 +403,15 @@ export class SmartAI {
         // Scored moves table
         if (info.scoredMoves && info.scoredMoves.length > 0) {
             const hasMC = info.scoredMoves[0].mcScore !== undefined;
-            console.group(`Move Scores (sorted by ${hasMC ? 'final' : 'static'} score)`);
+            const isPriorityChoice = info.scoredMoves[0].isChosen !== undefined;
+            const label = isPriorityChoice ? 'All Move Scores (priority override active)' :
+                          `Move Scores (sorted by ${hasMC ? 'final' : 'static'} score)`;
+            console.group(label);
 
             if (hasMC) {
                 // Show combined static + MC scores
                 console.table(info.scoredMoves.map(m => ({
-                    'Move': `${m.tile} (${m.end})`,
+                    'Move': `${m.tile} (${m.end})${m.isChosen ? ' ✓' : ''}`,
                     'Static': m.staticTotal,
                     'MC': m.mcScore,
                     'Final': m.finalScore,
@@ -398,7 +423,7 @@ export class SmartAI {
             } else {
                 // Show static scores only
                 console.table(info.scoredMoves.map(m => ({
-                    'Move': `${m.tile} (${m.end})`,
+                    'Move': `${m.tile} (${m.end})${m.isChosen ? ' ✓' : ''}`,
                     'Total': m.total || m.staticTotal,
                     'SuitStr': m.factors.suitStrength,
                     'Double': m.factors.doubleManagement,
