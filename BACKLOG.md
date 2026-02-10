@@ -10,9 +10,9 @@ Further enhancements to AI decision-making beyond initial implementation.
 
 **Potential additions:**
 - Defensive priority (when opponent has 1-2 tiles)
-- Look-ahead simulation (Monte Carlo)
 - Configurable blocking threshold (currently 0.7)
 - AI personalities (aggressive, conservative, etc.)
+- Monte Carlo tuning (depth/sample parameters, evaluation function)
 
 ---
 
@@ -151,6 +151,15 @@ Teach traditional terminology through the UI.
 ---
 
 ## Completed Features
+
+### Monte Carlo Look-Ahead Simulation (Feb 2026)
+- Probability-weighted hand sampling using HandTracker distributions
+- Certainty calculated from actual tile distributions, not game stage
+- Adaptive depth (1-6 moves) and samples (30-100) based on certainty
+- Blends static scoring with MC scores: `finalScore = (1-certainty)*static + certainty*MC`
+- Position evaluation for terminal (domino, blocked) and non-terminal states
+- Higher certainty = deeper simulation = trust MC more
+- Example: holding 5/5 remaining tiles of a suit = high certainty → deep projection
 
 ### AI Decision Transparency - Debug Mode (Feb 2026)
 - Developer tool to inspect AI decision-making in real-time

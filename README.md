@@ -254,60 +254,79 @@ Open browser DevTools (F12) → Console tab to see:
 
 ---
 
-# Future: Monte Carlo Look-Ahead Simulation
+# Monte Carlo Look-Ahead Simulation
 
-The current AI makes decisions based on the immediate state. A Monte Carlo approach would:
+The AI uses Monte Carlo simulation with **probability-weighted sampling** to evaluate moves. Unlike traditional approaches that use fixed depth based on game stage, our implementation adapts based on **actual certainty** from probability distributions.
 
-1. **Sample possible hands**: Generate N random distributions of unknown tiles consistent with known constraints
-2. **Simulate play**: For each sample, simulate several moves ahead
-3. **Evaluate outcomes**: Score terminal positions or use heuristics
-4. **Average results**: Choose the move with best average outcome across samples
+## Key Insight: Certainty-Driven Depth
 
-### Considerations for Implementation
+Certainty should come from the probability distributions, not the game stage:
 
-**Computational cost:**
-- 21 unknown tiles distributed among 3 players
-- Combinatorial explosion of possible hands
-- Need efficient sampling that respects constraints (passes, tile counts)
+**Example**: On move 2, Opp 1 plays [6|6], Partner plays [6|0], and you hold [6|5], [6|4], [6|3], [6|2], [6|1]
+- All 7 tiles with a 6 are now accounted for
+- Certainty about the 6-suit is **100%** on move 2
+- Deep simulation is valuable here despite being early game
 
-**Simulation depth:**
-- Full game simulation is expensive
-- 2-4 moves ahead may be sufficient
-- Need fast evaluation heuristic for non-terminal states
-
-**Key scenarios where look-ahead helps:**
-- Endgame with few tiles remaining
-- Deciding whether to block or keep playing
-- Sacrificing short-term score for positional advantage
-
-### Proposed Architecture
+## Certainty Calculation
 
 ```javascript
-class MonteCarloAI extends SmartAI {
-    chooseMoveWithLookahead(gameState, playerIndex, simulations = 100, depth = 3) {
-        const validMoves = getValidMoves(...);
-        const scores = new Map();
+calculateCertainty() {
+    for (tile of unknownTiles) {
+        // Get probability distribution across possible holders
+        probs = [P(player1), P(player2), P(player3)]
 
-        for (const move of validMoves) {
-            let totalScore = 0;
+        // Certainty = how peaked is the distribution?
+        maxProb = max(probs)  // Higher = more certain
 
-            for (let i = 0; i < simulations; i++) {
-                // Sample a consistent hand distribution
-                const sampledState = this.sampleHands(gameState);
+        // Weight by relevance (tiles playable on current ends matter more)
+        if (tile.canPlayOnCurrentEnds) weight = 2.0
+        else weight = 1.0
 
-                // Simulate play for 'depth' moves
-                const outcome = this.simulate(sampledState, move, depth);
-
-                totalScore += this.evaluateOutcome(outcome, playerIndex);
-            }
-
-            scores.set(move, totalScore / simulations);
-        }
-
-        return getBestMove(scores);
+        totalCertainty += maxProb * weight
     }
+
+    // Also factor in dead suit information from passes
+    return baseCertainty * 0.7 + deadSuitBonus * 0.3
 }
 ```
+
+## Adaptive Parameters
+
+| Certainty | Depth | Samples | Situation |
+|-----------|-------|---------|-----------|
+| 0.0 - 0.3 | 2 | 85 | Low info, uniform distributions |
+| 0.3 - 0.5 | 3 | 65 | Some passes recorded |
+| 0.5 - 0.7 | 4 | 50 | Good picture forming |
+| 0.7 - 0.9 | 5 | 40 | High confidence |
+| 0.9 - 1.0 | 6 | 30 | Near-deterministic |
+
+## Score Blending
+
+Static scoring and Monte Carlo are blended based on certainty:
+
+```javascript
+finalScore = (1 - certainty) * staticScore + certainty * mcScore
+```
+
+- **Low certainty** → Trust static heuristics (they don't depend on knowing exact hands)
+- **High certainty** → Trust Monte Carlo (simulations are accurate when we know the hands)
+
+## Probability-Weighted Sampling
+
+Instead of uniform random sampling, hands are generated proportionally to HandTracker probabilities:
+
+```javascript
+for (tile of unknownTiles) {
+    // Get probability each player holds this tile
+    probs = [handTracker.getProbability(p, tile) for p in [1,2,3]]
+
+    // Weighted random selection respecting tile counts
+    selectedPlayer = weightedRandomSelect(players, probs)
+    assignTileToPlayer(tile, selectedPlayer)
+}
+```
+
+This means simulations reflect our **best knowledge**, not random possibilities
 
 ---
 
