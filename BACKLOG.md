@@ -2,35 +2,6 @@
 
 ## Pending Features
 
-### 0. AI Decision Transparency (Developer Tool)
-**Priority:** Medium
-**Complexity:** Low
-
-Add developer-only debugging interface to inspect AI decision-making process in real-time.
-
-**Requirements:**
-- View scoring breakdown for each valid move the AI is considering
-- Show weight contributions from each strategic factor:
-  - Suit strength, double management, partner support
-  - Blocking potential, pip management, end control
-  - Tile counting bonus, dead suit penalties
-- Display probability calculations from HandTracker:
-  - P(player holds tile) for each opponent/partner
-  - P(player lacks suit) based on passes
-  - P(blocking success) for cuadrar attempts
-- Toggle via URL parameter or keyboard shortcut (e.g., `?debug=true` or Ctrl+D)
-- Console logging or dedicated debug panel overlay
-- Does NOT appear in production/normal play
-- Helps validate AI logic and tune weights
-
-**Potential UI:**
-- Floating panel that appears on AI turns
-- Expandable table showing all valid moves with scores
-- Highlight chosen move and runner-up
-- Show probability matrix for tile locations
-
----
-
 ### 0. AI Enhancements (Future)
 **Priority:** Medium
 **Complexity:** Medium
@@ -180,6 +151,16 @@ Teach traditional terminology through the UI.
 ---
 
 ## Completed Features
+
+### AI Decision Transparency - Debug Mode (Feb 2026)
+- Developer tool to inspect AI decision-making in real-time
+- Enable via URL parameter: `?debug=ai`
+- Console logs for each AI turn showing:
+  - Priority checks (winning move, blocking P>0.7, partner support)
+  - Move scores table with all 8 factors (suit strength, double mgmt, partner support, blocking, pip mgmt, end control, tile counting, avoid dead suits)
+  - Chosen move and reasoning
+- Color-coded output by player
+- Does not appear in normal play
 
 ### Quiz Deferred Results (Feb 2026)
 - Quiz predictions stored but results hidden until hand ends
