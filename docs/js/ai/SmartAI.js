@@ -2,6 +2,9 @@ import { Rules } from '../engine/Rules.js';
 import { GameState } from '../models/GameState.js';
 import { StrategicExplainer } from './StrategicExplainer.js';
 
+// Check for debug mode via URL parameter (?debug=ai)
+const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'ai';
+
 /**
  * SmartAI - An AI that follows strategic principles for partnership dominoes.
  *
@@ -20,12 +23,19 @@ import { StrategicExplainer } from './StrategicExplainer.js';
  * 2. High-confidence blocking (cuadrar with P > 0.7)
  * 3. Partner support (first 8 plays of hand)
  * Falls back to weighted scoring for all other decisions.
+ *
+ * Debug mode: Add ?debug=ai to URL to see AI decision logs in console.
  */
 export class SmartAI {
     constructor() {
         this.explainer = new StrategicExplainer();
         this.handTracker = null; // Set by game controller
         this.resetForNewHand();
+
+        if (DEBUG_AI) {
+            console.log('%c🎲 AI Debug Mode Enabled', 'color: #00d4ff; font-weight: bold; font-size: 14px');
+            console.log('AI decisions will be logged to console.');
+        }
     }
 
     /**
@@ -186,32 +196,83 @@ export class SmartAI {
         const hand = gameState.hands[playerIndex];
         const chain = gameState.chain;
         const mustPlayDoubleSix = gameState.isFirstHand && chain.isEmpty();
+        const playerName = GameState.getPlayerName(playerIndex);
 
         const validMoves = Rules.getValidMoves(hand, chain, mustPlayDoubleSix);
 
+        // Debug: Start decision log
+        const debugInfo = DEBUG_AI ? {
+            player: playerName,
+            playerIndex,
+            tilesInHand: hand.size(),
+            playCount: this.playCount,
+            validMoves: validMoves.length,
+            priorities: {},
+            scoredMoves: [],
+            chosen: null,
+            chosenReason: ''
+        } : null;
+
         if (validMoves.length === 0) {
+            if (DEBUG_AI) {
+                this._logDebug({ ...debugInfo, chosen: 'PASS', chosenReason: 'No valid moves' });
+            }
             return null; // Must pass
         }
 
         if (validMoves.length === 1) {
-            return { ...validMoves[0], reasoning: 'Only valid move' };
+            const move = { ...validMoves[0], reasoning: 'Only valid move' };
+            if (DEBUG_AI) {
+                debugInfo.chosen = validMoves[0].tile.toString();
+                debugInfo.chosenReason = 'Only valid move';
+                this._logDebug(debugInfo);
+            }
+            return move;
         }
 
         // PRIORITY 1: Check for winning move (domino)
         const winningMove = this._findWinningMove(validMoves, hand);
+        if (DEBUG_AI) {
+            debugInfo.priorities.winningMove = winningMove ? winningMove.tile.toString() : null;
+        }
         if (winningMove) {
+            if (DEBUG_AI) {
+                debugInfo.chosen = winningMove.tile.toString();
+                debugInfo.chosenReason = 'PRIORITY 1: Winning move (domino)';
+                this._logDebug(debugInfo);
+            }
             return { ...winningMove, reasoning: 'Winning move - domino!' };
         }
 
         // PRIORITY 2: Check for high-confidence blocking opportunity
         const blockingMove = this._findHighConfidenceBlock(validMoves, gameState, playerIndex, chain);
+        if (DEBUG_AI) {
+            debugInfo.priorities.blockingMove = blockingMove ? {
+                tile: blockingMove.tile.toString(),
+                prob: blockingMove.blockProb
+            } : null;
+        }
         if (blockingMove) {
+            if (DEBUG_AI) {
+                debugInfo.chosen = blockingMove.tile.toString();
+                debugInfo.chosenReason = `PRIORITY 2: High-confidence block (P=${blockingMove.blockProb.toFixed(2)})`;
+                this._logDebug(debugInfo);
+            }
             return blockingMove;
         }
 
         // PRIORITY 3: Partner support in early game (first 8 plays)
         const partnerSupportMove = this._findPartnerSupportMove(validMoves, gameState, playerIndex, chain);
+        if (DEBUG_AI) {
+            debugInfo.priorities.partnerSupport = partnerSupportMove ? partnerSupportMove.tile.toString() : null;
+            debugInfo.priorities.partnerSupportActive = this.playCount < 8;
+        }
         if (partnerSupportMove && this.playCount < 8) {
+            if (DEBUG_AI) {
+                debugInfo.chosen = partnerSupportMove.tile.toString();
+                debugInfo.chosenReason = 'PRIORITY 3: Partner support (early game)';
+                this._logDebug(debugInfo);
+            }
             return partnerSupportMove;
         }
 
@@ -225,6 +286,15 @@ export class SmartAI {
         // Sort by score descending
         scoredMoves.sort((a, b) => b.score.total - a.score.total);
 
+        if (DEBUG_AI) {
+            debugInfo.scoredMoves = scoredMoves.map(m => ({
+                tile: m.tile.toString(),
+                end: m.end,
+                total: m.score.total,
+                factors: m.score.factors
+            }));
+        }
+
         const bestMove = scoredMoves[0];
         // Use strategic explainer for rich reasoning
         bestMove.reasoning = this.explainer.explainBrief(
@@ -235,7 +305,68 @@ export class SmartAI {
             this
         );
 
+        if (DEBUG_AI) {
+            debugInfo.chosen = bestMove.tile.toString();
+            debugInfo.chosenReason = `FALLBACK: Highest score (${bestMove.score.total})`;
+            debugInfo.chosenExplanation = bestMove.reasoning;
+            this._logDebug(debugInfo);
+        }
+
         return bestMove;
+    }
+
+    /**
+     * Log debug information to console
+     * @private
+     */
+    _logDebug(info) {
+        const playerColors = {
+            0: '#00d4ff', // You - cyan
+            1: '#ff6b6b', // Opp 1 - coral
+            2: '#22c55e', // Partner - green
+            3: '#ffa500'  // Opp 2 - orange
+        };
+        const color = playerColors[info.playerIndex] || '#fff';
+
+        console.group(`%c🎲 AI Decision: ${info.player}`, `color: ${color}; font-weight: bold`);
+
+        // Basic info
+        console.log(`Play #${info.playCount + 1} | Tiles in hand: ${info.tilesInHand} | Valid moves: ${info.validMoves}`);
+
+        // Priority checks
+        console.group('Priority Checks');
+        console.log(`1. Winning move: ${info.priorities.winningMove || 'No'}`);
+        console.log(`2. High-confidence block: ${info.priorities.blockingMove ?
+            `Yes - ${info.priorities.blockingMove.tile} (P=${info.priorities.blockingMove.prob.toFixed(2)})` : 'No'}`);
+        console.log(`3. Partner support: ${info.priorities.partnerSupport || 'No'} ${
+            info.priorities.partnerSupportActive === false ? '(disabled after play 8)' : ''}`);
+        console.groupEnd();
+
+        // Scored moves table
+        if (info.scoredMoves && info.scoredMoves.length > 0) {
+            console.group('Move Scores (sorted by total)');
+            console.table(info.scoredMoves.map(m => ({
+                'Move': `${m.tile} (${m.end})`,
+                'Total': m.total,
+                'SuitStr': m.factors.suitStrength,
+                'Double': m.factors.doubleManagement,
+                'Partner': m.factors.partnerSupport,
+                'Block': m.factors.blockingPotential,
+                'Pip': Math.round(m.factors.pipManagement * 10) / 10,
+                'EndCtl': m.factors.endControl,
+                'TileCnt': m.factors.tileCountingBonus,
+                'AvoidDead': m.factors.avoidDeadSuits
+            })));
+            console.groupEnd();
+        }
+
+        // Final decision
+        console.log(`%c→ Chosen: ${info.chosen} | ${info.chosenReason}`, 'color: #22c55e; font-weight: bold');
+        if (info.chosenExplanation) {
+            console.log(`  Explanation: ${info.chosenExplanation}`);
+        }
+
+        console.groupEnd();
     }
 
     /**
@@ -274,6 +405,7 @@ export class SmartAI {
                     bestBlockProb = blockProb;
                     bestBlockMove = {
                         ...move,
+                        blockProb: blockProb,
                         reasoning: `High-confidence block (${Math.round(blockProb * 100)}%) - cuadrar to force opponent pass`
                     };
                 }
