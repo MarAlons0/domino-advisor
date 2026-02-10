@@ -1,6 +1,7 @@
 import { Rules } from '../engine/Rules.js';
 import { GameState } from '../models/GameState.js';
 import { StrategicExplainer } from './StrategicExplainer.js';
+import { MonteCarloEvaluator } from './MonteCarloEvaluator.js';
 
 // Check for debug mode via URL parameter (?debug=ai)
 const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'ai';
@@ -44,6 +45,7 @@ export class SmartAI {
      */
     setHandTracker(tracker) {
         this.handTracker = tracker;
+        this.monteCarloEvaluator = new MonteCarloEvaluator(tracker);
     }
 
     /**
@@ -276,21 +278,48 @@ export class SmartAI {
             return partnerSupportMove;
         }
 
-        // FALLBACK: Score each move and pick the best
-        const scoredMoves = validMoves.map(move => ({
-            ...move,
-            score: this.scoreMove(move, gameState, playerIndex),
-            reasoning: ''
-        }));
+        // FALLBACK: Score each move with static scoring + Monte Carlo
+        const scoredMoves = validMoves.map(move => {
+            const staticScore = this.scoreMove(move, gameState, playerIndex);
+            return {
+                ...move,
+                score: staticScore,
+                staticTotal: staticScore.total,
+                mcResult: null,
+                finalScore: staticScore.total,
+                reasoning: ''
+            };
+        });
 
-        // Sort by score descending
-        scoredMoves.sort((a, b) => b.score.total - a.score.total);
+        // Apply Monte Carlo evaluation if available
+        let certainty = 0;
+        if (this.monteCarloEvaluator && this.handTracker) {
+            certainty = this.monteCarloEvaluator.calculateCertainty(gameState, gameState.chain);
+
+            for (const move of scoredMoves) {
+                const mcResult = this.monteCarloEvaluator.evaluateMove(move, gameState, playerIndex);
+                move.mcResult = mcResult;
+
+                // Blend static and MC scores based on certainty
+                // Higher certainty = trust MC more
+                // Normalize MC score to similar range as static (roughly -50 to 150)
+                const normalizedMC = mcResult.score * 0.5;  // Scale factor
+
+                move.finalScore = (1 - certainty) * move.staticTotal + certainty * normalizedMC;
+            }
+        }
+
+        // Sort by final score descending
+        scoredMoves.sort((a, b) => b.finalScore - a.finalScore);
 
         if (DEBUG_AI) {
+            debugInfo.certainty = certainty;
             debugInfo.scoredMoves = scoredMoves.map(m => ({
                 tile: m.tile.toString(),
                 end: m.end,
-                total: m.score.total,
+                staticTotal: m.staticTotal,
+                mcScore: m.mcResult ? m.mcResult.score.toFixed(1) : '-',
+                finalScore: m.finalScore.toFixed(1),
                 factors: m.score.factors
             }));
         }
@@ -307,7 +336,9 @@ export class SmartAI {
 
         if (DEBUG_AI) {
             debugInfo.chosen = bestMove.tile.toString();
-            debugInfo.chosenReason = `FALLBACK: Highest score (${bestMove.score.total})`;
+            const mcInfo = bestMove.mcResult ?
+                ` | MC: ${bestMove.mcResult.score.toFixed(1)} (cert: ${(certainty * 100).toFixed(0)}%)` : '';
+            debugInfo.chosenReason = `FALLBACK: Best combined score (${bestMove.finalScore.toFixed(1)})${mcInfo}`;
             debugInfo.chosenExplanation = bestMove.reasoning;
             this._logDebug(debugInfo);
         }
@@ -342,21 +373,43 @@ export class SmartAI {
             info.priorities.partnerSupportActive === false ? '(disabled after play 8)' : ''}`);
         console.groupEnd();
 
+        // Certainty info (if Monte Carlo was used)
+        if (info.certainty !== undefined) {
+            console.log(`%cMonte Carlo: Certainty ${(info.certainty * 100).toFixed(1)}%`, 'color: #ffd93d');
+        }
+
         // Scored moves table
         if (info.scoredMoves && info.scoredMoves.length > 0) {
-            console.group('Move Scores (sorted by total)');
-            console.table(info.scoredMoves.map(m => ({
-                'Move': `${m.tile} (${m.end})`,
-                'Total': m.total,
-                'SuitStr': m.factors.suitStrength,
-                'Double': m.factors.doubleManagement,
-                'Partner': m.factors.partnerSupport,
-                'Block': m.factors.blockingPotential,
-                'Pip': Math.round(m.factors.pipManagement * 10) / 10,
-                'EndCtl': m.factors.endControl,
-                'TileCnt': m.factors.tileCountingBonus,
-                'AvoidDead': m.factors.avoidDeadSuits
-            })));
+            const hasMC = info.scoredMoves[0].mcScore !== undefined;
+            console.group(`Move Scores (sorted by ${hasMC ? 'final' : 'static'} score)`);
+
+            if (hasMC) {
+                // Show combined static + MC scores
+                console.table(info.scoredMoves.map(m => ({
+                    'Move': `${m.tile} (${m.end})`,
+                    'Static': m.staticTotal,
+                    'MC': m.mcScore,
+                    'Final': m.finalScore,
+                    'SuitStr': m.factors.suitStrength,
+                    'Double': m.factors.doubleManagement,
+                    'Partner': m.factors.partnerSupport,
+                    'Block': m.factors.blockingPotential
+                })));
+            } else {
+                // Show static scores only
+                console.table(info.scoredMoves.map(m => ({
+                    'Move': `${m.tile} (${m.end})`,
+                    'Total': m.total || m.staticTotal,
+                    'SuitStr': m.factors.suitStrength,
+                    'Double': m.factors.doubleManagement,
+                    'Partner': m.factors.partnerSupport,
+                    'Block': m.factors.blockingPotential,
+                    'Pip': Math.round(m.factors.pipManagement * 10) / 10,
+                    'EndCtl': m.factors.endControl,
+                    'TileCnt': m.factors.tileCountingBonus,
+                    'AvoidDead': m.factors.avoidDeadSuits
+                })));
+            }
             console.groupEnd();
         }
 
