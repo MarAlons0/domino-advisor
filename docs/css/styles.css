@@ -114,7 +114,8 @@ h1 .version {
 }
 
 .settings-btn,
-.help-btn {
+.help-btn,
+.docs-btn {
     background: transparent;
     border: none;
     color: #888;
@@ -122,10 +123,15 @@ h1 .version {
     padding: 5px;
     border-radius: 4px;
     transition: color 0.2s, background 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
 }
 
 .settings-btn:hover,
-.help-btn:hover {
+.help-btn:hover,
+.docs-btn:hover {
     color: #00d4ff;
     background: rgba(0, 212, 255, 0.1);
 }
