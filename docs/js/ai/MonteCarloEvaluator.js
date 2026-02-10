@@ -383,7 +383,7 @@ export class MonteCarloEvaluator {
      */
     _logMCDebug(move, certainty, depth, samples, avgScore, outcomes) {
         console.group(`%c🎰 Monte Carlo: ${move.tile.toString()} (${move.end})`, 'color: #ffd93d');
-        console.log(`Certainty: ${(certainty * 100).toFixed(1)}% → Depth: ${depth}, Samples: ${samples}`);
+        console.log(`Certainty: ${(certainty * 100).toFixed(1)}% | Depth: ${depth} | Samples: ${samples}`);
         console.log(`Average Score: ${avgScore.toFixed(1)}`);
 
         // Distribution of outcomes

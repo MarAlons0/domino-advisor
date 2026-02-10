@@ -120,8 +120,13 @@ export class SmartAI {
         const signaledSuit = this.signaledSuits[playerIndex];
 
         // INFERENCE 1: If they avoided their own signaled suit, they might be out
-        if (signaledSuit !== null && avoided === signaledSuit && playedOn !== signaledSuit) {
-            // They had a choice and avoided their signaled suit
+        // Only applies if the tile COULD have played on the signaled suit end
+        // (i.e., the tile has a value matching the avoided end)
+        if (signaledSuit !== null &&
+            avoided === signaledSuit &&
+            playedOn !== signaledSuit &&
+            tile.hasValue(avoided)) {
+            // They had a choice to play on their signaled suit but chose not to
             // This suggests they may be out of that suit
             this.killedOwnSuit[playerIndex] = true;
             this.inferredDeadSuits[playerIndex].add(signaledSuit);
