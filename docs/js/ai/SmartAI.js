@@ -142,8 +142,8 @@ export class SmartAI {
         if (!tile.isDouble()) {
             const newEnd = tile.getOtherValue(playedOn);
             if (newEnd !== -1 && this.signaledSuits[playerIndex] === null) {
-                // First non-double play, establish signal
-                this.signaledSuits[playerIndex] = tile.high; // Use the higher value as signal
+                // First non-double play, establish signal with the value introduced
+                this.signaledSuits[playerIndex] = newEnd;
             }
         }
     }
@@ -513,14 +513,16 @@ export class SmartAI {
      * Uses HandTracker probability distributions.
      * @param {number} player - Player index (1-3 for computer players)
      * @param {number} suitValue - The suit value (0-6)
+     * @param {Set<string>} [excludeKeys] - Tile keys to exclude (e.g., current player's hand)
      * @returns {number} Expected count of tiles with this suit
      * @private
      */
-    _estimateSuitCount(player, suitValue) {
+    _estimateSuitCount(player, suitValue, excludeKeys) {
         if (!this.handTracker) return 0;
         let expected = 0;
         for (const tile of this.handTracker.allTiles) {
             if (!tile.hasValue(suitValue)) continue;
+            if (excludeKeys && excludeKeys.has(tile.toKey())) continue;
             const prob = this.handTracker.getProbability(player, tile);
             expected += prob;
         }
@@ -772,9 +774,12 @@ export class SmartAI {
             const remaining = this.getRemainingInSuit(newEndValue);
             if (remaining > 0) {
                 if (this.handTracker) {
-                    const partnerCount = this._estimateSuitCount(partnerIndex, newEndValue);
-                    const oppCount = this._estimateSuitCount(opponents[0], newEndValue)
-                                   + this._estimateSuitCount(opponents[1], newEndValue);
+                    // Exclude own tiles from estimates to prevent double-counting
+                    // (myCount is exact; HandTracker doesn't know which computer player has what)
+                    const myTileKeys = new Set(hand.getTiles().map(t => t.toKey()));
+                    const partnerCount = this._estimateSuitCount(partnerIndex, newEndValue, myTileKeys);
+                    const oppCount = this._estimateSuitCount(opponents[0], newEndValue, myTileKeys)
+                                   + this._estimateSuitCount(opponents[1], newEndValue, myTileKeys);
                     const myTeamCount = myCount + partnerCount;
                     factors.suitDominance = ((myTeamCount - oppCount) / remaining) * 50;
                 } else {
