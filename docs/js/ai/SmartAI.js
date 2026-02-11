@@ -423,6 +423,7 @@ export class SmartAI {
                     'SuitStr': m.factors.suitStrength,
                     'Double': m.factors.doubleManagement,
                     'Partner': m.factors.partnerSupport,
+                    'OwnSuit': m.factors.ownSuitProtection,
                     'Block': m.factors.blockingPotential
                 })));
             } else {
@@ -433,6 +434,7 @@ export class SmartAI {
                     'SuitStr': m.factors.suitStrength,
                     'Double': m.factors.doubleManagement,
                     'Partner': m.factors.partnerSupport,
+                    'OwnSuit': m.factors.ownSuitProtection,
                     'Block': m.factors.blockingPotential,
                     'Pip': Math.round(m.factors.pipManagement * 10) / 10,
                     'EndCtl': m.factors.endControl,
@@ -651,6 +653,7 @@ export class SmartAI {
             suitStrength: 0,
             doubleManagement: 0,
             partnerSupport: 0,
+            ownSuitProtection: 0,
             blockingPotential: 0,
             pipManagement: 0,
             endControl: 0,
@@ -694,7 +697,21 @@ export class SmartAI {
             }
         }
 
-        // 4. BLOCKING - exploit inferred weaknesses (passes + play choices)
+        // 4. OWN SUIT PROTECTION - protect your own salida/signaled suit
+        const ownSuit = this.signaledSuits[playerIndex];
+        if (ownSuit !== null && !this.killedOwnSuit[playerIndex] && !chain.isEmpty()) {
+            const { newLeftEnd, newRightEnd } = this._getEndsAfterPlay(move, chain);
+            const ownSuitStillOpen = (newLeftEnd === ownSuit || newRightEnd === ownSuit);
+            const ownSuitWasOpen = (chain.leftEnd === ownSuit || chain.rightEnd === ownSuit);
+
+            if (ownSuitStillOpen) {
+                factors.ownSuitProtection = 20; // Keep own suit open
+            } else if (ownSuitWasOpen) {
+                factors.ownSuitProtection = -25; // Killing own suit that was open
+            }
+        }
+
+        // 5. BLOCKING - exploit inferred weaknesses (passes + play choices)
         const opponents = this.getOpponents(playerIndex);
         let blockingScore = 0;
 
@@ -714,7 +731,7 @@ export class SmartAI {
         }
         factors.blockingPotential = blockingScore;
 
-        // 5. PIP MANAGEMENT - prefer playing high-pip tiles early
+        // 6. PIP MANAGEMENT - prefer playing high-pip tiles early
         const tilesPlayed = chain.size();
         if (tilesPlayed < 10) {
             factors.pipManagement = tile.pipCount() * 1.5;
@@ -722,13 +739,13 @@ export class SmartAI {
             factors.pipManagement = tile.pipCount() * 0.5;
         }
 
-        // 6. END CONTROL - prefer keeping our strong suits open
+        // 7. END CONTROL - prefer keeping our strong suits open
         if (newEndValue !== null && newEndValue !== -1) {
             const ourStrengthInNewEnd = this.countSuitInHand(hand, newEndValue);
             factors.endControl = ourStrengthInNewEnd * 5;
         }
 
-        // 7. TILE COUNTING BONUS - prefer leaving open suits that still have tiles out
+        // 8. TILE COUNTING BONUS - prefer leaving open suits that still have tiles out
         if (newEndValue !== null && newEndValue !== -1) {
             const remaining = this.getRemainingInSuit(newEndValue);
             if (remaining > 3) {
@@ -738,7 +755,7 @@ export class SmartAI {
             }
         }
 
-        // 8. AVOID DEAD SUITS - don't leave dead suits as the only option
+        // 9. AVOID DEAD SUITS - don't leave dead suits as the only option
         if (newEndValue !== null && this.isSuitDead(newEndValue)) {
             factors.avoidDeadSuits = -30; // Very bad - will force passes
         }
@@ -759,6 +776,8 @@ export class SmartAI {
         if (score.factors.doubleManagement >= 20) dominated.push('unload double with cover');
         if (score.factors.doubleManagement < 0) dominated.push('risky double');
         if (score.factors.partnerSupport >= 15) dominated.push('support partner');
+        if (score.factors.ownSuitProtection >= 15) dominated.push('protect own suit');
+        if (score.factors.ownSuitProtection < -15) dominated.push('kills own suit');
         if (score.factors.blockingPotential >= 20) dominated.push('block opponent');
         if (score.factors.pipManagement >= 10) dominated.push('high pip tile');
         if (score.factors.endControl >= 10) dominated.push('maintain control');
