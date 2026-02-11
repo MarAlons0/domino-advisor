@@ -135,7 +135,7 @@ When no priority triggers, the AI scores every valid move using 9 strategic fact
 
 | Factor | Weight Range | Description |
 |--------|-------------|-------------|
-| **Suit Dominance** | 0-50 | `(my_count / remaining_in_suit) × 50`. Fraction-based: 2/7 early = 14, 1/2 late = 25, 3/3 = 50 (total control). |
+| **Suit Dominance** | -50 to +50 | `((myTeam - oppTeam) / remaining) × 50`. Team-aware: uses HandTracker to estimate who controls the suit. Negative when opponents dominate (e.g., their salida + partner passed). |
 | **Double Management** | -15 to +25 | +25 if double has cover (other tiles in suit), -15 if exposed, +10 if suit nearly dead |
 | **Partner Support** | 0-37 | +15 for playing partner's suit, +10 for leaving it open. ×1.5 when partner leads (fewer tiles), ×0.5 when I lead. |
 | **Own Suit Protection** | -25 to +20 | +20 for keeping own salida open, -25 for killing it. ×0.5 when partner leads (defer to them). |
@@ -147,7 +147,7 @@ When no priority triggers, the AI scores every valid move using 9 strategic fact
 
 ### Key Design Decisions
 
-**Suit Dominance (fraction-based)** replaces the previous absolute-count approach. Having 2 tiles of a suit early game (2/7 = 29%) is strategically weaker than having 1 tile late game (1/2 = 50%). The fraction captures actual control over a suit.
+**Suit Dominance (team-aware)** uses HandTracker probability distributions to estimate how many tiles of a suit each team holds. The formula `((myTeamCount - oppTeamCount) / remaining) × 50` produces positive scores when your team controls the suit and negative when opponents do. For example, if opponents led with [5|5] and your partner passed on 5, opening the 5 end scores strongly negative because opponents hold most remaining 5-tiles.
 
 **Hand Flexibility** is separate from Suit Dominance. A hand with [5|3], [5|4], [5|1], [5|0] has great dominance in 5s but terrible flexibility - only two distinct non-5 values. This factor penalizes moves that reduce your breadth of playable values.
 

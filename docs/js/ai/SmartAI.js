@@ -10,7 +10,7 @@ const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'a
  * SmartAI - An AI that follows strategic principles for partnership dominoes.
  *
  * Scoring factors (9):
- * 1. Suit Dominance - fraction-based control of the suit left open
+ * 1. Suit Dominance - team control of the suit left open (-50 to +50)
  * 2. Double Management - unload doubles when you have cover
  * 3. Partner Support - support partner's lead (la salida)
  * 4. Own Suit Protection - don't kill your own signaled suit
@@ -428,6 +428,7 @@ export class SmartAI {
                     'Own': m.factors.ownSuitProtection,
                     'Firme': m.factors.firmeProtection,
                     'Block': m.factors.blockingPotential,
+                    'Pip': Math.round(m.factors.pipManagement * 10) / 10,
                     'Flex': m.factors.handFlexibility,
                     'Pace': m.factors.paceControl
                 })));
@@ -505,6 +506,25 @@ export class SmartAI {
             oppTeamPips,
             pipAdvantage: oppTeamPips - myTeamPips // positive = we have fewer pips (good to block)
         };
+    }
+
+    /**
+     * Estimate how many tiles of a given suit a player holds.
+     * Uses HandTracker probability distributions.
+     * @param {number} player - Player index (1-3 for computer players)
+     * @param {number} suitValue - The suit value (0-6)
+     * @returns {number} Expected count of tiles with this suit
+     * @private
+     */
+    _estimateSuitCount(player, suitValue) {
+        if (!this.handTracker) return 0;
+        let expected = 0;
+        for (const tile of this.handTracker.allTiles) {
+            if (!tile.hasValue(suitValue)) continue;
+            const prob = this.handTracker.getProbability(player, tile);
+            expected += prob;
+        }
+        return expected;
     }
 
     /**
@@ -744,13 +764,23 @@ export class SmartAI {
         const partnerLeading = partnerTiles < myTiles;
         const iAmLeading = myTiles < partnerTiles;
 
-        // 1. SUIT DOMINANCE - fraction of remaining tiles in the new end suit
-        // 2/7 early = weak (14), 1/2 late = strong (25), 3/3 = total control (50)
+        // 1. SUIT DOMINANCE - team control of the suit left open
+        // Uses HandTracker to estimate who holds the remaining tiles.
+        // Range: -50 (opponents control suit) to +50 (we control suit)
         if (newEndValue !== null && newEndValue !== -1) {
             const myCount = this.countSuitInHand(hand, newEndValue);
             const remaining = this.getRemainingInSuit(newEndValue);
             if (remaining > 0) {
-                factors.suitDominance = (myCount / remaining) * 50;
+                if (this.handTracker) {
+                    const partnerCount = this._estimateSuitCount(partnerIndex, newEndValue);
+                    const oppCount = this._estimateSuitCount(opponents[0], newEndValue)
+                                   + this._estimateSuitCount(opponents[1], newEndValue);
+                    const myTeamCount = myCount + partnerCount;
+                    factors.suitDominance = ((myTeamCount - oppCount) / remaining) * 50;
+                } else {
+                    // Fallback without HandTracker: personal count only
+                    factors.suitDominance = (myCount / remaining) * 50;
+                }
             }
         }
 
