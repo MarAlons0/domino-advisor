@@ -95,7 +95,20 @@ If the AI has only 1 tile remaining and can play it, always play it. Victory tak
 ### Priority 2: High-Confidence Blocking (Cuadrar)
 The AI calculates the probability of forcing an opponent to pass by "cuadrar" (making both ends the same value or values the opponent lacks).
 
-**Trigger condition:** `P(opponent passes) >= 0.7` (70% confidence threshold)
+**Trigger conditions:**
+1. `P(opponent passes) >= 0.7` (70% confidence threshold)
+2. **Pip advantage check** - Only block if our team has fewer estimated pips (we'd win points from a closed game)
+3. **Exception:** Block defensively even with pip disadvantage if opponent has ≤2 tiles (about to domino)
+
+**Pip estimation** uses HandTracker probability distributions:
+```
+For each unknown tile:
+    expected_pips_for_player += tile.pipCount × P(player has tile)
+
+myTeamPips = exact(my hand) + estimated(partner)
+oppTeamPips = estimated(opp1) + estimated(opp2)
+pipAdvantage = oppTeamPips - myTeamPips  // positive = good to block
+```
 
 The blocking probability is calculated by HandTracker:
 ```javascript

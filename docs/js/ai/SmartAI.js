@@ -468,7 +468,45 @@ export class SmartAI {
     }
 
     /**
+     * Estimate pip counts for each team using HandTracker probabilities.
+     * Own hand is exact; other players are estimated from probability distributions.
+     * @returns {{myTeamPips: number, oppTeamPips: number, pipAdvantage: number}}
+     */
+    _estimateTeamPips(gameState, playerIndex) {
+        const partnerIndex = GameState.getPartner(playerIndex);
+        const opponents = this.getOpponents(playerIndex);
+
+        // Own hand: exact count
+        const myPips = gameState.hands[playerIndex].getTiles()
+            .reduce((sum, t) => sum + t.pipCount(), 0);
+
+        // Other players: expected pips from probability distributions
+        const estimatePips = (player) => {
+            let expected = 0;
+            for (const tile of this.handTracker.allTiles) {
+                const prob = this.handTracker.getProbability(player, tile);
+                expected += tile.pipCount() * prob;
+            }
+            return expected;
+        };
+
+        const partnerPips = estimatePips(partnerIndex);
+        const opp1Pips = estimatePips(opponents[0]);
+        const opp2Pips = estimatePips(opponents[1]);
+
+        const myTeamPips = myPips + partnerPips;
+        const oppTeamPips = opp1Pips + opp2Pips;
+
+        return {
+            myTeamPips,
+            oppTeamPips,
+            pipAdvantage: oppTeamPips - myTeamPips // positive = we have fewer pips (good to block)
+        };
+    }
+
+    /**
      * Find a high-confidence blocking opportunity (cuadrar)
+     * Only blocks when pip count favors our team, unless defensive necessity.
      * @private
      */
     _findHighConfidenceBlock(validMoves, gameState, playerIndex, chain) {
@@ -493,13 +531,42 @@ export class SmartAI {
                     bestBlockMove = {
                         ...move,
                         blockProb: blockProb,
-                        reasoning: `High-confidence block (${Math.round(blockProb * 100)}%) - cuadrar to force opponent pass`
+                        reasoning: ''
                     };
                 }
             }
         }
 
-        return bestBlockMove;
+        if (!bestBlockMove) return null;
+
+        // Pip check: only block if it benefits our team
+        const { myTeamPips, oppTeamPips, pipAdvantage } = this._estimateTeamPips(gameState, playerIndex);
+        const minOppTiles = Math.min(
+            gameState.hands[opponents[0]].size(),
+            gameState.hands[opponents[1]].size()
+        );
+
+        if (DEBUG_AI) {
+            console.log(`%c  Block pip check: Our team ~${Math.round(myTeamPips)} vs Opponents ~${Math.round(oppTeamPips)} (advantage: ${pipAdvantage > 0 ? '+' : ''}${Math.round(pipAdvantage)})`,
+                'color: #ffa500');
+        }
+
+        if (pipAdvantage > 0) {
+            // We have fewer pips - blocking is profitable
+            bestBlockMove.reasoning = `High-confidence block (${Math.round(bestBlockMove.blockProb * 100)}%) - pip advantage ~${Math.round(pipAdvantage)} pts`;
+            return bestBlockMove;
+        } else if (minOppTiles <= 2) {
+            // Opponent about to win - block defensively even with pip disadvantage
+            bestBlockMove.reasoning = `Defensive block (${Math.round(bestBlockMove.blockProb * 100)}%) - opponent about to domino (pip disadvantage ~${Math.round(-pipAdvantage)})`;
+            return bestBlockMove;
+        } else {
+            // We have more pips - blocking would give opponents points
+            if (DEBUG_AI) {
+                console.log(`%c  Block REJECTED: pip disadvantage ~${Math.round(-pipAdvantage)} pts`,
+                    'color: #ff6b6b');
+            }
+            return null;
+        }
     }
 
     /**
