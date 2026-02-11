@@ -124,8 +124,8 @@ When no priority triggers, the AI scores every valid move using 8 strategic fact
 |--------|-------------|-------------|
 | **Suit Dominance** | 0-50 | `(my_count / remaining_in_suit) × 50`. Fraction-based: 2/7 early = 14, 1/2 late = 25, 3/3 = 50 (total control). |
 | **Double Management** | -15 to +25 | +25 if double has cover (other tiles in suit), -15 if exposed, +10 if suit nearly dead |
-| **Partner Support** | 0-25 | +15 for playing partner's suit, +10 for leaving it open |
-| **Own Suit Protection** | -25 to +20 | +20 for keeping own salida/signaled suit open, -25 for killing it when it was open |
+| **Partner Support** | 0-37 | +15 for playing partner's suit, +10 for leaving it open. ×1.5 when partner leads (fewer tiles), ×0.5 when I lead. |
+| **Own Suit Protection** | -25 to +20 | +20 for keeping own salida open, -25 for killing it. ×0.5 when partner leads (defer to them). |
 | **Blocking Potential** | 0-70+ | +20 per opponent who passed on the new end value, +15 per inferred dead suit (×2 opponents) |
 | **Pip Management** | 0-18 | `pips × 1.5` early game (plays < 10), `pips × 0.5` late game. Unload high tiles early. |
 | **Hand Flexibility** | 0-21 | `distinct_playable_values × 3`. More unique values after play = harder to block. |
@@ -136,6 +136,8 @@ When no priority triggers, the AI scores every valid move using 8 strategic fact
 **Suit Dominance (fraction-based)** replaces the previous absolute-count approach. Having 2 tiles of a suit early game (2/7 = 29%) is strategically weaker than having 1 tile late game (1/2 = 50%). The fraction captures actual control over a suit.
 
 **Hand Flexibility** is separate from Suit Dominance. A hand with [5|3], [5|4], [5|1], [5|0] has great dominance in 5s but terrible flexibility - only two distinct non-5 values. This factor penalizes moves that reduce your breadth of playable values.
+
+**Lead/Follow Dynamics** modulate Partner Support and Own Suit Protection. When partner is leading (fewer tiles), support is amplified ×1.5 and own suit protection drops to ×0.5 - the AI defers to whoever is closer to winning. When I'm leading, support drops to ×0.5 so I focus on finishing rather than helping.
 
 **Pace Control** adjusts play style based on who's winning. When opponents are about to domino (≤2 tiles), the AI plays defensively - leaving values opponents lack. When partner is about to win, it opens the game up. This implements the "llave" concept: holding the last tile of a suit blocks that end for everyone.
 
