@@ -24,6 +24,7 @@ docs/js/
 ├── main.js                 # Application entry point, UI controller
 ├── ai/
 │   ├── SmartAI.js          # Strategic AI decision engine
+│   ├── MonteCarloEvaluator.js # Probability-weighted look-ahead simulation
 │   ├── HandTracker.js      # Tile probability tracking
 │   ├── StrategicExplainer.js # Human-readable move explanations
 │   └── RandomAI.js         # Simple random move selection (unused)
@@ -117,15 +118,16 @@ During the first 8 plays of a hand, the AI prioritizes supporting partner's sign
 
 ## Scoring System (Fallback)
 
-When no priority triggers, the AI scores every valid move using 8 strategic factors:
+When no priority triggers, the AI scores every valid move using 9 strategic factors:
 
 | Factor | Weight Range | Description |
 |--------|-------------|-------------|
 | **Suit Strength** | 0-60+ | `count_in_hand × 10`. Prefer playing from suits you have many of. |
 | **Double Management** | -15 to +25 | +25 if double has cover (other tiles in suit), -15 if exposed, +10 if suit nearly dead |
 | **Partner Support** | 0-25 | +15 for playing partner's suit, +10 for leaving it open |
-| **Blocking Potential** | 0-40+ | +20 per opponent who passed on the new end value, +15 per inferred dead suit |
-| **Pip Management** | 0-20 | `pips × 1.5` early game (plays < 10), `pips × 0.5` late game. Unload high tiles early. |
+| **Own Suit Protection** | -25 to +20 | +20 for keeping own salida/signaled suit open, -25 for killing it when it was open |
+| **Blocking Potential** | 0-70+ | +20 per opponent who passed on the new end value, +15 per inferred dead suit (×2 opponents) |
+| **Pip Management** | 0-18 | `pips × 1.5` early game (plays < 10), `pips × 0.5` late game. Unload high tiles early. |
 | **End Control** | 0-30 | `our_strength_in_new_end × 5`. Keep suits we're strong in open. |
 | **Tile Counting Bonus** | -10 to +10 | +10 if >3 tiles remain in suit, -10 if ≤1 remain (dead suit) |
 | **Avoid Dead Suits** | -30 to 0 | -30 penalty for leaving a completely dead suit open |
@@ -139,12 +141,13 @@ Move: `[5|3]` on left end, leaving 5 open
 | Suit Strength | 2 fives in hand × 10 | +20 |
 | Double Management | Not a double | 0 |
 | Partner Support | Partner signaled 5s | +15 |
+| Own Suit Protection | Own suit (3s) still open | +20 |
 | Blocking Potential | Opp 1 passed on 5 | +20 |
 | Pip Management | 8 pips × 1.5 (early) | +12 |
 | End Control | 2 fives remaining × 5 | +10 |
 | Tile Counting | 4 fives still out | +10 |
 | Avoid Dead Suits | Not dead | 0 |
-| **TOTAL** | | **87** |
+| **TOTAL** | | **107** |
 
 ---
 
@@ -242,12 +245,12 @@ Open browser DevTools (F12) → Console tab to see:
     3. Partner support: [5|3]
 
   Move Scores (sorted by total)
-  ┌──────────────┬───────┬─────────┬────────┬─────────┬───────┬─────┬────────┬─────────┬───────┐
-  │ Move         │ Total │ SuitStr │ Double │ Partner │ Block │ Pip │ EndCtl │ TileCnt │ Avoid │
-  ├──────────────┼───────┼─────────┼────────┼─────────┼───────┼─────┼────────┼─────────┼───────┤
-  │ [5|3] (left) │ 87    │ 20      │ 0      │ 15      │ 20    │ 12  │ 10     │ 10      │ 0     │
-  │ [4|2] (right)│ 44    │ 10      │ 0      │ 0       │ 0     │ 9   │ 5      │ 0       │ -10   │
-  └──────────────┴───────┴─────────┴────────┴─────────┴───────┴─────┴────────┴─────────┴───────┘
+  ┌──────────────┬───────┬─────────┬────────┬─────────┬─────────┬───────┬─────┬────────┬─────────┬───────┐
+  │ Move         │ Total │ SuitStr │ Double │ Partner │ OwnSuit │ Block │ Pip │ EndCtl │ TileCnt │ Avoid │
+  ├──────────────┼───────┼─────────┼────────┼─────────┼─────────┼───────┼─────┼────────┼─────────┼───────┤
+  │ [5|3] (left) │ 107   │ 20      │ 0      │ 15      │ 20      │ 20    │ 12  │ 10     │ 10      │ 0     │
+  │ [4|2] (right)│ 44    │ 10      │ 0      │ 0       │ 0       │ 0     │ 9   │ 5      │ 0       │ -10   │
+  └──────────────┴───────┴─────────┴────────┴─────────┴─────────┴───────┴─────┴────────┴─────────┴───────┘
 
   → Chosen: [5|3] | FALLBACK: Highest score (87)
 ```
