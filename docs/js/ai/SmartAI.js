@@ -9,15 +9,16 @@ const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'a
 /**
  * SmartAI - An AI that follows strategic principles for partnership dominoes.
  *
- * Scoring factors (8):
+ * Scoring factors (9):
  * 1. Suit Dominance - fraction-based control of the suit left open
  * 2. Double Management - unload doubles when you have cover
  * 3. Partner Support - support partner's lead (la salida)
  * 4. Own Suit Protection - don't kill your own signaled suit
- * 5. Blocking Potential - exploit opponent passes and inferred weaknesses
- * 6. Pip Management - prefer playing high-pip tiles early
- * 7. Hand Flexibility - maintain diverse playable values
- * 8. Pace Control - defensive/aggressive based on who's leading
+ * 5. Firme Protection - preserve guaranteed plays on locked ends
+ * 6. Blocking Potential - exploit opponent passes and inferred weaknesses
+ * 7. Pip Management - prefer playing high-pip tiles early
+ * 8. Hand Flexibility - maintain diverse playable values
+ * 9. Pace Control - defensive/aggressive based on who's leading
  *
  * Priority Override System (v0.3):
  * Before weighted scoring, check priority conditions in order:
@@ -425,6 +426,7 @@ export class SmartAI {
                     'Dbl': m.factors.doubleManagement,
                     'Partn': m.factors.partnerSupport,
                     'Own': m.factors.ownSuitProtection,
+                    'Firme': m.factors.firmeProtection,
                     'Block': m.factors.blockingPotential,
                     'Flex': m.factors.handFlexibility,
                     'Pace': m.factors.paceControl
@@ -438,6 +440,7 @@ export class SmartAI {
                     'Dbl': m.factors.doubleManagement,
                     'Partn': m.factors.partnerSupport,
                     'Own': m.factors.ownSuitProtection,
+                    'Firme': m.factors.firmeProtection,
                     'Block': m.factors.blockingPotential,
                     'Pip': Math.round(m.factors.pipManagement * 10) / 10,
                     'Flex': m.factors.handFlexibility,
@@ -723,6 +726,7 @@ export class SmartAI {
             doubleManagement: 0,
             partnerSupport: 0,
             ownSuitProtection: 0,
+            firmeProtection: 0,
             blockingPotential: 0,
             pipManagement: 0,
             handFlexibility: 0,
@@ -805,7 +809,50 @@ export class SmartAI {
             }
         }
 
-        // 5. BLOCKING - exploit inferred weaknesses (passes + play choices)
+        // 5. FIRME PROTECTION - preserve guaranteed plays on locked ends
+        // A "firme" exists when you hold ALL remaining tiles of a suit on an open end
+        if (!chain.isEmpty()) {
+            const leftEnd = chain.leftEnd;
+            const rightEnd = chain.rightEnd;
+
+            // Check each open end for firme
+            const checkFirme = (endValue) => {
+                const myCount = this.countSuitInHand(hand, endValue);
+                const remaining = this.getRemainingInSuit(endValue);
+                return myCount > 0 && myCount === remaining;
+            };
+
+            const leftFirme = checkFirme(leftEnd);
+            const rightFirme = checkFirme(rightEnd);
+
+            if (leftFirme || rightFirme) {
+                // We have a firme! Check if this move spends a firme tile
+                const playingOnFirmeEnd =
+                    (end === 'left' && leftFirme) || (end === 'right' && rightFirme);
+
+                if (playingOnFirmeEnd) {
+                    // Spending a firme tile - how many do we have left?
+                    const firmeEnd = (end === 'left') ? leftEnd : rightEnd;
+                    const firmeCount = this.countSuitInHand(hand, firmeEnd);
+
+                    if (firmeCount <= 1) {
+                        // Last firme tile - strong penalty (losing the firme entirely)
+                        factors.firmeProtection = -35;
+                    } else {
+                        // Still have backup firme tiles - mild penalty
+                        factors.firmeProtection = -10;
+                    }
+                } else {
+                    // Playing on the other end, preserving firme - bonus
+                    // Bigger bonus for stronger firme (more tiles = more guaranteed plays)
+                    const firmeEnd = leftFirme ? leftEnd : rightEnd;
+                    const firmeCount = this.countSuitInHand(hand, firmeEnd);
+                    factors.firmeProtection = 10 + (firmeCount * 5); // 15-40 range
+                }
+            }
+        }
+
+        // 6. BLOCKING - exploit inferred weaknesses (passes + play choices)
         let blockingScore = 0;
         for (const opp of opponents) {
             const passedSuits = gameState.passHistory[opp];
@@ -822,7 +869,7 @@ export class SmartAI {
         }
         factors.blockingPotential = blockingScore;
 
-        // 6. PIP MANAGEMENT - prefer playing high-pip tiles early
+        // 7. PIP MANAGEMENT - prefer playing high-pip tiles early
         const tilesPlayed = chain.size();
         if (tilesPlayed < 10) {
             factors.pipManagement = tile.pipCount() * 1.5;
@@ -830,7 +877,7 @@ export class SmartAI {
             factors.pipManagement = tile.pipCount() * 0.5;
         }
 
-        // 7. HAND FLEXIBILITY - prefer moves that keep diverse playable values
+        // 8. HAND FLEXIBILITY - prefer moves that keep diverse playable values
         // More distinct values = harder to block
         const playableValues = new Set();
         for (const t of hand.getTiles()) {
@@ -841,7 +888,7 @@ export class SmartAI {
         }
         factors.handFlexibility = playableValues.size * 3; // 0-21 range
 
-        // 8. PACE CONTROL - adjust strategy based on who's closest to winning
+        // 9. PACE CONTROL - adjust strategy based on who's closest to winning
         const minOppTiles = Math.min(
             gameState.hands[opponents[0]].size(),
             gameState.hands[opponents[1]].size()
@@ -893,6 +940,8 @@ export class SmartAI {
         if (score.factors.partnerSupport >= 15) dominated.push('support partner');
         if (score.factors.ownSuitProtection >= 15) dominated.push('protect own suit');
         if (score.factors.ownSuitProtection < -15) dominated.push('kills own suit');
+        if (score.factors.firmeProtection >= 15) dominated.push('preserve firme');
+        if (score.factors.firmeProtection < -15) dominated.push('spends firme');
         if (score.factors.blockingPotential >= 20) dominated.push('block opponent');
         if (score.factors.pipManagement >= 10) dominated.push('high pip tile');
         if (score.factors.handFlexibility >= 18) dominated.push('keeps flexibility');

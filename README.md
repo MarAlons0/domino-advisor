@@ -131,7 +131,7 @@ During the first 8 plays of a hand, the AI prioritizes supporting partner's sign
 
 ## Scoring System (Fallback)
 
-When no priority triggers, the AI scores every valid move using 8 strategic factors:
+When no priority triggers, the AI scores every valid move using 9 strategic factors:
 
 | Factor | Weight Range | Description |
 |--------|-------------|-------------|
@@ -139,6 +139,7 @@ When no priority triggers, the AI scores every valid move using 8 strategic fact
 | **Double Management** | -15 to +25 | +25 if double has cover (other tiles in suit), -15 if exposed, +10 if suit nearly dead |
 | **Partner Support** | 0-37 | +15 for playing partner's suit, +10 for leaving it open. ×1.5 when partner leads (fewer tiles), ×0.5 when I lead. |
 | **Own Suit Protection** | -25 to +20 | +20 for keeping own salida open, -25 for killing it. ×0.5 when partner leads (defer to them). |
+| **Firme Protection** | -35 to +40 | A "firme" = you hold ALL remaining tiles of a suit on an open end. -35 for spending last firme tile, +10 to +40 for preserving it (scaled by count). |
 | **Blocking Potential** | 0-70+ | +20 per opponent who passed on the new end value, +15 per inferred dead suit (×2 opponents) |
 | **Pip Management** | 0-18 | `pips × 1.5` early game (plays < 10), `pips × 0.5` late game. Unload high tiles early. |
 | **Hand Flexibility** | 0-21 | `distinct_playable_values × 3`. More unique values after play = harder to block. |
@@ -152,6 +153,8 @@ When no priority triggers, the AI scores every valid move using 8 strategic fact
 
 **Lead/Follow Dynamics** modulate Partner Support and Own Suit Protection. When partner is leading (fewer tiles), support is amplified ×1.5 and own suit protection drops to ×0.5 - the AI defers to whoever is closer to winning. When I'm leading, support drops to ×0.5 so I focus on finishing rather than helping.
 
+**Firme Protection** rewards preserving guaranteed plays. When you hold ALL remaining tiles of a suit on an open end (a "firme"), you have guaranteed future plays on that end. Spending the last firme tile (-35) is heavily penalized since it eliminates the advantage entirely. Playing on the other end while preserving the firme earns a bonus scaled by how many firme tiles you hold (+15 to +40). This is separate from Suit Dominance because a firme is a binary condition (you either own the entire suit remainder or you don't).
+
 **Pace Control** adjusts play style based on who's winning. When opponents are about to domino (≤2 tiles), the AI plays defensively - leaving values opponents lack. When partner is about to win, it opens the game up. This implements the "llave" concept: holding the last tile of a suit blocks that end for everyone.
 
 ### Scoring Example
@@ -164,6 +167,7 @@ Move: `[5|3]` on left end, leaving 5 open (3 of 5 remaining fives in hand)
 | Double Management | Not a double | 0 |
 | Partner Support | Partner signaled 5s | +15 |
 | Own Suit Protection | Own suit (3s) still open | +20 |
+| Firme Protection | No firme on either end | 0 |
 | Blocking Potential | Opp 1 passed on 5 | +20 |
 | Pip Management | 8 pips × 1.5 (early) | +12 |
 | Hand Flexibility | 5 distinct values × 3 | +15 |
@@ -266,12 +270,12 @@ Open browser DevTools (F12) → Console tab to see:
     3. Partner support: [5|3]
 
   Move Scores (sorted by total)
-  ┌──────────────┬───────┬───────┬─────┬───────┬─────┬───────┬─────┬──────┬──────┐
-  │ Move         │ Total │ Domin │ Dbl │ Partn │ Own │ Block │ Pip │ Flex │ Pace │
-  ├──────────────┼───────┼───────┼─────┼───────┼─────┼───────┼─────┼──────┼──────┤
-  │ [5|3] (left) │ 112   │ 30    │ 0   │ 15    │ 20  │ 20    │ 12  │ 15   │ 0    │
-  │ [4|2] (right)│ 40    │ 7     │ 0   │ 0     │ 0   │ 0     │ 9   │ 12   │ 0    │
-  └──────────────┴───────┴───────┴─────┴───────┴─────┴───────┴─────┴──────┴──────┘
+  ┌──────────────┬───────┬───────┬─────┬───────┬─────┬───────┬───────┬─────┬──────┬──────┐
+  │ Move         │ Total │ Domin │ Dbl │ Partn │ Own │ Firme │ Block │ Pip │ Flex │ Pace │
+  ├──────────────┼───────┼───────┼─────┼───────┼─────┼───────┼───────┼─────┼──────┼──────┤
+  │ [5|3] (left) │ 112   │ 30    │ 0   │ 15    │ 20  │ 0     │ 20    │ 12  │ 15   │ 0    │
+  │ [4|2] (right)│ 40    │ 7     │ 0   │ 0     │ 0   │ 0     │ 0     │ 9   │ 12   │ 0    │
+  └──────────────┴───────┴───────┴─────┴───────┴─────┴───────┴───────┴─────┴──────┴──────┘
 
   → Chosen: [5|3] | FALLBACK: Highest score (87)
 ```
