@@ -667,6 +667,12 @@ export class SmartAI {
         const newEndValue = chain.isEmpty() ? tile.high : tile.getOtherValue(currentEndValue);
         const opponents = this.getOpponents(playerIndex);
 
+        // Team dynamics: who's leading (fewer tiles)?
+        const myTiles = hand.size();
+        const partnerTiles = gameState.hands[partnerIndex].size();
+        const partnerLeading = partnerTiles < myTiles;
+        const iAmLeading = myTiles < partnerTiles;
+
         // 1. SUIT DOMINANCE - fraction of remaining tiles in the new end suit
         // 2/7 early = weak (14), 1/2 late = strong (25), 3/3 = total control (50)
         if (newEndValue !== null && newEndValue !== -1) {
@@ -692,6 +698,7 @@ export class SmartAI {
         }
 
         // 3. PARTNER SUPPORT - support partner's signaled suit
+        // Modulated by who's leading: amplify when partner leads, reduce when I lead
         const partnerSuit = this.signaledSuits[partnerIndex];
         if (partnerSuit !== null && !this.killedOwnSuit[partnerIndex]) {
             if (tile.hasValue(partnerSuit)) {
@@ -700,9 +707,19 @@ export class SmartAI {
             if (newEndValue === partnerSuit) {
                 factors.partnerSupport += 10; // Leaving partner's suit open
             }
+
+            // Adjust based on who's leading on the team
+            if (partnerLeading) {
+                // Partner is leading (fewer tiles) - amplify support
+                factors.partnerSupport = Math.round(factors.partnerSupport * 1.5);
+            } else if (iAmLeading) {
+                // I'm leading - reduce support, focus on finishing
+                factors.partnerSupport = Math.round(factors.partnerSupport * 0.5);
+            }
         }
 
         // 4. OWN SUIT PROTECTION - protect your own salida/signaled suit
+        // Also modulated: protect more when I'm leading, less when partner leads
         const ownSuit = this.signaledSuits[playerIndex];
         if (ownSuit !== null && !this.killedOwnSuit[playerIndex] && !chain.isEmpty()) {
             const { newLeftEnd, newRightEnd } = this._getEndsAfterPlay(move, chain);
@@ -710,9 +727,14 @@ export class SmartAI {
             const ownSuitWasOpen = (chain.leftEnd === ownSuit || chain.rightEnd === ownSuit);
 
             if (ownSuitStillOpen) {
-                factors.ownSuitProtection = 20; // Keep own suit open
+                factors.ownSuitProtection = 20;
             } else if (ownSuitWasOpen) {
-                factors.ownSuitProtection = -25; // Killing own suit that was open
+                factors.ownSuitProtection = -25;
+            }
+
+            // When partner is leading, own suit matters less
+            if (partnerLeading) {
+                factors.ownSuitProtection = Math.round(factors.ownSuitProtection * 0.5);
             }
         }
 
@@ -753,7 +775,6 @@ export class SmartAI {
         factors.handFlexibility = playableValues.size * 3; // 0-21 range
 
         // 8. PACE CONTROL - adjust strategy based on who's closest to winning
-        const partnerTiles = gameState.hands[partnerIndex].size();
         const minOppTiles = Math.min(
             gameState.hands[opponents[0]].size(),
             gameState.hands[opponents[1]].size()
