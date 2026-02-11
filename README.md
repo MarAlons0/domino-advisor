@@ -118,36 +118,42 @@ During the first 8 plays of a hand, the AI prioritizes supporting partner's sign
 
 ## Scoring System (Fallback)
 
-When no priority triggers, the AI scores every valid move using 9 strategic factors:
+When no priority triggers, the AI scores every valid move using 8 strategic factors:
 
 | Factor | Weight Range | Description |
 |--------|-------------|-------------|
-| **Suit Strength** | 0-60+ | `count_in_hand × 10`. Prefer playing from suits you have many of. |
+| **Suit Dominance** | 0-50 | `(my_count / remaining_in_suit) × 50`. Fraction-based: 2/7 early = 14, 1/2 late = 25, 3/3 = 50 (total control). |
 | **Double Management** | -15 to +25 | +25 if double has cover (other tiles in suit), -15 if exposed, +10 if suit nearly dead |
 | **Partner Support** | 0-25 | +15 for playing partner's suit, +10 for leaving it open |
 | **Own Suit Protection** | -25 to +20 | +20 for keeping own salida/signaled suit open, -25 for killing it when it was open |
 | **Blocking Potential** | 0-70+ | +20 per opponent who passed on the new end value, +15 per inferred dead suit (×2 opponents) |
 | **Pip Management** | 0-18 | `pips × 1.5` early game (plays < 10), `pips × 0.5` late game. Unload high tiles early. |
-| **End Control** | 0-30 | `our_strength_in_new_end × 5`. Keep suits we're strong in open. |
-| **Tile Counting Bonus** | -10 to +10 | +10 if >3 tiles remain in suit, -10 if ≤1 remain (dead suit) |
-| **Avoid Dead Suits** | -30 to 0 | -30 penalty for leaving a completely dead suit open |
+| **Hand Flexibility** | 0-21 | `distinct_playable_values × 3`. More unique values after play = harder to block. |
+| **Pace Control** | 0-20 | Defensive when opponent ≤2 tiles (leave values they lack). Aggressive when partner ≤2 tiles (open for them). |
+
+### Key Design Decisions
+
+**Suit Dominance (fraction-based)** replaces the previous absolute-count approach. Having 2 tiles of a suit early game (2/7 = 29%) is strategically weaker than having 1 tile late game (1/2 = 50%). The fraction captures actual control over a suit.
+
+**Hand Flexibility** is separate from Suit Dominance. A hand with [5|3], [5|4], [5|1], [5|0] has great dominance in 5s but terrible flexibility - only two distinct non-5 values. This factor penalizes moves that reduce your breadth of playable values.
+
+**Pace Control** adjusts play style based on who's winning. When opponents are about to domino (≤2 tiles), the AI plays defensively - leaving values opponents lack. When partner is about to win, it opens the game up. This implements the "llave" concept: holding the last tile of a suit blocks that end for everyone.
 
 ### Scoring Example
 
-Move: `[5|3]` on left end, leaving 5 open
+Move: `[5|3]` on left end, leaving 5 open (3 of 5 remaining fives in hand)
 
 | Factor | Calculation | Score |
 |--------|------------|-------|
-| Suit Strength | 2 fives in hand × 10 | +20 |
+| Suit Dominance | 3/5 fives = 60% × 50 | +30 |
 | Double Management | Not a double | 0 |
 | Partner Support | Partner signaled 5s | +15 |
 | Own Suit Protection | Own suit (3s) still open | +20 |
 | Blocking Potential | Opp 1 passed on 5 | +20 |
 | Pip Management | 8 pips × 1.5 (early) | +12 |
-| End Control | 2 fives remaining × 5 | +10 |
-| Tile Counting | 4 fives still out | +10 |
-| Avoid Dead Suits | Not dead | 0 |
-| **TOTAL** | | **107** |
+| Hand Flexibility | 5 distinct values × 3 | +15 |
+| Pace Control | No urgency | 0 |
+| **TOTAL** | | **112** |
 
 ---
 
@@ -245,12 +251,12 @@ Open browser DevTools (F12) → Console tab to see:
     3. Partner support: [5|3]
 
   Move Scores (sorted by total)
-  ┌──────────────┬───────┬─────────┬────────┬─────────┬─────────┬───────┬─────┬────────┬─────────┬───────┐
-  │ Move         │ Total │ SuitStr │ Double │ Partner │ OwnSuit │ Block │ Pip │ EndCtl │ TileCnt │ Avoid │
-  ├──────────────┼───────┼─────────┼────────┼─────────┼─────────┼───────┼─────┼────────┼─────────┼───────┤
-  │ [5|3] (left) │ 107   │ 20      │ 0      │ 15      │ 20      │ 20    │ 12  │ 10     │ 10      │ 0     │
-  │ [4|2] (right)│ 44    │ 10      │ 0      │ 0       │ 0       │ 0     │ 9   │ 5      │ 0       │ -10   │
-  └──────────────┴───────┴─────────┴────────┴─────────┴─────────┴───────┴─────┴────────┴─────────┴───────┘
+  ┌──────────────┬───────┬───────┬─────┬───────┬─────┬───────┬─────┬──────┬──────┐
+  │ Move         │ Total │ Domin │ Dbl │ Partn │ Own │ Block │ Pip │ Flex │ Pace │
+  ├──────────────┼───────┼───────┼─────┼───────┼─────┼───────┼─────┼──────┼──────┤
+  │ [5|3] (left) │ 112   │ 30    │ 0   │ 15    │ 20  │ 20    │ 12  │ 15   │ 0    │
+  │ [4|2] (right)│ 40    │ 7     │ 0   │ 0     │ 0   │ 0     │ 9   │ 12   │ 0    │
+  └──────────────┴───────┴───────┴─────┴───────┴─────┴───────┴─────┴──────┴──────┘
 
   → Chosen: [5|3] | FALLBACK: Highest score (87)
 ```

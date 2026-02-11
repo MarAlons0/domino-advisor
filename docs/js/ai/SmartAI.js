@@ -9,14 +9,15 @@ const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'a
 /**
  * SmartAI - An AI that follows strategic principles for partnership dominoes.
  *
- * Principles implemented:
- * 1. Suit Strength - prefer playing from strong suits
- * 2. Partner Coordination - support partner's lead (la salida)
- * 3. Double Management - unload doubles when you have cover
- * 4. Blocking - exploit opponent passes and inferred weaknesses
- * 5. Pip Management - prefer playing high-pip tiles early
- * 6. Tile Counting - track what's been played to know what's out
- * 7. Play Choice Inference - deduce holdings from what players choose to play
+ * Scoring factors (8):
+ * 1. Suit Dominance - fraction-based control of the suit left open
+ * 2. Double Management - unload doubles when you have cover
+ * 3. Partner Support - support partner's lead (la salida)
+ * 4. Own Suit Protection - don't kill your own signaled suit
+ * 5. Blocking Potential - exploit opponent passes and inferred weaknesses
+ * 6. Pip Management - prefer playing high-pip tiles early
+ * 7. Hand Flexibility - maintain diverse playable values
+ * 8. Pace Control - defensive/aggressive based on who's leading
  *
  * Priority Override System (v0.3):
  * Before weighted scoring, check priority conditions in order:
@@ -420,26 +421,27 @@ export class SmartAI {
                     'Static': m.staticTotal,
                     'MC': m.mcScore,
                     'Final': m.finalScore,
-                    'SuitStr': m.factors.suitStrength,
-                    'Double': m.factors.doubleManagement,
-                    'Partner': m.factors.partnerSupport,
-                    'OwnSuit': m.factors.ownSuitProtection,
-                    'Block': m.factors.blockingPotential
+                    'Domin': Math.round(m.factors.suitDominance),
+                    'Dbl': m.factors.doubleManagement,
+                    'Partn': m.factors.partnerSupport,
+                    'Own': m.factors.ownSuitProtection,
+                    'Block': m.factors.blockingPotential,
+                    'Flex': m.factors.handFlexibility,
+                    'Pace': m.factors.paceControl
                 })));
             } else {
                 // Show static scores only
                 console.table(info.scoredMoves.map(m => ({
                     'Move': `${m.tile} (${m.end})${m.isChosen ? ' ✓' : ''}`,
                     'Total': m.total || m.staticTotal,
-                    'SuitStr': m.factors.suitStrength,
-                    'Double': m.factors.doubleManagement,
-                    'Partner': m.factors.partnerSupport,
-                    'OwnSuit': m.factors.ownSuitProtection,
+                    'Domin': Math.round(m.factors.suitDominance),
+                    'Dbl': m.factors.doubleManagement,
+                    'Partn': m.factors.partnerSupport,
+                    'Own': m.factors.ownSuitProtection,
                     'Block': m.factors.blockingPotential,
                     'Pip': Math.round(m.factors.pipManagement * 10) / 10,
-                    'EndCtl': m.factors.endControl,
-                    'TileCnt': m.factors.tileCountingBonus,
-                    'AvoidDead': m.factors.avoidDeadSuits
+                    'Flex': m.factors.handFlexibility,
+                    'Pace': m.factors.paceControl
                 })));
             }
             console.groupEnd();
@@ -650,26 +652,30 @@ export class SmartAI {
         const partnerIndex = GameState.getPartner(playerIndex);
 
         const factors = {
-            suitStrength: 0,
+            suitDominance: 0,
             doubleManagement: 0,
             partnerSupport: 0,
             ownSuitProtection: 0,
             blockingPotential: 0,
             pipManagement: 0,
-            endControl: 0,
-            tileCountingBonus: 0,
-            avoidDeadSuits: 0
+            handFlexibility: 0,
+            paceControl: 0
         };
 
         // Determine what end value we're leaving open after this play
         const currentEndValue = chain.isEmpty() ? null : (end === 'left' ? chain.leftEnd : chain.rightEnd);
         const newEndValue = chain.isEmpty() ? tile.high : tile.getOtherValue(currentEndValue);
+        const opponents = this.getOpponents(playerIndex);
 
-        // 1. SUIT STRENGTH - prefer playing from strong suits
-        const highCount = this.countSuitInHand(hand, tile.high);
-        const lowCount = this.countSuitInHand(hand, tile.low);
-        const suitStrength = Math.max(highCount, lowCount);
-        factors.suitStrength = suitStrength * 10;
+        // 1. SUIT DOMINANCE - fraction of remaining tiles in the new end suit
+        // 2/7 early = weak (14), 1/2 late = strong (25), 3/3 = total control (50)
+        if (newEndValue !== null && newEndValue !== -1) {
+            const myCount = this.countSuitInHand(hand, newEndValue);
+            const remaining = this.getRemainingInSuit(newEndValue);
+            if (remaining > 0) {
+                factors.suitDominance = (myCount / remaining) * 50;
+            }
+        }
 
         // 2. DOUBLE MANAGEMENT - prioritize playing doubles when you have cover
         if (tile.isDouble()) {
@@ -677,7 +683,6 @@ export class SmartAI {
             if (hasCover) {
                 factors.doubleManagement = 25;
             } else {
-                // Check if the suit is nearly dead - less risky to play
                 if (this.isSuitNearlyDead(tile.high)) {
                     factors.doubleManagement = 10; // Less risky, suit is drying up
                 } else {
@@ -712,11 +717,8 @@ export class SmartAI {
         }
 
         // 5. BLOCKING - exploit inferred weaknesses (passes + play choices)
-        const opponents = this.getOpponents(playerIndex);
         let blockingScore = 0;
-
         for (const opp of opponents) {
-            // Check both pass history and inferred dead suits
             const passedSuits = gameState.passHistory[opp];
             const inferredDead = this.inferredDeadSuits[opp];
 
@@ -725,7 +727,7 @@ export class SmartAI {
                     blockingScore += 20;
                 }
                 if (inferredDead.has(newEndValue)) {
-                    blockingScore += 15; // Slightly less certain than a pass
+                    blockingScore += 15;
                 }
             }
         }
@@ -739,25 +741,50 @@ export class SmartAI {
             factors.pipManagement = tile.pipCount() * 0.5;
         }
 
-        // 7. END CONTROL - prefer keeping our strong suits open
-        if (newEndValue !== null && newEndValue !== -1) {
-            const ourStrengthInNewEnd = this.countSuitInHand(hand, newEndValue);
-            factors.endControl = ourStrengthInNewEnd * 5;
-        }
-
-        // 8. TILE COUNTING BONUS - prefer leaving open suits that still have tiles out
-        if (newEndValue !== null && newEndValue !== -1) {
-            const remaining = this.getRemainingInSuit(newEndValue);
-            if (remaining > 3) {
-                factors.tileCountingBonus = 10; // Plenty of tiles still out
-            } else if (remaining <= 1) {
-                factors.tileCountingBonus = -10; // Suit is almost dead, bad to leave open
+        // 7. HAND FLEXIBILITY - prefer moves that keep diverse playable values
+        // More distinct values = harder to block
+        const playableValues = new Set();
+        for (const t of hand.getTiles()) {
+            if (!t.equals(tile)) {
+                playableValues.add(t.high);
+                playableValues.add(t.low);
             }
         }
+        factors.handFlexibility = playableValues.size * 3; // 0-21 range
 
-        // 9. AVOID DEAD SUITS - don't leave dead suits as the only option
-        if (newEndValue !== null && this.isSuitDead(newEndValue)) {
-            factors.avoidDeadSuits = -30; // Very bad - will force passes
+        // 8. PACE CONTROL - adjust strategy based on who's closest to winning
+        const partnerTiles = gameState.hands[partnerIndex].size();
+        const minOppTiles = Math.min(
+            gameState.hands[opponents[0]].size(),
+            gameState.hands[opponents[1]].size()
+        );
+
+        if (minOppTiles <= 2) {
+            // Opponent close to winning - defensive: leave values they lack
+            const { newLeftEnd, newRightEnd } = this._getEndsAfterPlay(move, chain);
+            let defenseScore = 0;
+            for (const opp of opponents) {
+                if (gameState.hands[opp].size() <= 2) {
+                    if (this.playerLacksSuit(opp, newLeftEnd)) defenseScore += 10;
+                    if (this.playerLacksSuit(opp, newRightEnd)) defenseScore += 10;
+                }
+            }
+            factors.paceControl = defenseScore;
+        } else if (partnerTiles <= 2) {
+            // Partner close to winning - open the game for them
+            if (!chain.isEmpty()) {
+                const { newLeftEnd, newRightEnd } = this._getEndsAfterPlay(move, chain);
+                const pSuit = this.signaledSuits[partnerIndex];
+                // Bonus for leaving partner's suit open
+                if (pSuit !== null && (newLeftEnd === pSuit || newRightEnd === pSuit)) {
+                    factors.paceControl = 15;
+                }
+                // Also bonus if we're NOT blocking both ends for partner
+                if (!this.playerLacksSuit(partnerIndex, newLeftEnd) ||
+                    !this.playerLacksSuit(partnerIndex, newRightEnd)) {
+                    factors.paceControl += 5;
+                }
+            }
         }
 
         // Calculate total score
@@ -772,7 +799,7 @@ export class SmartAI {
     explainMove(score) {
         const dominated = [];
 
-        if (score.factors.suitStrength >= 20) dominated.push('strong suit');
+        if (score.factors.suitDominance >= 25) dominated.push('suit dominance');
         if (score.factors.doubleManagement >= 20) dominated.push('unload double with cover');
         if (score.factors.doubleManagement < 0) dominated.push('risky double');
         if (score.factors.partnerSupport >= 15) dominated.push('support partner');
@@ -780,9 +807,9 @@ export class SmartAI {
         if (score.factors.ownSuitProtection < -15) dominated.push('kills own suit');
         if (score.factors.blockingPotential >= 20) dominated.push('block opponent');
         if (score.factors.pipManagement >= 10) dominated.push('high pip tile');
-        if (score.factors.endControl >= 10) dominated.push('maintain control');
-        if (score.factors.tileCountingBonus >= 10) dominated.push('good suit availability');
-        if (score.factors.avoidDeadSuits < 0) dominated.push('avoid dead suit');
+        if (score.factors.handFlexibility >= 18) dominated.push('keeps flexibility');
+        if (score.factors.paceControl >= 10) dominated.push('pace control');
+        if (score.factors.paceControl < 0) dominated.push('defensive');
 
         if (dominated.length === 0) {
             return 'Best available option';
