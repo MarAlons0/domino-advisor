@@ -2,6 +2,7 @@ import { Game } from './engine/Game.js';
 import { GameState } from './models/GameState.js';
 import { SmartAI } from './ai/SmartAI.js';
 import { HandTracker } from './ai/HandTracker.js';
+import { PlayerView } from './ai/PlayerView.js';
 import { DebriefUI } from './ui/DebriefUI.js';
 import { SettingsUI } from './ui/SettingsUI.js';
 import { QuizStorage } from './services/QuizStorage.js';
@@ -90,6 +91,11 @@ class DominoApp {
 
         // Connect HandTracker to SmartAI for probability-based decisions
         this.ai.setHandTracker(this.handTracker);
+
+        // Create per-player probability views with Bayesian suit affinity inference
+        this.playerViews = [0, 1, 2, 3].map(i => new PlayerView(i, this.handTracker));
+        this.ai.setPlayerViews(this.playerViews);
+
         this.selectedTile = null;
         this.aiDelay = 3000; // 3 seconds per AI move
 
@@ -369,6 +375,11 @@ class DominoApp {
             // Record for hand tracker (probability tracking)
             this.handTracker.recordPlay(data.player, data.tile);
 
+            // Feed play observation to all player views (Bayesian affinity updates)
+            for (const view of this.playerViews) {
+                view.recordPlayObservation(data.player, data.tile, data.end, leftEnd, rightEnd);
+            }
+
             // Update quiz button state
             this.updateQuizButton();
         };
@@ -413,6 +424,12 @@ class DominoApp {
         // Initialize hand tracker with human's hand
         const state = this.game.getState();
         this.handTracker.initHand(state.hands[0]);
+
+        // Initialize per-player views with each player's hand
+        for (let i = 0; i < 4; i++) {
+            this.playerViews[i].resetAffinities();
+            this.playerViews[i].initOwnHand(state.hands[i]);
+        }
 
         const starterName = GameState.getPlayerName(state.currentPlayer);
         this.log(t('log.starterHasDouble', starterName), 'system');
@@ -870,6 +887,12 @@ class DominoApp {
             // Initialize hand tracker with new human hand
             const newState = this.game.getState();
             this.handTracker.initHand(newState.hands[0]);
+
+            // Initialize per-player views with each player's hand
+            for (let i = 0; i < 4; i++) {
+                this.playerViews[i].resetAffinities();
+                this.playerViews[i].initOwnHand(newState.hands[i]);
+            }
 
             this.updateQuizButton();
 

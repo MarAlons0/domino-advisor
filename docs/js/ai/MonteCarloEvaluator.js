@@ -27,13 +27,15 @@ export class MonteCarloEvaluator {
      * @param {object} move - The move to evaluate {tile, end}
      * @param {GameState} gameState - Current game state
      * @param {number} playerIndex - Which player is making the move
+     * @param {PlayerView} [view] - Optional PlayerView for probability lookups (falls back to handTracker)
      * @returns {{score: number, certainty: number, depth: number, samples: number}}
      */
-    evaluateMove(move, gameState, playerIndex) {
+    evaluateMove(move, gameState, playerIndex, view) {
+        const tracker = view || this.handTracker;
         const chain = gameState.chain;
 
         // Calculate certainty based on probability distributions
-        const certainty = this.calculateCertainty(gameState, chain);
+        const certainty = this.calculateCertainty(gameState, chain, tracker);
 
         // Adaptive depth and samples based on certainty
         const depth = Math.ceil(1 + certainty * 5);  // Range: 2-6
@@ -44,10 +46,10 @@ export class MonteCarloEvaluator {
 
         for (let i = 0; i < samples; i++) {
             // Sample a possible hand distribution weighted by probabilities
-            const sampledHands = this.sampleHands(gameState);
+            const sampledHands = this.sampleHands(gameState, playerIndex, tracker);
 
             // Create a simulated game state with sampled hands
-            const simState = this.createSimulatedState(gameState, sampledHands);
+            const simState = this.createSimulatedState(gameState, sampledHands, playerIndex);
 
             // Apply the move we're evaluating
             this.applyMove(simState, playerIndex, move);
@@ -78,12 +80,16 @@ export class MonteCarloEvaluator {
     /**
      * Calculate certainty based on actual probability distributions
      * Higher certainty = more peaked distributions = we know more
+     * @param {GameState} gameState
+     * @param {Chain} chain
+     * @param {PlayerView|HandTracker} [tracker] - Probability source (falls back to handTracker)
      * @returns {number} Certainty from 0 to 1
      */
-    calculateCertainty(gameState, chain) {
-        if (!this.handTracker) return 0.3;
+    calculateCertainty(gameState, chain, tracker) {
+        const src = tracker || this.handTracker;
+        if (!src) return 0.3;
 
-        const unknownTiles = this.handTracker.getUnplayedTiles();
+        const unknownTiles = src.getUnplayedTiles ? src.getUnplayedTiles() : this.handTracker.getUnplayedTiles();
 
         if (unknownTiles.length === 0) return 1.0;
 
@@ -94,13 +100,18 @@ export class MonteCarloEvaluator {
         const leftEnd = chain.isEmpty() ? null : chain.leftEnd;
         const rightEnd = chain.isEmpty() ? null : chain.rightEnd;
 
-        for (const tile of unknownTiles) {
-            // Skip tiles in human's hand (we know where those are)
-            const key = tile.toKey();
-            if (this.handTracker.knownLocations.get(key) === 'human') continue;
+        // Use the tracker's knownLocations to skip tiles we know about
+        const locations = src.knownLocations || this.handTracker.knownLocations;
 
-            // Get probability distribution for this tile
-            const probs = [1, 2, 3].map(p => this.handTracker.getProbability(p, tile));
+        for (const tile of unknownTiles) {
+            const key = tile.toKey();
+            const loc = locations.get(key);
+            // Skip tiles whose location is known (human/own)
+            if (loc === 'human' || loc === 'own') continue;
+
+            // Get probability distribution for this tile across other players
+            const otherPlayers = [0, 1, 2, 3].filter(p => p !== (src.playerIndex ?? -1));
+            const probs = otherPlayers.map(p => src.getProbability(p, tile));
 
             // Certainty for this tile = max probability (how peaked is distribution?)
             const maxProb = Math.max(...probs);
@@ -115,7 +126,7 @@ export class MonteCarloEvaluator {
         }
 
         // Also factor in dead suit information (passes give us certainty)
-        const deadSuitBonus = this.calculateDeadSuitCertainty();
+        const deadSuitBonus = this.calculateDeadSuitCertainty(src);
 
         const baseCertainty = relevantCount > 0 ? totalCertainty / relevantCount : 0.5;
 
@@ -125,38 +136,46 @@ export class MonteCarloEvaluator {
 
     /**
      * Calculate certainty bonus from dead suits (passes)
+     * @param {PlayerView|HandTracker} [tracker]
      */
-    calculateDeadSuitCertainty() {
-        if (!this.handTracker) return 0;
+    calculateDeadSuitCertainty(tracker) {
+        const src = tracker || this.handTracker;
+        if (!src) return 0;
 
         let totalDeadSuits = 0;
-        for (let player = 1; player <= 3; player++) {
-            totalDeadSuits += this.handTracker.deadSuits[player].size;
+        for (let player = 0; player <= 3; player++) {
+            totalDeadSuits += src.deadSuits[player].size;
         }
 
-        // Max possible is 21 (3 players × 7 suits), but realistically much less
         // Normalize to something reasonable
         return Math.min(1.0, totalDeadSuits / 10);
     }
 
     /**
-     * Sample hands for computer players weighted by HandTracker probabilities
+     * Sample hands for all players except the viewer, weighted by probabilities.
+     * @param {GameState} gameState
+     * @param {number} [viewerIndex=0] - The player whose perspective we're sampling from
+     * @param {PlayerView|HandTracker} [tracker] - Probability source
      * @returns {Map<number, Hand>} Player index -> sampled hand
      */
-    sampleHands(gameState) {
+    sampleHands(gameState, viewerIndex = 0, tracker) {
+        const src = tracker || this.handTracker;
         const sampledHands = new Map();
 
-        // Initialize empty hands for computer players
-        for (let p = 1; p <= 3; p++) {
+        // Determine which players need sampled hands (all except the viewer)
+        const playersToSample = [0, 1, 2, 3].filter(p => p !== viewerIndex);
+
+        for (const p of playersToSample) {
             sampledHands.set(p, new Hand());
         }
 
-        // Get unknown tiles (not played, not in human's hand)
+        // Get unknown tiles from the viewer's perspective
+        const locations = src.knownLocations || this.handTracker.knownLocations;
         const unknownTiles = [];
         for (const tile of this.handTracker.allTiles) {
             const key = tile.toKey();
-            const location = this.handTracker.knownLocations.get(key);
-            if (location === 'unknown') {
+            const loc = locations.get(key);
+            if (loc === 'unknown') {
                 unknownTiles.push(tile);
             }
         }
@@ -164,9 +183,9 @@ export class MonteCarloEvaluator {
         // Shuffle to randomize assignment order
         this.shuffleArray(unknownTiles);
 
-        // Track how many tiles each player should have
+        // Track how many tiles each sampled player should have
         const targetCounts = new Map();
-        for (let p = 1; p <= 3; p++) {
+        for (const p of playersToSample) {
             targetCounts.set(p, this.handTracker.tileCounts[p]);
         }
 
@@ -175,12 +194,12 @@ export class MonteCarloEvaluator {
             const eligiblePlayers = [];
             const weights = [];
 
-            for (let p = 1; p <= 3; p++) {
+            for (const p of playersToSample) {
                 // Skip if player already has enough tiles
                 if (sampledHands.get(p).size() >= targetCounts.get(p)) continue;
 
                 // Check if this player could have this tile
-                const prob = this.handTracker.getProbability(p, tile);
+                const prob = src.getProbability(p, tile);
                 if (prob > 0) {
                     eligiblePlayers.push(p);
                     weights.push(prob);
@@ -198,9 +217,13 @@ export class MonteCarloEvaluator {
     }
 
     /**
-     * Create a simulated game state with sampled hands
+     * Create a simulated game state with sampled hands.
+     * The viewer keeps their real hand; all others get sampled hands.
+     * @param {GameState} realState
+     * @param {Map<number, Hand>} sampledHands
+     * @param {number} [viewerIndex=0]
      */
-    createSimulatedState(realState, sampledHands) {
+    createSimulatedState(realState, sampledHands, viewerIndex = 0) {
         // Deep copy the relevant parts of game state
         const simState = {
             hands: [],
@@ -211,12 +234,13 @@ export class MonteCarloEvaluator {
             gamePhase: realState.gamePhase
         };
 
-        // Player 0 keeps their real hand
-        simState.hands[0] = realState.hands[0].clone();
-
-        // Computer players get sampled hands
-        for (let p = 1; p <= 3; p++) {
-            simState.hands[p] = sampledHands.get(p);
+        // Viewer keeps their real hand; others get sampled hands
+        for (let p = 0; p <= 3; p++) {
+            if (p === viewerIndex) {
+                simState.hands[p] = realState.hands[p].clone();
+            } else {
+                simState.hands[p] = sampledHands.get(p) || realState.hands[p].clone();
+            }
         }
 
         return simState;

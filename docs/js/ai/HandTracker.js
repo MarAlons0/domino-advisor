@@ -44,6 +44,9 @@ export class HandTracker {
         // Track all tiles that have been played (for reference)
         this.playedTiles = new Set();
 
+        // Generation counter for cache invalidation (PlayerView uses this)
+        this._generation = 0;
+
         // History of deductions for timeline
         this.deductionHistory = [];
 
@@ -61,6 +64,7 @@ export class HandTracker {
      */
     initHand(humanHand) {
         this.reset();
+        this._generation++;
 
         // Mark human's tiles as known
         const humanTiles = humanHand.getTiles();
@@ -85,6 +89,7 @@ export class HandTracker {
      * @param {Tile} tile - The tile played
      */
     recordPlay(player, tile) {
+        this._generation++;
         const key = tile.toKey();
 
         // Mark as played
@@ -108,6 +113,7 @@ export class HandTracker {
      * @param {number} rightEnd - Right open end value
      */
     recordPass(player, leftEnd, rightEnd) {
+        this._generation++;
         // Player lacks both suits
         this.deadSuits[player].add(leftEnd);
         if (rightEnd !== leftEnd) {

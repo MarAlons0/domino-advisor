@@ -25,7 +25,8 @@ docs/js/
 ├── ai/
 │   ├── SmartAI.js          # Strategic AI decision engine
 │   ├── MonteCarloEvaluator.js # Probability-weighted look-ahead simulation
-│   ├── HandTracker.js      # Tile probability tracking
+│   ├── HandTracker.js      # Tile probability tracking (shared data store)
+│   ├── PlayerView.js       # Per-player probability view with Bayesian inference
 │   ├── StrategicExplainer.js # Human-readable move explanations
 │   └── RandomAI.js         # Simple random move selection (unused)
 ├── engine/
@@ -247,6 +248,52 @@ return getPassProbability(player, value1) * getPassProbability(player, value2);
 ```
 
 **Note:** The multiplication assumes independence, which is an approximation. In reality, lacking one suit slightly increases the probability of having another.
+
+---
+
+# Per-Player Probability Views (PlayerView)
+
+Each of the 4 players gets an independent `PlayerView` that reflects only what that player could legitimately know. This prevents computer players from "cheating" by seeing the human's exact tiles.
+
+## Architecture
+
+```
+HandTracker (shared data store — unchanged)
+├── allTiles, playedTiles, knownLocations
+├── possibleHolders, deadSuits, tileCounts
+└── _generation counter (cache invalidation)
+
+PlayerView[0..3] (per-player probability adapter)
+├── wraps HandTracker (read-only reference)
+├── knows own hand tiles (exact)
+├── tracks suit affinities from observed plays (Bayesian)
+└── exposes same API: getProbability, getPassProbability, getBlockingProbability
+```
+
+| View | Own tiles | Human tiles | Other computer tiles |
+|------|-----------|-------------|---------------------|
+| Player 0 (human) | exact | exact | unknown + Bayesian |
+| Player 1 (Opp 1) | exact | **unknown** | unknown + Bayesian |
+| Player 2 (Partner) | exact | **unknown** | unknown + Bayesian |
+| Player 3 (Opp 2) | exact | **unknown** | unknown + Bayesian |
+
+## Bayesian Suit Affinity Model
+
+Each `(player, suit)` pair has a multiplier `A[player][suit]`, initialized to 1.0 per hand.
+
+| Event | Update | Rationale |
+|-------|--------|-----------|
+| Salida with double [V\|V] | `A[player][V] *= 2.0` | Strong signal: you open with your best suit |
+| Salida non-double (introduces V) | `A[player][V] *= 1.5` | Moderate signal |
+| Subsequent play introduces V | `A[player][V] *= 1.2` | Keeps playing that suit |
+| End avoidance (could play B, chose A) | `A[player][B] *= 0.85` | Slight negative for avoided suit |
+
+Affinities are clamped to [0.1, 5.0]. Probability formula for tile T with values (H, L), target player P:
+
+1. `base(P, T) = tileCounts[P] / possibleTilesForPlayer(P)`
+2. `affinity(P, T) = sqrt(A[P][H] × A[P][L])` (geometric mean; for doubles just `A[P][V]`)
+3. `raw(P, T) = base(P, T) × affinity(P, T)`
+4. Normalize per tile: `P(P has T) = raw(P, T) / Σ raw(Q, T)` across all possible holders Q
 
 ---
 

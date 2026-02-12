@@ -33,6 +33,7 @@ export class SmartAI {
     constructor() {
         this.explainer = new StrategicExplainer();
         this.handTracker = null; // Set by game controller
+        this.playerViews = null; // Set by game controller (array of 4 PlayerViews)
         this.resetForNewHand();
 
         if (DEBUG_AI) {
@@ -48,6 +49,14 @@ export class SmartAI {
     setHandTracker(tracker) {
         this.handTracker = tracker;
         this.monteCarloEvaluator = new MonteCarloEvaluator(tracker);
+    }
+
+    /**
+     * Set the per-player PlayerView array for perspective-aware probability lookups
+     * @param {PlayerView[]} views - Array of 4 PlayerViews (index = player)
+     */
+    setPlayerViews(views) {
+        this.playerViews = views;
     }
 
     /**
@@ -207,6 +216,9 @@ export class SmartAI {
         const mustPlayDoubleSix = gameState.isFirstHand && chain.isEmpty();
         const playerName = GameState.getPlayerName(playerIndex);
 
+        // Use per-player view if available, fall back to shared HandTracker
+        const activeView = this.playerViews?.[playerIndex] || this.handTracker;
+
         const validMoves = Rules.getValidMoves(hand, chain, mustPlayDoubleSix);
 
         // Debug: Start decision log
@@ -224,7 +236,7 @@ export class SmartAI {
 
         if (validMoves.length === 0) {
             if (DEBUG_AI) {
-                this._logDebug({ ...debugInfo, chosen: 'PASS', chosenReason: 'No valid moves' });
+                this._logDebug({ ...debugInfo, chosen: 'PASS', chosenReason: 'No valid moves' }, activeView);
             }
             return null; // Must pass
         }
@@ -234,7 +246,7 @@ export class SmartAI {
             if (DEBUG_AI) {
                 debugInfo.chosen = validMoves[0].tile.toString();
                 debugInfo.chosenReason = 'Only valid move';
-                this._logDebug(debugInfo);
+                this._logDebug(debugInfo, activeView);
             }
             return move;
         }
@@ -248,13 +260,13 @@ export class SmartAI {
             if (DEBUG_AI) {
                 debugInfo.chosen = winningMove.tile.toString();
                 debugInfo.chosenReason = 'PRIORITY 1: Winning move (domino)';
-                this._logDebug(debugInfo);
+                this._logDebug(debugInfo, activeView);
             }
             return { ...winningMove, reasoning: 'Winning move - domino!' };
         }
 
         // PRIORITY 2: Check for high-confidence blocking opportunity
-        const blockingMove = this._findHighConfidenceBlock(validMoves, gameState, playerIndex, chain);
+        const blockingMove = this._findHighConfidenceBlock(validMoves, gameState, playerIndex, chain, activeView);
         if (DEBUG_AI) {
             debugInfo.priorities.blockingMove = blockingMove ? {
                 tile: blockingMove.tile.toString(),
@@ -265,7 +277,7 @@ export class SmartAI {
             if (DEBUG_AI) {
                 // Also compute and show all move scores for comparison
                 debugInfo.scoredMoves = validMoves.map(move => {
-                    const staticScore = this.scoreMove(move, gameState, playerIndex);
+                    const staticScore = this.scoreMove(move, gameState, playerIndex, activeView);
                     return {
                         tile: move.tile.toString(),
                         end: move.end,
@@ -276,13 +288,13 @@ export class SmartAI {
                 }).sort((a, b) => b.staticTotal - a.staticTotal);
                 debugInfo.chosen = blockingMove.tile.toString();
                 debugInfo.chosenReason = `PRIORITY 2: High-confidence block (P=${blockingMove.blockProb.toFixed(2)})`;
-                this._logDebug(debugInfo);
+                this._logDebug(debugInfo, activeView);
             }
             return blockingMove;
         }
 
         // PRIORITY 3: Partner support in early game (first 8 plays)
-        const partnerSupportMove = this._findPartnerSupportMove(validMoves, gameState, playerIndex, chain);
+        const partnerSupportMove = this._findPartnerSupportMove(validMoves, gameState, playerIndex, chain, activeView);
         if (DEBUG_AI) {
             debugInfo.priorities.partnerSupport = partnerSupportMove ? partnerSupportMove.tile.toString() : null;
             debugInfo.priorities.partnerSupportActive = this.playCount < 8;
@@ -291,7 +303,7 @@ export class SmartAI {
             if (DEBUG_AI) {
                 // Also compute and show all move scores for comparison
                 debugInfo.scoredMoves = validMoves.map(move => {
-                    const staticScore = this.scoreMove(move, gameState, playerIndex);
+                    const staticScore = this.scoreMove(move, gameState, playerIndex, activeView);
                     return {
                         tile: move.tile.toString(),
                         end: move.end,
@@ -302,14 +314,14 @@ export class SmartAI {
                 }).sort((a, b) => b.staticTotal - a.staticTotal);
                 debugInfo.chosen = partnerSupportMove.tile.toString();
                 debugInfo.chosenReason = 'PRIORITY 3: Partner support (early game)';
-                this._logDebug(debugInfo);
+                this._logDebug(debugInfo, activeView);
             }
             return partnerSupportMove;
         }
 
         // FALLBACK: Score each move with static scoring + Monte Carlo
         const scoredMoves = validMoves.map(move => {
-            const staticScore = this.scoreMove(move, gameState, playerIndex);
+            const staticScore = this.scoreMove(move, gameState, playerIndex, activeView);
             return {
                 ...move,
                 score: staticScore,
@@ -323,10 +335,10 @@ export class SmartAI {
         // Apply Monte Carlo evaluation if available
         let certainty = 0;
         if (this.monteCarloEvaluator && this.handTracker) {
-            certainty = this.monteCarloEvaluator.calculateCertainty(gameState, gameState.chain);
+            certainty = this.monteCarloEvaluator.calculateCertainty(gameState, gameState.chain, activeView);
 
             for (const move of scoredMoves) {
-                const mcResult = this.monteCarloEvaluator.evaluateMove(move, gameState, playerIndex);
+                const mcResult = this.monteCarloEvaluator.evaluateMove(move, gameState, playerIndex, activeView);
                 move.mcResult = mcResult;
 
                 // Blend static and MC scores based on certainty
@@ -369,7 +381,7 @@ export class SmartAI {
                 ` | MC: ${bestMove.mcResult.score.toFixed(1)} (cert: ${(certainty * 100).toFixed(0)}%)` : '';
             debugInfo.chosenReason = `FALLBACK: Best combined score (${bestMove.finalScore.toFixed(1)})${mcInfo}`;
             debugInfo.chosenExplanation = bestMove.reasoning;
-            this._logDebug(debugInfo);
+            this._logDebug(debugInfo, activeView);
         }
 
         return bestMove;
@@ -379,7 +391,7 @@ export class SmartAI {
      * Log debug information to console
      * @private
      */
-    _logDebug(info) {
+    _logDebug(info, activeView) {
         const playerColors = {
             0: '#00d4ff', // You - cyan
             1: '#ff6b6b', // Opp 1 - coral
@@ -387,8 +399,15 @@ export class SmartAI {
             3: '#ffa500'  // Opp 2 - orange
         };
         const color = playerColors[info.playerIndex] || '#fff';
+        const src = activeView || this.handTracker;
 
         console.group(`%c🎲 AI Decision: ${info.player}`, `color: ${color}; font-weight: bold`);
+
+        // Show whose view is being used
+        if (activeView && activeView.playerIndex !== undefined) {
+            const viewNames = ['You', 'Opp 1', 'Partner', 'Opp 2'];
+            console.log(`%cView: ${viewNames[activeView.playerIndex]}`, 'color: #c084fc; font-style: italic');
+        }
 
         // Basic info
         console.log(`Play #${info.playCount + 1} | Tiles in hand: ${info.tilesInHand} | Valid moves: ${info.validMoves}`);
@@ -407,15 +426,15 @@ export class SmartAI {
             console.log(`%cMonte Carlo: Certainty ${(info.certainty * 100).toFixed(1)}%`, 'color: #ffd93d');
         }
 
-        // HandTracker probability view
-        if (this.handTracker && info.playerIndex !== undefined) {
+        // Probability view from active perspective
+        if (src && info.playerIndex !== undefined) {
             console.groupCollapsed('Tile Probability View');
 
             // Show dead suits per player
             const playerNames = ['You', 'Opp 1', 'Partner', 'Opp 2'];
             const deadSuitsInfo = {};
             for (let p = 0; p < 4; p++) {
-                const dead = Array.from(this.handTracker.deadSuits[p]);
+                const dead = Array.from(src.deadSuits[p]);
                 if (dead.length > 0) {
                     deadSuitsInfo[playerNames[p]] = dead.sort().join(', ');
                 }
@@ -425,6 +444,26 @@ export class SmartAI {
                 console.table(deadSuitsInfo);
             }
 
+            // Suit affinity table (if activeView has affinities)
+            if (activeView && activeView.getAffinities) {
+                const affinities = activeView.getAffinities();
+                const affinityTable = [];
+                let hasNonDefault = false;
+                for (let suit = 0; suit <= 6; suit++) {
+                    const row = { 'Suit': suit };
+                    for (let p = 0; p < 4; p++) {
+                        const val = affinities[p][suit];
+                        if (val !== 1.0) hasNonDefault = true;
+                        row[playerNames[p]] = val === 1.0 ? '-' : val.toFixed(2);
+                    }
+                    affinityTable.push(row);
+                }
+                if (hasNonDefault) {
+                    console.log('%cSuit Affinities (Bayesian):', 'color: #c084fc');
+                    console.table(affinityTable);
+                }
+            }
+
             // Suit distribution: estimated count per suit per player
             const suitTable = [];
             for (let suit = 0; suit <= 6; suit++) {
@@ -432,16 +471,11 @@ export class SmartAI {
                 const remaining = this.getRemainingInSuit(suit);
                 row['Remaining'] = remaining;
                 for (let p = 0; p < 4; p++) {
-                    if (p === 0) {
-                        // Human: exact count from HandTracker
-                        let count = 0;
-                        for (const key of this.handTracker.humanHand) {
-                            const parts = key.split('-').map(Number);
-                            if (parts[0] === suit || parts[1] === suit) count++;
-                        }
-                        row[playerNames[p]] = count;
+                    if (p === info.playerIndex) {
+                        // Viewer: exact count from own hand
+                        row[playerNames[p]] = '(self)';
                     } else {
-                        row[playerNames[p]] = Math.round(this._estimateSuitCount(p, suit) * 10) / 10;
+                        row[playerNames[p]] = Math.round(this._estimateSuitCount(p, suit, undefined, src) * 10) / 10;
                     }
                 }
                 suitTable.push(row);
@@ -449,10 +483,11 @@ export class SmartAI {
             console.log('Estimated suit counts per player:');
             console.table(suitTable);
 
-            // Most likely tiles per computer player
-            for (let p = 1; p <= 3; p++) {
-                const facts = this.handTracker.getKnownFacts(p);
-                const likely = this.handTracker.getMostLikely(p, facts.tileCount);
+            // Most likely tiles per other player
+            for (let p = 0; p <= 3; p++) {
+                if (p === info.playerIndex) continue;
+                const facts = src.getKnownFacts(p);
+                const likely = src.getMostLikely(p, facts.tileCount);
                 if (likely.length > 0) {
                     console.groupCollapsed(`${playerNames[p]} (${facts.tileCount} tiles, ${facts.possibleTileCount} possible)`);
                     console.table(likely.map(t => ({
@@ -530,11 +565,15 @@ export class SmartAI {
     }
 
     /**
-     * Estimate pip counts for each team using HandTracker probabilities.
-     * Own hand is exact; other players are estimated from probability distributions.
+     * Estimate pip counts for each team using probability distributions.
+     * Own hand is exact; other players are estimated from the active view.
+     * @param {GameState} gameState
+     * @param {number} playerIndex
+     * @param {PlayerView|HandTracker} [view] - Probability source
      * @returns {{myTeamPips: number, oppTeamPips: number, pipAdvantage: number}}
      */
-    _estimateTeamPips(gameState, playerIndex) {
+    _estimateTeamPips(gameState, playerIndex, view) {
+        const src = view || this.handTracker;
         const partnerIndex = GameState.getPartner(playerIndex);
         const opponents = this.getOpponents(playerIndex);
 
@@ -545,8 +584,8 @@ export class SmartAI {
         // Other players: expected pips from probability distributions
         const estimatePips = (player) => {
             let expected = 0;
-            for (const tile of this.handTracker.allTiles) {
-                const prob = this.handTracker.getProbability(player, tile);
+            for (const tile of src.allTiles) {
+                const prob = src.getProbability(player, tile);
                 expected += tile.pipCount() * prob;
             }
             return expected;
@@ -568,20 +607,22 @@ export class SmartAI {
 
     /**
      * Estimate how many tiles of a given suit a player holds.
-     * Uses HandTracker probability distributions.
-     * @param {number} player - Player index (1-3 for computer players)
+     * Uses probability distributions from the active view.
+     * @param {number} player - Player index (0-3)
      * @param {number} suitValue - The suit value (0-6)
      * @param {Set<string>} [excludeKeys] - Tile keys to exclude (e.g., current player's hand)
+     * @param {PlayerView|HandTracker} [view] - Probability source
      * @returns {number} Expected count of tiles with this suit
      * @private
      */
-    _estimateSuitCount(player, suitValue, excludeKeys) {
-        if (!this.handTracker) return 0;
+    _estimateSuitCount(player, suitValue, excludeKeys, view) {
+        const src = view || this.handTracker;
+        if (!src) return 0;
         let expected = 0;
-        for (const tile of this.handTracker.allTiles) {
+        for (const tile of src.allTiles) {
             if (!tile.hasValue(suitValue)) continue;
             if (excludeKeys && excludeKeys.has(tile.toKey())) continue;
-            const prob = this.handTracker.getProbability(player, tile);
+            const prob = src.getProbability(player, tile);
             expected += prob;
         }
         return expected;
@@ -590,10 +631,16 @@ export class SmartAI {
     /**
      * Find a high-confidence blocking opportunity (cuadrar)
      * Only blocks when pip count favors our team, unless defensive necessity.
+     * @param {Array} validMoves
+     * @param {GameState} gameState
+     * @param {number} playerIndex
+     * @param {Chain} chain
+     * @param {PlayerView|HandTracker} [view] - Probability source
      * @private
      */
-    _findHighConfidenceBlock(validMoves, gameState, playerIndex, chain) {
-        if (!this.handTracker) return null;
+    _findHighConfidenceBlock(validMoves, gameState, playerIndex, chain, view) {
+        const src = view || this.handTracker;
+        if (!src) return null;
 
         const opponents = this.getOpponents(playerIndex);
         const BLOCK_THRESHOLD = 0.7; // 70% confidence required
@@ -607,7 +654,7 @@ export class SmartAI {
 
             // Check blocking probability against each opponent
             for (const opp of opponents) {
-                const blockProb = this.handTracker.getBlockingProbability(opp, newLeftEnd, newRightEnd);
+                const blockProb = src.getBlockingProbability(opp, newLeftEnd, newRightEnd);
 
                 if (blockProb >= BLOCK_THRESHOLD && blockProb > bestBlockProb) {
                     bestBlockProb = blockProb;
@@ -623,7 +670,7 @@ export class SmartAI {
         if (!bestBlockMove) return null;
 
         // Pip check: only block if it benefits our team
-        const { myTeamPips, oppTeamPips, pipAdvantage } = this._estimateTeamPips(gameState, playerIndex);
+        const { myTeamPips, oppTeamPips, pipAdvantage } = this._estimateTeamPips(gameState, playerIndex, src);
         const minOppTiles = Math.min(
             gameState.hands[opponents[0]].size(),
             gameState.hands[opponents[1]].size()
@@ -656,7 +703,7 @@ export class SmartAI {
      * Find a move that supports partner's signaled suit
      * @private
      */
-    _findPartnerSupportMove(validMoves, gameState, playerIndex, chain) {
+    _findPartnerSupportMove(validMoves, gameState, playerIndex, chain, view) {
         const partnerIndex = GameState.getPartner(playerIndex);
         const partnerSuit = this.signaledSuits[partnerIndex];
 
@@ -692,7 +739,7 @@ export class SmartAI {
         // Score the support moves and pick best
         const scoredMoves = partnerSupportMoves.map(move => ({
             ...move,
-            score: this.scoreMove(move, gameState, playerIndex)
+            score: this.scoreMove(move, gameState, playerIndex, view)
         }));
         scoredMoves.sort((a, b) => b.score.total - a.score.total);
 
@@ -793,9 +840,13 @@ export class SmartAI {
 
     /**
      * Score a potential move based on strategic principles.
+     * @param {object} move
+     * @param {GameState} gameState
+     * @param {number} playerIndex
+     * @param {PlayerView|HandTracker} [view] - Probability source
      * @returns {{total: number, factors: object}}
      */
-    scoreMove(move, gameState, playerIndex) {
+    scoreMove(move, gameState, playerIndex, view) {
         const { tile, end } = move;
         const hand = gameState.hands[playerIndex];
         const chain = gameState.chain;
@@ -831,13 +882,14 @@ export class SmartAI {
             const myCount = this.countSuitInHand(hand, newEndValue);
             const remaining = this.getRemainingInSuit(newEndValue);
             if (remaining > 0) {
-                if (this.handTracker) {
+                const src = view || this.handTracker;
+                if (src) {
                     // Exclude own tiles from estimates to prevent double-counting
                     // (myCount is exact; HandTracker doesn't know which computer player has what)
                     const myTileKeys = new Set(hand.getTiles().map(t => t.toKey()));
-                    const partnerCount = this._estimateSuitCount(partnerIndex, newEndValue, myTileKeys);
-                    const oppCount = this._estimateSuitCount(opponents[0], newEndValue, myTileKeys)
-                                   + this._estimateSuitCount(opponents[1], newEndValue, myTileKeys);
+                    const partnerCount = this._estimateSuitCount(partnerIndex, newEndValue, myTileKeys, src);
+                    const oppCount = this._estimateSuitCount(opponents[0], newEndValue, myTileKeys, src)
+                                   + this._estimateSuitCount(opponents[1], newEndValue, myTileKeys, src);
                     const myTeamCount = myCount + partnerCount;
                     factors.suitDominance = ((myTeamCount - oppCount) / remaining) * 50;
                 } else {
