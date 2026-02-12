@@ -104,6 +104,8 @@ export class HandTracker {
         if (player === 0) {
             this.humanHand.delete(key);
         }
+
+        this._propagateConstraints();
     }
 
     /**
@@ -149,6 +151,8 @@ export class HandTracker {
             description: t('tracker.passedOn', playerName, suitNames, lacksSuits),
             tilesEliminated: tilesEliminated
         });
+
+        this._propagateConstraints();
     }
 
     /**
@@ -208,6 +212,70 @@ export class HandTracker {
             }
         }
         return count;
+    }
+
+    /**
+     * Propagate constraints to resolve forced tile assignments.
+     * Iterates until no more deductions can be made.
+     *
+     * Rule A: If a player has N tiles and exactly N possible tiles,
+     *         all N are forced to that player — remove that player
+     *         from all other tiles, and remove other players from those tiles.
+     *
+     * Rule B: If a tile has exactly 1 possible holder, that holder
+     *         definitely has it — only triggers Rule A indirectly
+     *         by reducing other players' possible tile counts.
+     * @private
+     */
+    _propagateConstraints() {
+        let anyChanged = false;
+        let changed = true;
+        while (changed) {
+            changed = false;
+
+            // Rule A: player with N tiles and exactly N possible tiles
+            for (let p = 1; p <= 3; p++) {
+                const remaining = this.tileCounts[p];
+                if (remaining === 0) continue;
+
+                const possibleKeys = [];
+                for (const tile of this.allTiles) {
+                    const key = tile.toKey();
+                    if (this.knownLocations.get(key) !== 'unknown') continue;
+                    if (this.possibleHolders.get(key).has(p)) {
+                        possibleKeys.push(key);
+                    }
+                }
+
+                if (possibleKeys.length === remaining) {
+                    // All these tiles MUST belong to player p
+                    // Remove other players from these tiles
+                    for (const key of possibleKeys) {
+                        const holders = this.possibleHolders.get(key);
+                        if (holders.size > 1) {
+                            holders.clear();
+                            holders.add(p);
+                            changed = true;
+                        }
+                    }
+                    // Remove p from all OTHER unknown tiles
+                    for (const tile of this.allTiles) {
+                        const key = tile.toKey();
+                        if (this.knownLocations.get(key) !== 'unknown') continue;
+                        if (possibleKeys.includes(key)) continue;
+                        const holders = this.possibleHolders.get(key);
+                        if (holders.has(p)) {
+                            holders.delete(p);
+                            changed = true;
+                        }
+                    }
+                }
+            }
+
+            if (changed) anyChanged = true;
+        }
+
+        if (anyChanged) this._generation++;
     }
 
     /**

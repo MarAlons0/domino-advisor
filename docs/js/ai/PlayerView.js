@@ -201,19 +201,8 @@ export class PlayerView {
 
         if (totalRaw === 0) return 0;
 
-        // Normalize: P(player has T) = raw(player, T) / sum(raw(Q, T))
-        // Then scale so the max doesn't exceed 1
-        const normalized = rawProbs.get(player) / totalRaw;
-
-        // Scale by the number of holders to convert from share to probability
-        // The total probability across all holders for one tile should not exceed
-        // the sum of individual base probabilities
-        const avgBase = Array.from(holders).reduce((sum, p) => {
-            const pc = this._countPossibleTilesForPlayer(p);
-            return sum + (pc > 0 ? this.handTracker.tileCounts[p] / pc : 0);
-        }, 0);
-
-        return Math.min(1, normalized * avgBase);
+        // Normalize so probabilities for this tile sum to 1.0 across all holders
+        return rawProbs.get(player) / totalRaw;
     }
 
     /**
