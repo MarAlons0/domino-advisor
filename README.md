@@ -25,8 +25,9 @@ docs/js/
 ├── ai/
 │   ├── SmartAI.js          # Strategic AI decision engine
 │   ├── MonteCarloEvaluator.js # Probability-weighted look-ahead simulation
-│   ├── HandTracker.js      # Tile probability tracking (shared data store)
+│   ├── HandTracker.js      # Tile probability tracking with constraint propagation
 │   ├── PlayerView.js       # Per-player probability view with Bayesian inference
+│   ├── ProbabilityAnalyzer.js # Debug: Brier score accuracy measurement
 │   ├── StrategicExplainer.js # Human-readable move explanations
 │   └── RandomAI.js         # Simple random move selection (unused)
 ├── engine/
@@ -192,27 +193,41 @@ For unknown tiles, a set of "possible holders" is maintained and narrowed based 
 1. **Passes**: If a player passes when ends are 3 and 5, they lack ALL tiles containing 3 AND all tiles containing 5
 2. **Play inference**: Deductions from what players choose to play
 
+## Constraint Propagation
+
+After every play and pass, `_propagateConstraints()` detects forced tile assignments and cascades deductions:
+
+**Rule**: If player P has N tiles remaining and exactly N possible tiles, all N tiles are forced to P. This removes P from all other tiles and removes other players from those N tiles. The process repeats until no more forced assignments can be made.
+
+**Example cascade:**
+1. Player 1 passed on suits 0,1,2,3,5,6 → only suit 4 tiles possible
+2. Player 1 has 2 tiles, only `[4|2]` and `[4|4]` are possible → **forced**
+3. Remove `[4|2]` and `[4|4]` from Player 2 and 3's possible sets
+4. Player 2 now has 2 tiles and exactly 2 possible tiles → **forced** (cascade)
+
 ## getProbability(player, tile)
 
-Returns the probability that a specific player holds a specific tile.
+Returns the probability that a specific player holds a specific tile. Computed via PlayerView, which normalizes per-tile so probabilities sum to exactly 1.0 across all possible holders.
 
 **Algorithm:**
 ```
-If tile is played or in human hand: return 0
+If tile is played or in own hand: return 0 or 1 (known)
 
 If player is not in possibleHolders: return 0
 
-Otherwise:
-  N = number of tiles this player could possibly have
-  M = number of tiles this player actually has (tileCounts[player])
+For each possible holder Q:
+  base(Q) = tileCounts[Q] / possibleTilesForPlayer(Q)
+  raw(Q)  = base(Q) × affinity(Q, tile)
 
-  P = M / N  (uniform distribution assumption)
+P(player has tile) = raw(player) / Σ raw(Q)   // normalized to sum to 1.0
 ```
 
 **Example:**
-- Player 1 has 5 tiles remaining
-- There are 12 unknown tiles they could possibly hold
-- P(Player 1 has tile X) = 5/12 = 0.417
+- Player 1: 5 tiles remaining, 12 possible → base = 5/12 = 0.417
+- Player 2: 4 tiles remaining, 8 possible → base = 4/8 = 0.500
+- Player 3: 3 tiles remaining, 10 possible → base = 3/10 = 0.300
+- Sum = 1.217
+- P(Player 1 has tile X) = 0.417 / 1.217 = **0.342** (properly normalized)
 
 ## getPassProbability(player, value)
 
@@ -279,16 +294,18 @@ PlayerView[0..3] (per-player probability adapter)
 
 ## Bayesian Suit Affinity Model
 
+> **Status (v0.4.2):** Affinities are temporarily disabled pending calibration. Brier score analysis showed the previous weights (2.0x/1.5x/1.2x/0.85x) degraded prediction accuracy. Empirical measurement of salida suit correlation shows ~1.2x signal strength, significantly less than the 2.0x weight that was used.
+
 Each `(player, suit)` pair has a multiplier `A[player][suit]`, initialized to 1.0 per hand.
 
-| Event | Update | Rationale |
-|-------|--------|-----------|
-| Salida with double [V\|V] | `A[player][V] *= 2.0` | Strong signal: you open with your best suit |
-| Salida non-double (introduces V) | `A[player][V] *= 1.5` | Moderate signal |
-| Subsequent play introduces V | `A[player][V] *= 1.2` | Keeps playing that suit |
-| End avoidance (could play B, chose A) | `A[player][B] *= 0.85` | Slight negative for avoided suit |
+| Event | Old Weight | Measured Signal | Status |
+|-------|-----------|----------------|--------|
+| Salida with double [V\|V] | 2.0x | ~1.2x | Pending recalibration |
+| Salida non-double (introduces V) | 1.5x | ~1.2x | Pending recalibration |
+| Subsequent play introduces V | 1.2x | Not measured | Disabled |
+| End avoidance (could play B, chose A) | 0.85x | Not measured | Disabled |
 
-Affinities are clamped to [0.1, 5.0]. Probability formula for tile T with values (H, L), target player P:
+Affinities are clamped to [0.1, 5.0]. When enabled, probability formula for tile T with values (H, L), target player P:
 
 1. `base(P, T) = tileCounts[P] / possibleTilesForPlayer(P)`
 2. `affinity(P, T) = sqrt(A[P][H] × A[P][L])` (geometric mean; for doubles just `A[P][V]`)
@@ -306,6 +323,30 @@ https://maralons0.github.io/domino-advisor/?debug=ai
 ```
 
 Open browser DevTools (F12) → Console tab to see:
+
+### Probability Accuracy (Brier Score)
+
+At the end of each hand, the `ProbabilityAnalyzer` compares predicted probabilities against ground truth:
+
+```
+=== PROBABILITY ACCURACY — Hand 3 ===
+Turn-by-Turn Brier Score (lower = better, uniform ≈ 0.22):
+Columns = predictor view (how well each view predicts the other 3 players)
+
+ Turn │ Event          │ Overall │ V:You │ V:Opp1 │ V:Ptnr │ V:Opp2
+    1 │ You: [6|6]→L   │  0.135  │ 0.137 │  0.136 │  0.134 │  0.133
+   ...
+   25 │ Ptnr: [1|0]→L  │  0.050  │ 0.048 │  0.052 │  0.049 │  0.051
+
+Summary:
+  Start: 0.135 → End: 0.050 (63% improvement)
+  Salida: Opp 1 opened with [6|6] (double)
+    Suit tiles in original hand (excl. salida): 2 (base rate: 1.33)
+```
+
+At match end, a cross-hand summary shows trends and salida suit correlation data.
+
+### AI Decision Logs
 
 ```
 🎲 AI Decision: Opp 1
