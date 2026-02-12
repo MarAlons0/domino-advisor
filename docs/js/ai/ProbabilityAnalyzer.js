@@ -7,6 +7,8 @@
  * Each view predicts the 3 players it doesn't know. This reveals whether
  * the system is symmetric (all views equally accurate) or biased.
  *
+ * Also tracks salida (opening play) suit correlation to calibrate affinity weights.
+ *
  * Activated via ?debug=ai URL parameter.
  *
  * Brier score:
@@ -25,6 +27,8 @@ export class ProbabilityAnalyzer {
         this.snapshots = [];
         this.handNumber = 0;
         this.matchResults = [];
+        this.handPlays = [];    // plays in current hand: [{player, tile}]
+        this.salidaStats = [];  // salida analysis across match
     }
 
     /**
@@ -32,8 +36,10 @@ export class ProbabilityAnalyzer {
      */
     resetMatch() {
         this.matchResults = [];
+        this.salidaStats = [];
         this.handNumber = 0;
         this.snapshots = [];
+        this.handPlays = [];
     }
 
     /**
@@ -41,6 +47,7 @@ export class ProbabilityAnalyzer {
      */
     reset() {
         this.snapshots = [];
+        this.handPlays = [];
         this.handNumber++;
     }
 
@@ -48,16 +55,23 @@ export class ProbabilityAnalyzer {
      * Capture a probability snapshot from all 4 views BEFORE a play/pass is processed.
      * @param {object} gameState - Current game state
      * @param {string} event - Description like "You: [6|6]→L" or "Opp 1: pass"
+     * @param {number} player - Player index who acted
+     * @param {Tile|null} tile - Tile played (null for passes)
      */
-    captureSnapshot(gameState, event) {
+    captureSnapshot(gameState, event, player, tile) {
+        // Track plays for salida analysis
+        if (tile) {
+            this.handPlays.push({ player, tile });
+        }
+
         const viewPredictions = [];
 
         for (let v = 0; v < 4; v++) {
             const view = this.views[v];
             const predictions = new Map();
 
-            for (const tile of view.allTiles) {
-                const key = tile.toKey();
+            for (const t of view.allTiles) {
+                const key = t.toKey();
 
                 // Skip played tiles — known to everyone
                 if (view.handTracker.knownLocations.get(key) === 'played') continue;
@@ -69,7 +83,7 @@ export class ProbabilityAnalyzer {
                 const pred = {};
                 for (let p = 0; p < 4; p++) {
                     if (p === v) continue;
-                    pred[p] = view.getProbability(p, tile);
+                    pred[p] = view.getProbability(p, t);
                 }
                 predictions.set(key, pred);
             }
@@ -184,6 +198,65 @@ export class ProbabilityAnalyzer {
             viewPtnr: viewAvgs['V:Ptnr'],
             viewOpp2: viewAvgs['V:Opp2']
         });
+
+        // Salida analysis for this hand
+        this._analyzeSalida(actualHands);
+    }
+
+    /**
+     * Analyze the salida (opening play) suit correlation.
+     * Reconstructs the original hand to count how many tiles of the
+     * salida suit(s) the opener actually held.
+     * @private
+     */
+    _analyzeSalida(actualHands) {
+        if (this.handPlays.length === 0) return;
+
+        const salida = this.handPlays[0];
+        const sp = salida.player;
+        const st = salida.tile;
+
+        // Reconstruct original hand: remaining tiles + all tiles this player played
+        const originalKeys = new Set(actualHands[sp].getTiles().map(t => t.toKey()));
+        for (const play of this.handPlays) {
+            if (play.player === sp) {
+                originalKeys.add(play.tile.toKey());
+            }
+        }
+
+        const isDouble = st.isDouble();
+        const suits = isDouble ? [st.high] : [st.high, st.low];
+
+        // Count OTHER tiles in original hand that share a salida suit
+        let suitTileCount = 0;
+        for (const key of originalKeys) {
+            if (key === st.toKey()) continue; // exclude the salida tile itself
+            const parts = key.split('-').map(Number);
+            if (suits.some(s => parts[0] === s || parts[1] === s)) {
+                suitTileCount++;
+            }
+        }
+
+        // Base rate: expected count if tiles were random
+        // For double [S|S]: 6 other S-tiles out of 27 remaining, player has 6 remaining
+        //   → expected = 6 × 6/27 = 1.33
+        // For non-double [A|B]: 12 other tiles with A or B out of 27, player has 6 remaining
+        //   → expected = 6 × 12/27 = 2.67
+        const otherSuitTiles = isDouble ? 6 : 12;
+        const baseRate = 6 * otherSuitTiles / 27;
+
+        this.salidaStats.push({
+            hand: this.handNumber,
+            player: sp,
+            tile: st.toString(),
+            isDouble,
+            suits,
+            suitTileCount,
+            baseRate
+        });
+
+        console.log(`\n  Salida: ${VIEW_LABELS[sp]} opened with ${st.toString()}${isDouble ? ' (double)' : ''}`);
+        console.log(`    Suit tiles in original hand (excl. salida): ${suitTileCount} (base rate: ${baseRate.toFixed(2)})`);
     }
 
     /**
@@ -232,11 +305,9 @@ export class ProbabilityAnalyzer {
         // Within-hand improvement rate
         const improved = results.filter(r => r.endBrier < r.startBrier).length;
 
-        // Symmetry check: how much do views differ?
+        // Symmetry check
         const viewVals = Object.values(viewAvgs);
-        const viewMin = Math.min(...viewVals);
-        const viewMax = Math.max(...viewVals);
-        const spread = viewMax - viewMin;
+        const spread = Math.max(...viewVals) - Math.min(...viewVals);
 
         const sorted = Object.entries(viewAvgs).sort((a, b) => a[1] - b[1]);
 
@@ -249,5 +320,43 @@ export class ProbabilityAnalyzer {
         console.log(`\nTrends:`);
         console.log(`  First half avg: ${firstHalf.toFixed(3)} → Second half avg: ${secondHalf.toFixed(3)} (${trendDir}, ${trendPct}%)`);
         console.log(`  Within-hand improvement: ${improved}/${results.length} hands (${(improved / results.length * 100).toFixed(0)}%)`);
+
+        // Salida analysis
+        this._logSalidaSummary();
+    }
+
+    /**
+     * Output salida suit correlation summary.
+     * @private
+     */
+    _logSalidaSummary() {
+        if (this.salidaStats.length === 0) return;
+
+        const doubles = this.salidaStats.filter(s => s.isDouble);
+        const nonDoubles = this.salidaStats.filter(s => !s.isDouble);
+
+        console.log(`\nSalida Suit Analysis (how many suit tiles does opener actually hold?):`);
+
+        const salidaRows = this.salidaStats.map(s => ({
+            Hand: s.hand,
+            Player: VIEW_LABELS[s.player],
+            Tile: s.tile,
+            Type: s.isDouble ? 'Double' : 'Non-dbl',
+            'Suit tiles': s.suitTileCount,
+            'Base rate': s.baseRate.toFixed(2)
+        }));
+        console.table(salidaRows);
+
+        if (doubles.length > 0) {
+            const avg = doubles.reduce((sum, s) => sum + s.suitTileCount, 0) / doubles.length;
+            console.log(`  Double salidas: avg ${avg.toFixed(2)} suit tiles (n=${doubles.length}, base rate: 1.33)`);
+            console.log(`    → Signal strength: ${(avg / 1.33).toFixed(2)}x base rate`);
+        }
+
+        if (nonDoubles.length > 0) {
+            const avg = nonDoubles.reduce((sum, s) => sum + s.suitTileCount, 0) / nonDoubles.length;
+            console.log(`  Non-double salidas: avg ${avg.toFixed(2)} suit tiles (n=${nonDoubles.length}, base rate: 2.67)`);
+            console.log(`    → Signal strength: ${(avg / 2.67).toFixed(2)}x base rate`);
+        }
     }
 }

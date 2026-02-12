@@ -363,10 +363,8 @@ export class PlayerView {
      * @private
      */
     _getTileAffinity(player, tile) {
-        if (tile.isDouble()) {
-            return this.affinities[player][tile.high];
-        }
-        return Math.sqrt(this.affinities[player][tile.high] * this.affinities[player][tile.low]);
+        // TEMPORARILY DISABLED for Brier score baseline measurement
+        return 1.0;
     }
 
     /**

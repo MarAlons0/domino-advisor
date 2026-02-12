@@ -378,7 +378,7 @@ class DominoApp {
             if (this.probAnalyzer) {
                 const end = data.openEndsBefore ? data.end[0].toUpperCase() : '';
                 const event = `${GameState.getPlayerName(data.player)}: ${data.tile.toString()}${end ? '→' + end : ''}`;
-                this.probAnalyzer.captureSnapshot(this.game.getState(), event);
+                this.probAnalyzer.captureSnapshot(this.game.getState(), event, data.player, data.tile);
             }
 
             // Record this play for AI tracking (suit counts, play choice inference)
@@ -411,7 +411,7 @@ class DominoApp {
             // Capture probability snapshot BEFORE updates (debug mode)
             if (this.probAnalyzer) {
                 const event = `${GameState.getPlayerName(data.player)}: pass`;
-                this.probAnalyzer.captureSnapshot(this.game.getState(), event);
+                this.probAnalyzer.captureSnapshot(this.game.getState(), event, data.player, null);
             }
 
             // Record this pass for AI tracking (inferred dead suits)
