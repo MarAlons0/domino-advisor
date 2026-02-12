@@ -250,6 +250,31 @@ h1 .version {
 .player-border-2 { border-color: #22c55e; }
 .player-border-3 { border-color: #f59e0b; }
 
+/* Pass Badge - flashes on player position */
+.pass-badge {
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #fff;
+    background: rgba(255, 70, 70, 0.85);
+    padding: 2px 8px;
+    border-radius: 4px;
+    animation: pass-flash 2s ease-out forwards;
+    position: absolute;
+    white-space: nowrap;
+}
+
+.player-info {
+    position: relative;
+}
+
+@keyframes pass-flash {
+    0% { opacity: 1; transform: scale(1.1); }
+    20% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.9); }
+}
+
 /* Tile Count Display */
 .tile-count {
     display: flex;
@@ -636,6 +661,16 @@ button:disabled {
 .log-entry.player-2 { color: #22c55e; } /* Partner - Green */
 .log-entry.player-3 { color: #f59e0b; } /* Opp 2 - Orange */
 .log-entry.system { color: #ffd93d; }
+
+/* Pass entries - more prominent */
+.log-entry.pass-entry {
+    font-weight: bold;
+    font-style: italic;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 3px 6px;
+    border-radius: 3px;
+    border-left: 3px solid currentColor;
+}
 
 /* Hand separator - prominent visual break between hands */
 .log-separator {

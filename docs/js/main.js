@@ -378,7 +378,10 @@ class DominoApp {
             const state = this.game.getState();
             const leftEnd = state.chain.leftEnd;
             const rightEnd = state.chain.rightEnd;
-            this.log(t('log.passes', playerName, leftEnd, rightEnd), `player-${data.player}`);
+            this.log(t('log.passes', playerName, leftEnd, rightEnd), `player-${data.player} pass-entry`);
+
+            // Show pass badge on the player's position
+            this.showPassBadge(data.player);
 
             // Record this pass for AI tracking (inferred dead suits)
             this.ai.recordPass(data.player, leftEnd, rightEnd);
@@ -882,6 +885,24 @@ class DominoApp {
         entry.textContent = message;
         this.logContainer.appendChild(entry);
         this.scrollLogToBottom();
+    }
+
+    showPassBadge(playerIndex) {
+        const playerInfo = document.getElementById(`player-${playerIndex}-name`);
+        if (!playerInfo) return;
+        const container = playerInfo.parentElement;
+
+        // Remove any existing badge
+        const existing = container.querySelector('.pass-badge');
+        if (existing) existing.remove();
+
+        const badge = document.createElement('div');
+        badge.className = 'pass-badge';
+        badge.textContent = t('pass');
+        container.appendChild(badge);
+
+        // Remove after animation completes
+        setTimeout(() => badge.remove(), 2000);
     }
 
     logHandSeparator() {
