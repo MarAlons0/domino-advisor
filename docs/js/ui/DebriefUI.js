@@ -411,7 +411,7 @@ export class DebriefUI {
         this.llmResult.style.display = 'none';
 
         try {
-            const result = await this.claudeService.analyzePlayStyle(this.matchHistory);
+            const result = await this.claudeService.analyzePlayStyle(this.matchHistory, i18n.getLanguage());
 
             this.llmLoading.style.display = 'none';
 

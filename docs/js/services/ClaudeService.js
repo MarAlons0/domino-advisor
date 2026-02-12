@@ -82,14 +82,15 @@ export class ClaudeService {
     /**
      * Analyze player's play style based on match history
      * @param {MatchHistory} matchHistory
+     * @param {string} [language='en'] - Response language ('en' or 'es')
      * @returns {Promise<{success: boolean, analysis: string|null, error: string|null}>}
      */
-    async analyzePlayStyle(matchHistory) {
+    async analyzePlayStyle(matchHistory, language = 'en') {
         const matchData = matchHistory.toJSON();
         const stats = matchHistory.getHumanStats();
         const keyMoments = matchHistory.getKeyMoments();
 
-        const prompt = this._buildAnalysisPrompt(matchData, stats, keyMoments);
+        const prompt = this._buildAnalysisPrompt(matchData, stats, keyMoments, language);
 
         try {
             const response = await fetch(this.workerUrl, {
@@ -127,24 +128,32 @@ export class ClaudeService {
 
     /**
      * Build the analysis prompt
+     * @param {object} matchData
+     * @param {object} stats
+     * @param {Array} keyMoments
+     * @param {string} language - 'en' or 'es'
      * @private
      */
-    _buildAnalysisPrompt(matchData, stats, keyMoments) {
+    _buildAnalysisPrompt(matchData, stats, keyMoments, language) {
         const totalMoves = stats.optimal + stats.good + stats.questionable + stats.mistake;
         const goodRate = totalMoves > 0
             ? Math.round(((stats.optimal + stats.good) / totalMoves) * 100)
             : 0;
 
-        let prompt = `You are analyzing a player's domino match to identify their playing tendencies.
+        let prompt = `You are analyzing a player's domino match (4-player partnership, double-six set) to identify their playing tendencies.
 
 ## Strategic Principles to Evaluate
 
-1. **La Salida (Opening Play)** - Do they signal clearly to their partner?
-2. **Double Management** - Do they play doubles with cover or risk ahorcado (playing without follow-up)?
-3. **Partner Support** - Do they support their partner's signaled suit or play selfishly?
-4. **Blocking (Darle Pase)** - Do they exploit opponent weaknesses and force passes?
-5. **Pip Management** - Do they unload high-pip tiles early in the hand?
-6. **End Control (Cuadrar)** - Do they maintain favorable board positions?
+1. **La Salida (Opening Play)** - Do they signal clearly to their partner with their opening tile?
+2. **Suit Dominance** - Do they leave open suits their team controls (based on tile counts and pass information)?
+3. **Double Management** - Do they play doubles with cover, or risk ahorcado (playing without follow-up)?
+4. **Partner Support** - Do they support their partner's signaled suit, especially early in the hand?
+5. **Own Suit Protection** - Do they protect their own signaled suit, or kill it carelessly?
+6. **Firme (La Puerta)** - Do they preserve guaranteed plays when they hold all remaining tiles of a suit on an open end?
+7. **Blocking (Darle Pase / Cuadrar)** - Do they exploit opponent pass history to force passes or square the board?
+8. **Pip Management** - Do they unload high-pip tiles early to minimize risk if the hand is blocked?
+9. **Hand Flexibility** - Do they maintain diverse playable values, or let their hand become one-dimensional?
+10. **Pace Control** - Do they play defensively when opponents are close to winning, and aggressively when partner is close?
 
 ## Match Statistics
 
@@ -181,12 +190,16 @@ ${JSON.stringify(matchData, null, 2)}
 
 ## Your Task
 
-Provide a 2-3 paragraph analysis of this player's tendencies, strengths, and areas for improvement. Use traditional domino terminology where appropriate (la salida, ahorcado, darle pase, cuadrar, la puerta). Be specific about patterns you observe and give actionable advice.
+Provide a 2-3 paragraph analysis of this player's tendencies, strengths, and areas for improvement. Use traditional domino terminology where appropriate (la salida, ahorcado, darle pase, cuadrar, firme). Be specific about patterns you observe and give actionable advice.
 
 Focus on:
 1. What they do well
 2. Specific patterns in their mistakes
 3. One or two concrete improvements they could make`;
+
+        if (language === 'es') {
+            prompt += '\n\nIMPORTANT: Respond entirely in Spanish.';
+        }
 
         return prompt;
     }
