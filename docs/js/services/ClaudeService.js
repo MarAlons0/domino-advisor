@@ -114,9 +114,19 @@ export class ClaudeService {
             }
 
             const data = await response.json();
-            const analysis = data.content[0]?.text || 'No analysis generated';
 
-            return { success: true, analysis: analysis, error: null };
+            // Handle different response shapes from proxy vs direct API
+            const text = data?.content?.[0]?.text      // Anthropic API format
+                      || data?.text                     // Simplified proxy format
+                      || data?.message                  // Error format
+                      || null;
+
+            if (!text) {
+                console.error('Unexpected API response shape:', data);
+                return { success: false, analysis: null, error: 'Unexpected response format from API' };
+            }
+
+            return { success: true, analysis: text, error: null };
         } catch (error) {
             return {
                 success: false,
