@@ -279,11 +279,8 @@ export class Game {
         // Remember who won for next hand
         if (dominoPlayer !== null) {
             this.state.lastHandWinner = dominoPlayer;
-        } else if (closingPlayer !== null) {
-            // Closed game: closing player leads next hand
-            this.state.lastHandWinner = closingPlayer;
         } else if (result.winningTeam >= 0) {
-            // Blocked: winning team's first player leads
+            // Closed/blocked: winning team's first player leads
             this.state.lastHandWinner = result.winningTeam === 0 ? 0 : 1;
         }
 
