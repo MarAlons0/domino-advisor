@@ -3,14 +3,17 @@ import { GameState } from '../models/GameState.js';
 /**
  * StrategicExplainer - Generates rich, contextual explanations using traditional domino terminology.
  *
+ * Aligned with SmartAI's 9 scoring factors:
+ *   suitDominance, doubleManagement, partnerSupport, ownSuitProtection,
+ *   firmeProtection, blockingPotential, pipManagement, handFlexibility, paceControl
+ *
  * Traditional Terms:
  * - La Salida: Opening play that signals strategy to partner
  * - Ahorcado: Playing a double without cover (risky)
  * - Darle Pase: Forcing an opponent to pass
  * - Cuadrar: Squaring the board (both ends have the same value)
- * - La Puerta: Holding the last tile of a suit (complete control)
+ * - La Puerta / Firme: Holding all remaining tiles of a suit on an open end
  * - Cover: Having follow-up plays after playing a double
- * - Repeat: Playing to keep your strong suit open
  */
 export class StrategicExplainer {
     constructor() {
@@ -19,8 +22,6 @@ export class StrategicExplainer {
 
     /**
      * Set context for explanations
-     * @param {GameState} gameState
-     * @param {SmartAI} smartAI
      */
     setContext(gameState, smartAI) {
         const chain = gameState.chain;
@@ -37,11 +38,6 @@ export class StrategicExplainer {
         };
     }
 
-    /**
-     * Determine the game phase
-     * @param {number} tilesPlayed
-     * @returns {string}
-     */
     _determinePhase(tilesPlayed) {
         if (tilesPlayed === 0) return 'opening';
         if (tilesPlayed <= 4) return 'early';
@@ -49,25 +45,19 @@ export class StrategicExplainer {
         return 'late';
     }
 
-    /**
-     * Determine score position
-     * @param {GameState} gameState
-     * @returns {string}
-     */
     _determineScorePosition(gameState) {
         const ourScore = gameState.scores.match[0];
         const theirScore = gameState.scores.match[1];
         const diff = ourScore - theirScore;
-
         if (Math.abs(diff) < 20) return 'close';
         if (diff > 0) return 'leading';
         return 'trailing';
     }
 
     /**
-     * Generate a strategic explanation for a move
-     * @param {object} move - The move {tile, end}
-     * @param {object} score - The score from SmartAI.scoreMove()
+     * Generate a rich strategic explanation for a move (used in debrief for human evaluation).
+     * @param {object} move - {tile, end}
+     * @param {object} score - {total, factors} from SmartAI.scoreMove()
      * @param {GameState} gameState
      * @param {number} playerIndex
      * @param {SmartAI} smartAI
@@ -82,109 +72,195 @@ export class StrategicExplainer {
         const factors = score.factors;
         const partnerIndex = GameState.getPartner(playerIndex);
 
-        // Build explanation parts
         const parts = [];
 
-        // Check for opening play (La Salida)
+        // --- Opening play (La Salida) ---
         if (chain.isEmpty()) {
-            parts.push(this._explainSalida(tile, playerIndex, smartAI));
+            parts.push(this._explainSalida(tile));
         }
 
-        // Check for double with/without cover (Ahorcado)
+        // --- Double management (Ahorcado) ---
         if (tile.isDouble()) {
-            parts.push(this._explainDoublePlaying(tile, hand, smartAI, chain));
+            parts.push(this._explainDouble(tile, hand, smartAI));
         }
 
-        // Check for blocking play (Darle Pase)
+        // --- Suit dominance ---
+        if (Math.abs(factors.suitDominance) >= 15) {
+            const newEnd = this._getNewEnd(tile, end, chain);
+            if (newEnd !== null && newEnd !== -1) {
+                if (factors.suitDominance >= 15) {
+                    parts.push(`Your team controls ${newEnd}s — leaving this suit open is favorable.`);
+                } else {
+                    parts.push(`Opponents control ${newEnd}s — leaving this end open favors them.`);
+                }
+            }
+        }
+
+        // --- Partner support ---
+        if (factors.partnerSupport >= 15) {
+            const partnerSuit = smartAI.signaledSuits[partnerIndex];
+            if (partnerSuit !== null) {
+                parts.push(`Supporting partner's signaled suit (${partnerSuit}s).`);
+            }
+        }
+
+        // --- Own suit protection ---
+        if (factors.ownSuitProtection >= 15) {
+            const ownSuit = smartAI.signaledSuits[playerIndex];
+            if (ownSuit !== null) {
+                parts.push(`Keeping your signaled suit (${ownSuit}s) open on the board.`);
+            }
+        } else if (factors.ownSuitProtection <= -15) {
+            const ownSuit = smartAI.signaledSuits[playerIndex];
+            if (ownSuit !== null) {
+                parts.push(`Warning: this kills your own signaled suit (${ownSuit}s).`);
+            }
+        }
+
+        // --- Firme protection (La Puerta) ---
+        if (factors.firmeProtection >= 15) {
+            parts.push(`**Firme** — you hold all remaining tiles on that end, guaranteeing future plays.`);
+        } else if (factors.firmeProtection <= -15) {
+            parts.push(`Spending a **firme** tile — you lose guaranteed plays on that end.`);
+        }
+
+        // --- Blocking (Darle Pase / Cuadrar) ---
         if (factors.blockingPotential >= 15) {
             parts.push(this._explainBlocking(move, gameState, playerIndex, smartAI));
         }
 
-        // Check for squaring the board (Cuadrar)
         if (this._willSquareBoard(tile, end, chain)) {
-            parts.push(this._explainCuadrar(tile, end, chain, gameState, smartAI));
+            parts.push(this._explainCuadrar(tile, end, chain, gameState, playerIndex, smartAI));
         }
 
-        // Check for La Puerta (holding last tile of suit)
-        const newEnd = this._getNewEnd(tile, end, chain);
-        if (newEnd !== null && smartAI.isSuitNearlyDead(newEnd)) {
-            const remaining = smartAI.getRemainingInSuit(newEnd);
-            if (remaining === 1 && this._playerHoldsLastOfSuit(hand, newEnd, tile)) {
-                parts.push(`**La Puerta** - You hold the last ${newEnd}, giving you complete control of this suit.`);
-            }
-        }
-
-        // Check for partner support
-        if (factors.partnerSupport >= 15) {
-            const partnerSuit = smartAI.signaledSuits[partnerIndex];
-            if (partnerSuit !== null) {
-                parts.push(`Supporting partner's signaled suit (${partnerSuit}).`);
-            }
-        }
-
-        // Check for repeat play (keeping strong suit open)
-        if (factors.suitStrength >= 20) {
-            const suitCount = Math.max(
-                smartAI.countSuitInHand(hand, tile.high),
-                smartAI.countSuitInHand(hand, tile.low)
-            );
-            if (suitCount >= 3) {
-                parts.push(`**Repeat** - Playing from your strong suit (${suitCount} tiles with this value).`);
-            }
-        }
-
-        // Check for pip management
+        // --- Pip management ---
         if (factors.pipManagement >= 10 && this.context.phase !== 'late') {
             parts.push(`Unloading high-pip tile early (${tile.pipCount()} pips).`);
         }
 
-        // Check for end control
-        if (factors.endControl >= 10) {
-            parts.push(`Maintaining favorable board position.`);
+        // --- Hand flexibility ---
+        if (factors.handFlexibility >= 18) {
+            parts.push(`Keeps your hand flexible — many distinct values remain.`);
         }
 
-        // Check for avoiding dead suits
-        if (factors.avoidDeadSuits < 0) {
-            parts.push(`Avoiding leaving a dead suit open.`);
+        // --- Pace control ---
+        if (factors.paceControl >= 10) {
+            const opponents = smartAI.getOpponents(playerIndex);
+            const minOppTiles = Math.min(
+                gameState.hands[opponents[0]].size(),
+                gameState.hands[opponents[1]].size()
+            );
+            if (minOppTiles <= 2) {
+                parts.push(`Defensive play — leaving values opponents lack to slow them down.`);
+            } else {
+                parts.push(`Opening the game for partner who's close to winning.`);
+            }
         }
 
-        // If no specific strategic reason, give a general one
+        // --- Fallback ---
         if (parts.length === 0) {
-            parts.push(this._getGeneralExplanation(score, this.context.phase));
+            parts.push(this._getGeneralExplanation(factors));
         }
 
         return parts.join(' ');
     }
 
     /**
-     * Explain the opening play (La Salida)
+     * Generate a concise explanation for AI moves in the game log.
+     * Priority order: most distinctive strategic reason wins.
      */
-    _explainSalida(tile, playerIndex, smartAI) {
-        if (tile.isDouble()) {
-            return `**La Salida** - Opening with double ${tile.high} signals this as your strong suit to your partner.`;
+    explainBrief(move, score, gameState, playerIndex, smartAI) {
+        this.setContext(gameState, smartAI);
+
+        const { tile, end } = move;
+        const chain = gameState.chain;
+        const hand = gameState.hands[playerIndex];
+        const factors = score.factors;
+
+        // 1. Opening play
+        if (chain.isEmpty()) {
+            if (tile.isDouble()) return `La Salida (double ${tile.high})`;
+            return `La Salida (signals ${tile.high})`;
         }
-        return `**La Salida** - Opening with ${tile.toString()} signals ${tile.high} as your strong suit to your partner.`;
+
+        // 2. Double management
+        if (tile.isDouble()) {
+            const hasCover = this._hasCoverForDouble(hand, tile);
+            if (!hasCover && !smartAI.isSuitNearlyDead(tile.high)) {
+                return 'Ahorcado (risky double)';
+            }
+            return 'Double with cover';
+        }
+
+        // 3. Cuadrar (squaring the board)
+        if (this._willSquareBoard(tile, end, chain)) {
+            const currentEndValue = end === 'left' ? chain.leftEnd : chain.rightEnd;
+            const squaredValue = tile.getOtherValue(currentEndValue);
+            return `Cuadrar (${squaredValue})`;
+        }
+
+        // 4. Firme (guaranteed plays)
+        if (factors.firmeProtection >= 15) return 'Preserving firme';
+        if (factors.firmeProtection <= -25) return 'Spending firme (forced)';
+
+        // 5. Blocking
+        if (factors.blockingPotential >= 20) return 'Darle pase (blocking)';
+
+        // 6. Pace control (defensive/aggressive)
+        if (factors.paceControl >= 10) {
+            const opponents = smartAI.getOpponents(playerIndex);
+            const minOppTiles = Math.min(
+                gameState.hands[opponents[0]].size(),
+                gameState.hands[opponents[1]].size()
+            );
+            if (minOppTiles <= 2) return 'Defensive (opp close)';
+            return 'Opening for partner';
+        }
+
+        // 7. Partner support
+        if (factors.partnerSupport >= 15) return 'Partner support';
+
+        // 8. Own suit protection
+        if (factors.ownSuitProtection >= 15) return 'Protecting own suit';
+        if (factors.ownSuitProtection <= -15) return 'Kills own suit (tradeoff)';
+
+        // 9. Suit dominance
+        if (factors.suitDominance >= 25) return 'Team controls suit';
+        if (factors.suitDominance <= -25) return 'Avoiding opponent suit';
+
+        // 10. Pip management
+        if (factors.pipManagement >= 10 && this.context.phase !== 'late') {
+            return `High pips (${tile.pipCount()})`;
+        }
+
+        // 11. Flexibility
+        if (factors.handFlexibility >= 18) return 'Keeps flexibility';
+
+        return 'Best option';
     }
 
-    /**
-     * Explain playing a double (with or without cover - Ahorcado)
-     */
-    _explainDoublePlaying(tile, hand, smartAI, chain) {
+    // ==================== Helpers ====================
+
+    _explainSalida(tile) {
+        if (tile.isDouble()) {
+            return `**La Salida** — Opening with double ${tile.high} signals this as your strong suit to your partner.`;
+        }
+        return `**La Salida** — Opening with ${tile.toString()} signals ${tile.high} as your strong suit to your partner.`;
+    }
+
+    _explainDouble(tile, hand, smartAI) {
         const hasCover = this._hasCoverForDouble(hand, tile);
         const suitNearlyDead = smartAI.isSuitNearlyDead(tile.high);
 
         if (hasCover) {
-            return `Playing double ${tile.high} with **cover** - you have follow-up plays in this suit.`;
+            return `Playing double ${tile.high} with **cover** — you have follow-up plays in this suit.`;
         } else if (suitNearlyDead) {
-            return `Playing double ${tile.high} - suit is nearly exhausted, low risk of getting stuck.`;
+            return `Playing double ${tile.high} — suit is nearly exhausted, low risk.`;
         } else {
-            return `**Ahorcado** - Playing double ${tile.high} without cover is risky, but necessary here.`;
+            return `**Ahorcado** — Playing double ${tile.high} without cover is risky, but necessary here.`;
         }
     }
 
-    /**
-     * Explain a blocking play (Darle Pase)
-     */
     _explainBlocking(move, gameState, playerIndex, smartAI) {
         const { tile, end } = move;
         const chain = gameState.chain;
@@ -199,33 +275,24 @@ export class StrategicExplainer {
         }
 
         if (blockedPlayers.length > 0) {
-            return `**Darle pase** - Forcing ${blockedPlayers.join(' and ')} to pass (they lack ${newEnd}s).`;
+            return `**Darle pase** — Forcing ${blockedPlayers.join(' and ')} to pass (they lack ${newEnd}s).`;
         }
-        return `**Darle pase** - Leaving an unfavorable end for opponents.`;
+        return `**Darle pase** — Leaving an unfavorable end for opponents.`;
     }
 
-    /**
-     * Check if a move will square the board
-     */
     _willSquareBoard(tile, end, chain) {
         if (chain.isEmpty()) return false;
-
         const currentEndValue = end === 'left' ? chain.leftEnd : chain.rightEnd;
         const otherEnd = end === 'left' ? chain.rightEnd : chain.leftEnd;
         const newEndValue = tile.getOtherValue(currentEndValue);
-
         return newEndValue === otherEnd;
     }
 
-    /**
-     * Explain squaring the board (Cuadrar)
-     */
-    _explainCuadrar(tile, end, chain, gameState, smartAI) {
+    _explainCuadrar(tile, end, chain, gameState, playerIndex, smartAI) {
         const currentEndValue = end === 'left' ? chain.leftEnd : chain.rightEnd;
         const squaredValue = tile.getOtherValue(currentEndValue);
+        const opponents = smartAI.getOpponents(playerIndex);
 
-        // Check if this is strategic (opponents lack this suit)
-        const opponents = smartAI.getOpponents(0); // Human is always player 0
         let isStrategic = false;
         for (const opp of opponents) {
             if (gameState.passHistory[opp].has(squaredValue) ||
@@ -236,122 +303,42 @@ export class StrategicExplainer {
         }
 
         if (isStrategic) {
-            return `**Cuadrar** - Squaring the board on ${squaredValue} traps opponents who lack this suit.`;
+            return `**Cuadrar** — Squaring the board on ${squaredValue} traps opponents who lack this suit.`;
         }
-        return `**Cuadrar** - Squaring the board on ${squaredValue}.`;
+        return `**Cuadrar** — Squaring the board on ${squaredValue}.`;
     }
 
-    /**
-     * Get the new end value after a play
-     */
     _getNewEnd(tile, end, chain) {
-        if (chain.isEmpty()) {
-            return tile.high; // First play, high value is right end
-        }
+        if (chain.isEmpty()) return tile.high;
         const currentEndValue = end === 'left' ? chain.leftEnd : chain.rightEnd;
         return tile.getOtherValue(currentEndValue);
     }
 
-    /**
-     * Check if hand has cover for a double
-     */
     _hasCoverForDouble(hand, doubleTile) {
         const value = doubleTile.high;
-        const tilesWithValue = hand.getTiles().filter(t =>
-            t.hasValue(value) && !t.equals(doubleTile)
-        );
-        return tilesWithValue.length > 0;
+        return hand.getTiles().some(t => t.hasValue(value) && !t.equals(doubleTile));
     }
 
     /**
-     * Check if player holds the last tile of a suit (after playing the given tile)
+     * General explanation based on the top scoring factors.
      */
-    _playerHoldsLastOfSuit(hand, suitValue, excludeTile) {
-        const tilesWithSuit = hand.getTiles().filter(t =>
-            t.hasValue(suitValue) && !t.equals(excludeTile)
-        );
-        return tilesWithSuit.length === 1;
-    }
-
-    /**
-     * Get a general explanation based on score factors
-     */
-    _getGeneralExplanation(score, phase) {
+    _getGeneralExplanation(factors) {
         const dominated = [];
-        const factors = score.factors;
 
-        if (factors.suitStrength >= 20) dominated.push('strong suit');
+        if (factors.suitDominance >= 15) dominated.push('suit dominance');
+        if (factors.suitDominance <= -15) dominated.push('avoiding opponent suit');
         if (factors.doubleManagement >= 20) dominated.push('unload double safely');
         if (factors.partnerSupport >= 10) dominated.push('partner support');
-        if (factors.endControl >= 10) dominated.push('end control');
-        if (factors.tileCountingBonus >= 10) dominated.push('good suit availability');
+        if (factors.ownSuitProtection >= 10) dominated.push('own suit protection');
+        if (factors.firmeProtection >= 10) dominated.push('preserving firme');
+        if (factors.blockingPotential >= 10) dominated.push('blocking potential');
+        if (factors.handFlexibility >= 15) dominated.push('hand flexibility');
+        if (factors.paceControl >= 10) dominated.push('pace control');
 
         if (dominated.length === 0) {
             return 'Best available move based on current position.';
         }
 
         return `Strategic advantages: ${dominated.join(', ')}.`;
-    }
-
-    /**
-     * Generate a concise explanation for AI moves in the game log
-     * @param {object} move - The move {tile, end, reasoning}
-     * @param {object} score - The score from SmartAI.scoreMove()
-     * @param {GameState} gameState
-     * @param {number} playerIndex
-     * @param {SmartAI} smartAI
-     * @returns {string}
-     */
-    explainBrief(move, score, gameState, playerIndex, smartAI) {
-        this.setContext(gameState, smartAI);
-
-        const { tile, end } = move;
-        const chain = gameState.chain;
-        const hand = gameState.hands[playerIndex];
-        const factors = score.factors;
-
-        // Priority order for brief explanations
-        if (chain.isEmpty()) {
-            if (tile.isDouble()) {
-                return `La Salida (double ${tile.high})`;
-            }
-            return `La Salida (signals ${tile.high})`;
-        }
-
-        if (tile.isDouble()) {
-            const hasCover = this._hasCoverForDouble(hand, tile);
-            if (!hasCover && !smartAI.isSuitNearlyDead(tile.high)) {
-                return 'Ahorcado (risky double)';
-            }
-            return 'Double with cover';
-        }
-
-        if (factors.blockingPotential >= 20) {
-            return 'Darle pase (blocking)';
-        }
-
-        if (this._willSquareBoard(tile, end, chain)) {
-            const currentEndValue = end === 'left' ? chain.leftEnd : chain.rightEnd;
-            const squaredValue = tile.getOtherValue(currentEndValue);
-            return `Cuadrar (${squaredValue})`;
-        }
-
-        if (factors.partnerSupport >= 15) {
-            return 'Partner support';
-        }
-
-        if (factors.suitStrength >= 20) {
-            return 'Strong suit repeat';
-        }
-
-        if (factors.pipManagement >= 10 && this.context.phase !== 'late') {
-            return `High pips (${tile.pipCount()})`;
-        }
-
-        if (factors.endControl >= 10) {
-            return 'End control';
-        }
-
-        return 'Best option';
     }
 }
