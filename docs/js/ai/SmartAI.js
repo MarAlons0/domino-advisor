@@ -407,6 +407,64 @@ export class SmartAI {
             console.log(`%cMonte Carlo: Certainty ${(info.certainty * 100).toFixed(1)}%`, 'color: #ffd93d');
         }
 
+        // HandTracker probability view
+        if (this.handTracker && info.playerIndex !== undefined) {
+            console.groupCollapsed('Tile Probability View');
+
+            // Show dead suits per player
+            const playerNames = ['You', 'Opp 1', 'Partner', 'Opp 2'];
+            const deadSuitsInfo = {};
+            for (let p = 0; p < 4; p++) {
+                const dead = Array.from(this.handTracker.deadSuits[p]);
+                if (dead.length > 0) {
+                    deadSuitsInfo[playerNames[p]] = dead.sort().join(', ');
+                }
+            }
+            if (Object.keys(deadSuitsInfo).length > 0) {
+                console.log('Dead suits (from passes):');
+                console.table(deadSuitsInfo);
+            }
+
+            // Suit distribution: estimated count per suit per player
+            const suitTable = [];
+            for (let suit = 0; suit <= 6; suit++) {
+                const row = { 'Suit': suit };
+                const remaining = this.getRemainingInSuit(suit);
+                row['Remaining'] = remaining;
+                for (let p = 0; p < 4; p++) {
+                    if (p === 0) {
+                        // Human: exact count from HandTracker
+                        let count = 0;
+                        for (const key of this.handTracker.humanHand) {
+                            const parts = key.split('-').map(Number);
+                            if (parts[0] === suit || parts[1] === suit) count++;
+                        }
+                        row[playerNames[p]] = count;
+                    } else {
+                        row[playerNames[p]] = Math.round(this._estimateSuitCount(p, suit) * 10) / 10;
+                    }
+                }
+                suitTable.push(row);
+            }
+            console.log('Estimated suit counts per player:');
+            console.table(suitTable);
+
+            // Most likely tiles per computer player
+            for (let p = 1; p <= 3; p++) {
+                const facts = this.handTracker.getKnownFacts(p);
+                const likely = this.handTracker.getMostLikely(p, facts.tileCount);
+                if (likely.length > 0) {
+                    console.groupCollapsed(`${playerNames[p]} (${facts.tileCount} tiles, ${facts.possibleTileCount} possible)`);
+                    console.table(likely.map(t => ({
+                        'Tile': t.tile.toString(),
+                        'P': Math.round(t.probability * 100) + '%'
+                    })));
+                    console.groupEnd();
+                }
+            }
+            console.groupEnd();
+        }
+
         // Scored moves table
         if (info.scoredMoves && info.scoredMoves.length > 0) {
             const hasMC = info.scoredMoves[0].mcScore !== undefined;

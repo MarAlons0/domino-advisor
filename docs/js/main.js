@@ -902,7 +902,7 @@ class DominoApp {
         container.appendChild(badge);
 
         // Remove after animation completes
-        setTimeout(() => badge.remove(), 2000);
+        setTimeout(() => badge.remove(), 4000);
     }
 
     logHandSeparator() {
