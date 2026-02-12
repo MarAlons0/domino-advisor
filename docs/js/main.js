@@ -7,7 +7,11 @@ import { DebriefUI } from './ui/DebriefUI.js';
 import { SettingsUI } from './ui/SettingsUI.js';
 import { QuizStorage } from './services/QuizStorage.js';
 import { Tile } from './models/Tile.js';
+import { ProbabilityAnalyzer } from './ai/ProbabilityAnalyzer.js';
 import { t, i18n } from './i18n/i18n.js';
+
+// Check for debug mode via URL parameter (?debug=ai)
+const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'ai';
 
 /**
  * Pip positions for each value 0-6
@@ -95,6 +99,9 @@ class DominoApp {
         // Create per-player probability views with Bayesian suit affinity inference
         this.playerViews = [0, 1, 2, 3].map(i => new PlayerView(i, this.handTracker));
         this.ai.setPlayerViews(this.playerViews);
+
+        // Probability accuracy analyzer (debug mode only)
+        this.probAnalyzer = DEBUG_AI ? new ProbabilityAnalyzer(this.playerViews) : null;
 
         this.selectedTile = null;
         this.aiDelay = 3000; // 3 seconds per AI move
@@ -367,6 +374,13 @@ class DominoApp {
             }
             this.log(msg, `player-${data.player}`);
 
+            // Capture probability snapshot BEFORE updates (debug mode)
+            if (this.probAnalyzer) {
+                const end = data.openEndsBefore ? data.end[0].toUpperCase() : '';
+                const event = `${GameState.getPlayerName(data.player)}: ${data.tile.toString()}${end ? '→' + end : ''}`;
+                this.probAnalyzer.captureSnapshot(this.game.getState(), event);
+            }
+
             // Record this play for AI tracking (suit counts, play choice inference)
             const leftEnd = data.openEndsBefore?.left ?? null;
             const rightEnd = data.openEndsBefore?.right ?? null;
@@ -394,6 +408,12 @@ class DominoApp {
             // Show pass badge on the player's position
             this.showPassBadge(data.player);
 
+            // Capture probability snapshot BEFORE updates (debug mode)
+            if (this.probAnalyzer) {
+                const event = `${GameState.getPlayerName(data.player)}: pass`;
+                this.probAnalyzer.captureSnapshot(this.game.getState(), event);
+            }
+
             // Record this pass for AI tracking (inferred dead suits)
             this.ai.recordPass(data.player, leftEnd, rightEnd);
 
@@ -402,10 +422,17 @@ class DominoApp {
         };
 
         this.game.onHandEnd = (data) => {
+            // Analyze probability accuracy before showing results (debug mode)
+            if (this.probAnalyzer) {
+                this.probAnalyzer.analyzeAndLog(this.game.getState().hands);
+            }
             this.showHandEndMessage(data);
         };
 
         this.game.onMatchEnd = (data) => {
+            if (this.probAnalyzer) {
+                this.probAnalyzer.logMatchSummary();
+            }
             this.showMatchEndMessage(data);
         };
 
@@ -419,6 +446,7 @@ class DominoApp {
         this.clearLog();
         this.log(t('log.newMatch'), 'system');
         this.ai.resetForNewHand();
+        if (this.probAnalyzer) this.probAnalyzer.resetMatch();
         this.game.newMatch();
 
         // Initialize hand tracker with human's hand
@@ -882,6 +910,7 @@ class DominoApp {
         } else if (state.gamePhase === 'handOver') {
             this.logHandSeparator();
             this.ai.resetForNewHand();
+            if (this.probAnalyzer) this.probAnalyzer.reset();
             this.game.newHand();
 
             // Initialize hand tracker with new human hand
