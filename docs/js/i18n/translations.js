@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v0.4.2',
+        'app.version': 'v0.4.3',
         'app.createdBy': 'Created by',
 
         // Players
@@ -220,6 +220,23 @@ export const translations = {
         'tracker.passedOnSingle': '{0}s',
         'tracker.passedOnDouble': '{0}s and {1}s',
 
+        // Advice
+        'advice.ask': 'Ask Genín',
+        'advice.playLeft': 'Play on Left',
+        'advice.playRight': 'Play on Right',
+        'advice.onlyMove': "Really? There's only one move!",
+        'advice.firstTile': 'La Salida — open strong!',
+        'advice.mustPass': 'Nothing to play — you must pass.',
+
+        // Advice detail
+        'advice.detail.cerrar': 'Cerrar on {0}s — locks the game!',
+        'advice.detail.cuadrar': 'Cuadrar on {0}s',
+        'advice.detail.oppsLack': '{0} lacks {1}s',
+        'advice.detail.oppBlocked': "{0} can't play ({1}% chance)",
+        'advice.detail.partnerSuit': "Partner's suit: {0}s",
+        'advice.detail.partnerLikely': 'Partner likely has: {0}',
+        'advice.detail.oppLikely': '{0} likely has: {1}',
+
         // Misc
         'na': 'N/A',
         'ai': 'AI',
@@ -230,7 +247,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v0.4.2',
+        'app.version': 'v0.4.3',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -442,6 +459,23 @@ export const translations = {
         'tracker.passedOn': '{0} pasó en {1}. No tiene fichas con {2}.',
         'tracker.passedOnSingle': '{0}s',
         'tracker.passedOnDouble': '{0}s y {1}s',
+
+        // Advice
+        'advice.ask': 'Pregunta a Genín',
+        'advice.playLeft': 'Juega a la Izq',
+        'advice.playRight': 'Juega a la Der',
+        'advice.onlyMove': '¿En serio? ¡Solo hay una jugada!',
+        'advice.firstTile': 'La Salida — ¡abre fuerte!',
+        'advice.mustPass': 'No hay jugada — tienes que pasar.',
+
+        // Advice detail
+        'advice.detail.cerrar': 'Cerrar en {0}s — ¡tranca el juego!',
+        'advice.detail.cuadrar': 'Cuadrar en {0}s',
+        'advice.detail.oppsLack': '{0} no tiene {1}s',
+        'advice.detail.oppBlocked': '{0} no puede jugar ({1}%)',
+        'advice.detail.partnerSuit': 'Palo de pareja: {0}s',
+        'advice.detail.partnerLikely': 'Pareja probablemente tiene: {0}',
+        'advice.detail.oppLikely': '{0} probablemente tiene: {1}',
 
         // Misc
         'na': 'N/D',

@@ -113,6 +113,9 @@ class DominoApp {
         // Attribution toggle state
         this.showTileAttribution = false;
 
+        // Advice bubble state
+        this.adviceBubbleVisible = false;
+
         // UI modules
         this.debriefUI = new DebriefUI();
         this.settingsUI = new SettingsUI();
@@ -186,6 +189,16 @@ class DominoApp {
         this.helpModal = document.getElementById('help-modal');
         this.helpOverlay = document.getElementById('help-overlay');
         this.closeHelpBtn = document.getElementById('close-help-btn');
+
+        // Genín advice
+        this.geninAdviceContainer = document.getElementById('genin-advice-container');
+        this.geninAdviceBtn = document.getElementById('genin-advice-btn');
+        this.geninSpeechBubble = document.getElementById('genin-speech-bubble');
+        this.speechDomino = document.getElementById('speech-domino');
+        this.speechEnd = document.getElementById('speech-end');
+        this.speechReason = document.getElementById('speech-reason');
+        this.speechDetail = document.getElementById('speech-detail');
+        this.speechAvatar = document.getElementById('speech-avatar');
     }
 
     initUIModules() {
@@ -213,6 +226,7 @@ class DominoApp {
         // Listen for language changes to update dynamic content
         i18n.onLanguageChange(() => {
             this._updateLanguageToggle();
+            this.hideAdviceBubble();
             // Re-render chain if game is active (for open ends text)
             const state = this.game.getState();
             if (state && state.chain) {
@@ -330,6 +344,23 @@ class DominoApp {
 
         this.continueBtn.addEventListener('click', () => this.handleContinue());
         this.reviewBtn.addEventListener('click', () => this.showDebrief());
+
+        // Genín advice button
+        if (this.geninAdviceBtn) {
+            this.geninAdviceBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleAdviceBubble();
+            });
+        }
+
+        // Dismiss advice bubble on outside click
+        document.addEventListener('click', (e) => {
+            if (this.adviceBubbleVisible &&
+                !this.geninSpeechBubble.contains(e.target) &&
+                !this.geninAdviceBtn.contains(e.target)) {
+                this.hideAdviceBubble();
+            }
+        });
 
         // Attribution toggle
         if (this.attributionToggle) {
@@ -495,6 +526,9 @@ class DominoApp {
         // Update pass button
         const canPass = state.currentPlayer === 0 && state.gamePhase === 'playing' && this.game.mustPass();
         this.passBtn.disabled = !canPass;
+
+        // Update Genín advice visibility
+        this.updateGeninAdviceVisibility(state);
     }
 
     updatePlayerTileCounts(state) {
@@ -974,6 +1008,177 @@ class DominoApp {
 
     clearLog() {
         this.logContainer.innerHTML = '';
+    }
+
+    // ==================== Genín Advice Methods ====================
+
+    updateGeninAdviceVisibility(state) {
+        if (!this.geninAdviceContainer) return;
+
+        const shouldShow = state.currentPlayer === 0 &&
+                           state.gamePhase === 'playing' &&
+                           !this.game.mustPass();
+
+        this.geninAdviceContainer.style.display = shouldShow ? 'flex' : 'none';
+
+        if (!shouldShow) {
+            this.hideAdviceBubble();
+        }
+    }
+
+    toggleAdviceBubble() {
+        if (this.adviceBubbleVisible) {
+            this.hideAdviceBubble();
+            return;
+        }
+
+        const state = this.game.getState();
+        const rec = this.ai.getRecommendation(state, 0);
+
+        // Clear previous content
+        this.speechDomino.innerHTML = '';
+        this.speechEnd.textContent = '';
+        this.speechReason.classList.remove('sassy');
+        this.speechDetail.textContent = '';
+        this.speechAvatar.src = 'img/genin-advising.png';
+
+        if (!rec) {
+            // Must pass (shouldn't happen since we hide the button, but safety)
+            this.speechReason.textContent = t('advice.mustPass');
+            this.showAdviceBubble();
+            return;
+        }
+
+        // Render the recommended domino
+        const domino = createDominoFromTile(rec.tile, 'vertical');
+        this.speechDomino.appendChild(domino);
+
+        // Set end indicator
+        const endText = rec.end === 'left' ? t('advice.playLeft') : t('advice.playRight');
+        this.speechEnd.textContent = '\u2192 ' + endText;
+
+        // Determine mode: first tile, sassy, or normal
+        const isFirstTile = state.chain.isEmpty();
+        const validMoves = this.game.getValidMoves();
+        const isOnlyMove = validMoves.length === 1 && !isFirstTile;
+
+        if (isOnlyMove) {
+            // Sassy mode
+            this.speechReason.textContent = t('advice.onlyMove');
+            this.speechReason.classList.add('sassy');
+            this.speechAvatar.src = 'img/genin-thinking.png';
+        } else if (isFirstTile) {
+            // First tile mode
+            this.speechReason.textContent = t('advice.firstTile');
+        } else {
+            // Normal mode — get brief strategic explanation
+            const score = this.ai.scoreMove(rec, state, 0);
+            const briefReason = this.ai.explainer.explainBrief(rec, score, state, 0, this.ai);
+            this.speechReason.textContent = briefReason;
+            this.speechDetail.textContent = this.buildAdviceDetail(rec, state);
+        }
+
+        this.showAdviceBubble();
+    }
+
+    showAdviceBubble() {
+        if (this.geninSpeechBubble) {
+            this.geninSpeechBubble.style.display = 'block';
+        }
+        this.adviceBubbleVisible = true;
+    }
+
+    hideAdviceBubble() {
+        if (this.geninSpeechBubble) {
+            this.geninSpeechBubble.style.display = 'none';
+        }
+        this.adviceBubbleVisible = false;
+        if (this.speechReason) {
+            this.speechReason.classList.remove('sassy');
+        }
+        if (this.speechDetail) {
+            this.speechDetail.textContent = '';
+        }
+    }
+
+    buildAdviceDetail(rec, state) {
+        const chain = state.chain;
+        if (chain.isEmpty()) return '';
+
+        const lines = [];
+        const opponents = this.ai.getOpponents(0);
+        const partnerIndex = 2;
+
+        // 1. Check for cuadrar/cerrar
+        const { newLeftEnd, newRightEnd } = this.ai._getEndsAfterPlay(rec, chain);
+        if (newLeftEnd === newRightEnd) {
+            const squaredVal = newLeftEnd;
+            const currentCount = chain.countValue(squaredVal);
+            const tileAdds = rec.tile.isDouble() ? 2 : ((rec.tile.high === squaredVal ? 1 : 0) + (rec.tile.low === squaredVal ? 1 : 0));
+            const afterCount = currentCount + tileAdds;
+
+            if (afterCount >= 7) {
+                lines.push(t('advice.detail.cerrar', squaredVal));
+            } else {
+                lines.push(t('advice.detail.cuadrar', squaredVal));
+            }
+
+            for (const opp of opponents) {
+                const facts = this.handTracker.getKnownFacts(opp);
+                if (facts.deadSuits.includes(squaredVal)) {
+                    lines.push(t('advice.detail.oppsLack', GameState.getPlayerName(opp), squaredVal));
+                } else {
+                    const blockProb = Math.round(this.handTracker.getBlockingProbability(opp, squaredVal, squaredVal) * 100);
+                    if (blockProb >= 40) {
+                        lines.push(t('advice.detail.oppBlocked', GameState.getPlayerName(opp), blockProb));
+                    }
+                }
+            }
+            return lines.join('\n');
+        }
+
+        // 2. Check for blocking (opponent lacks a new end value)
+        for (const opp of opponents) {
+            const deadSuits = this.ai.inferredDeadSuits[opp];
+            if (deadSuits.has(newLeftEnd) || deadSuits.has(newRightEnd)) {
+                const lackVal = deadSuits.has(newLeftEnd) ? newLeftEnd : newRightEnd;
+                lines.push(t('advice.detail.oppsLack', GameState.getPlayerName(opp), lackVal));
+            }
+        }
+        if (lines.length > 0) return lines.join('\n');
+
+        // 3. Partner support — show partner's likely tiles if their suit is relevant
+        const partnerSuit = this.ai.signaledSuits[partnerIndex];
+        if (partnerSuit !== null) {
+            const partnerFacts = this.handTracker.getKnownFacts(partnerIndex);
+            if (partnerFacts.tileCount > 0) {
+                const likely = this.handTracker.getMostLikely(partnerIndex, partnerFacts.tileCount);
+                const inSuit = likely.filter(entry => entry.tile.hasValue(partnerSuit) && entry.probability >= 0.3);
+                if (inSuit.length > 0) {
+                    const tileStr = inSuit.slice(0, 3).map(entry => entry.tile.toString()).join(' ');
+                    lines.push(t('advice.detail.partnerSuit', partnerSuit));
+                    lines.push(t('advice.detail.partnerLikely', tileStr));
+                }
+            }
+        }
+        if (lines.length > 0) return lines.join('\n');
+
+        // 4. Late game — show estimated opponent likely tiles
+        if (chain.size() >= 16) {
+            for (const opp of opponents) {
+                const facts = this.handTracker.getKnownFacts(opp);
+                if (facts.tileCount > 0 && facts.tileCount <= 3) {
+                    const likely = this.handTracker.getMostLikely(opp, facts.tileCount);
+                    const topTiles = likely.filter(entry => entry.probability >= 0.3);
+                    if (topTiles.length > 0) {
+                        const tileStr = topTiles.map(entry => entry.tile.toString()).join(' ');
+                        lines.push(t('advice.detail.oppLikely', GameState.getPlayerName(opp), tileStr));
+                    }
+                }
+            }
+        }
+
+        return lines.join('\n');
     }
 
     // ==================== Quiz Modal Methods ====================
