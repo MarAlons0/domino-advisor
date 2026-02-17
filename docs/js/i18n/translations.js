@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v0.4.3',
+        'app.version': 'v0.4.4',
         'app.createdBy': 'Created by',
 
         // Players
@@ -236,6 +236,9 @@ export const translations = {
         'advice.detail.partnerSuit': "Partner's suit: {0}s",
         'advice.detail.partnerLikely': 'Partner likely has: {0}',
         'advice.detail.oppLikely': '{0} likely has: {1}',
+        'advice.detail.firme': 'You are firme on {0}s ({1} tiles)',
+        'advice.detail.firmePreserve': 'Keeps your firme on {0}s',
+        'advice.detail.firmeSpend': 'Spends your firme on {0}s!',
 
         // Misc
         'na': 'N/A',
@@ -247,7 +250,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v0.4.3',
+        'app.version': 'v0.4.4',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -476,6 +479,9 @@ export const translations = {
         'advice.detail.partnerSuit': 'Palo de pareja: {0}s',
         'advice.detail.partnerLikely': 'Pareja probablemente tiene: {0}',
         'advice.detail.oppLikely': '{0} probablemente tiene: {1}',
+        'advice.detail.firme': 'Estás firme en {0}s ({1} fichas)',
+        'advice.detail.firmePreserve': 'Mantiene tu firme en {0}s',
+        'advice.detail.firmeSpend': '¡Gasta tu firme en {0}s!',
 
         // Misc
         'na': 'N/D',

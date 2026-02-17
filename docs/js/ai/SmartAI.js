@@ -913,15 +913,18 @@ export class SmartAI {
             }
         }
 
-        // 3. PARTNER SUPPORT - support partner's signaled suit
+        // 3. PARTNER SUPPORT - keep partner's signaled suit open on the board
         // Modulated by who's leading: amplify when partner leads, reduce when I lead
         const partnerSuit = this.signaledSuits[partnerIndex];
-        if (partnerSuit !== null && !this.killedOwnSuit[partnerIndex]) {
-            if (tile.hasValue(partnerSuit)) {
-                factors.partnerSupport = 15;
-            }
-            if (newEndValue === partnerSuit) {
-                factors.partnerSupport += 10; // Leaving partner's suit open
+        if (partnerSuit !== null && !this.killedOwnSuit[partnerIndex] && !chain.isEmpty()) {
+            const { newLeftEnd: pNewLeft, newRightEnd: pNewRight } = this._getEndsAfterPlay(move, chain);
+            const partnerSuitStillOpen = (pNewLeft === partnerSuit || pNewRight === partnerSuit);
+            const partnerSuitWasOpen = (chain.leftEnd === partnerSuit || chain.rightEnd === partnerSuit);
+
+            if (partnerSuitStillOpen) {
+                factors.partnerSupport = 20; // Good: partner's suit remains open
+            } else if (partnerSuitWasOpen) {
+                factors.partnerSupport = -25; // Bad: we killed partner's suit
             }
 
             // Adjust based on who's leading on the team

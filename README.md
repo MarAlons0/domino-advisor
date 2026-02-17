@@ -139,7 +139,7 @@ When no priority triggers, the AI scores every valid move using 9 strategic fact
 |--------|-------------|-------------|
 | **Suit Dominance** | -50 to +50 | `((myTeam - oppTeam) / remaining) × 50`. Team-aware: uses HandTracker to estimate who controls the suit. Negative when opponents dominate (e.g., their salida + partner passed). |
 | **Double Management** | -15 to +25 | +25 if double has cover (other tiles in suit), -15 if exposed, +10 if suit nearly dead |
-| **Partner Support** | 0-37 | +15 for playing partner's suit, +10 for leaving it open. ×1.5 when partner leads (fewer tiles), ×0.5 when I lead. |
+| **Partner Support** | -37 to +30 | +20 if partner's suit stays open after the move, -25 if the move kills partner's open suit. ×1.5 when partner leads (fewer tiles), ×0.5 when I lead. |
 | **Own Suit Protection** | -25 to +20 | +20 for keeping own salida open, -25 for killing it. ×0.5 when partner leads (defer to them). |
 | **Firme Protection** | -35 to +40 | A "firme" = you hold ALL remaining tiles of a suit on an open end. -35 for spending last firme tile, +10 to +40 for preserving it (scaled by count). |
 | **Blocking Potential** | 0-70+ | +20 per opponent who passed on the new end value, +15 per inferred dead suit (×2 opponents) |
@@ -153,7 +153,7 @@ When no priority triggers, the AI scores every valid move using 9 strategic fact
 
 **Hand Flexibility** is separate from Suit Dominance. A hand with [5|3], [5|4], [5|1], [5|0] has great dominance in 5s but terrible flexibility - only two distinct non-5 values. This factor penalizes moves that reduce your breadth of playable values.
 
-**Lead/Follow Dynamics** modulate Partner Support and Own Suit Protection. When partner is leading (fewer tiles), support is amplified ×1.5 and own suit protection drops to ×0.5 - the AI defers to whoever is closer to winning. When I'm leading, support drops to ×0.5 so I focus on finishing rather than helping.
+**Lead/Follow Dynamics** modulate Partner Support and Own Suit Protection. When partner is leading (fewer tiles), support is amplified ×1.5 and own suit protection drops to ×0.5 — the AI defers to whoever is closer to winning. When I'm leading, support drops to ×0.5 so I focus on finishing rather than helping. Partner Support is now board-position-aware: it checks whether partner's suit remains open on the chain after the move, and penalizes moves that close it (-25).
 
 **Firme Protection** rewards preserving guaranteed plays. When you hold ALL remaining tiles of a suit on an open end (a "firme"), you have guaranteed future plays on that end. Spending the last firme tile (-35) is heavily penalized since it eliminates the advantage entirely. Playing on the other end while preserving the firme earns a bonus scaled by how many firme tiles you hold (+15 to +40). This is separate from Suit Dominance because a firme is a binary condition (you either own the entire suit remainder or you don't).
 
@@ -294,23 +294,23 @@ PlayerView[0..3] (per-player probability adapter)
 
 ## Bayesian Suit Affinity Model
 
-> **Status (v0.4.2):** Affinities are temporarily disabled pending calibration. Brier score analysis showed the previous weights (2.0x/1.5x/1.2x/0.85x) degraded prediction accuracy. Empirical measurement of salida suit correlation shows ~1.2x signal strength, significantly less than the 2.0x weight that was used.
+Each `(player, suit)` pair has a multiplier `A[player][suit]`, initialized to 1.0 per hand. Affinities are updated from observed play patterns and used to weight both heuristic probabilities and Monte Carlo deal sampling.
 
-Each `(player, suit)` pair has a multiplier `A[player][suit]`, initialized to 1.0 per hand.
+| Event | Weight | Description |
+|-------|--------|-------------|
+| Salida with double [V\|V] | 2.0x | Strong signal: player chose to open with this suit |
+| Salida non-double (introduces V) | 1.5x | Moderate signal for both suit values |
+| Subsequent play introduces V | 1.2x | Mild signal: player introduced a new value to the chain |
+| End avoidance (could play B, chose A) | 0.85x | Mild negative: player avoided a suit they could have played |
 
-| Event | Old Weight | Measured Signal | Status |
-|-------|-----------|----------------|--------|
-| Salida with double [V\|V] | 2.0x | ~1.2x | Pending recalibration |
-| Salida non-double (introduces V) | 1.5x | ~1.2x | Pending recalibration |
-| Subsequent play introduces V | 1.2x | Not measured | Disabled |
-| End avoidance (could play B, chose A) | 0.85x | Not measured | Disabled |
-
-Affinities are clamped to [0.1, 5.0]. When enabled, probability formula for tile T with values (H, L), target player P:
+Affinities are clamped to [0.1, 5.0]. The probability formula for tile T with values (H, L), target player P:
 
 1. `base(P, T) = tileCounts[P] / possibleTilesForPlayer(P)`
 2. `affinity(P, T) = sqrt(A[P][H] × A[P][L])` (geometric mean; for doubles just `A[P][V]`)
 3. `raw(P, T) = base(P, T) × affinity(P, T)`
 4. Normalize per tile: `P(P has T) = raw(P, T) / Σ raw(Q, T)` across all possible holders Q
+
+Affinities also weight the Monte Carlo deal sampler: when assigning unknown tiles to players, each eligible player's selection probability is proportional to their affinity for that tile rather than uniform. This produces sampled deals that reflect behavioral signals, not just structural constraints.
 
 ---
 
@@ -429,32 +429,59 @@ finalScore = (1 - certainty) * staticScore + certainty * mcScore
 
 ## Probability-Weighted Sampling
 
-Instead of uniform random sampling, hands are generated proportionally to HandTracker probabilities:
+Instead of uniform random sampling, hands are generated using **affinity-weighted selection**:
 
 ```javascript
 for (tile of unknownTiles) {
-    // Get probability each player holds this tile
-    probs = [handTracker.getProbability(p, tile) for p in [1,2,3]]
+    // Filter to eligible players (in possible holders AND still need tiles)
+    eligible = players.filter(p => canHold(p, tile) && needsTiles(p))
 
-    // Weighted random selection respecting tile counts
-    selectedPlayer = weightedRandomSelect(players, probs)
+    // Weight by suit affinity: sqrt(A[player][high] × A[player][low])
+    weights = eligible.map(p => getTileAffinity(p, tile))
+
+    // Weighted random selection
+    selectedPlayer = weightedRandomSelect(eligible, weights)
     assignTileToPlayer(tile, selectedPlayer)
 }
 ```
 
-This means simulations reflect our **best knowledge**, not random possibilities
+This means simulations reflect **behavioral signals** (salida choice, suit introduction, end avoidance) in addition to structural constraints (passes, tile counts). The affinity weights are mild (typically 0.85x–1.5x), so they nudge sampling without overriding hard constraints.
 
 ---
 
 # Features
 
 - **Partnership Dominoes**: 4-player teams (You + Partner vs. Opponents)
-- **Smart AI**: Priority-based decisions with weighted scoring
+- **Smart AI**: Priority-based decisions with weighted scoring and Monte Carlo look-ahead
+- **Genín Coach**: Ask Genín for move advice with strategic explanations — firme detection, cuadrar/cerrar analysis, opponent reads, and partner support guidance
+- **Bayesian Inference**: AI tracks suit affinities from play patterns (salida, suit introduction, end avoidance) to sharpen probability estimates
 - **Quiz Mode**: Test your ability to predict opponent hands
 - **Debrief**: Post-match analysis with play-by-play review
 - **Claude Integration**: Optional AI-powered play style analysis
 - **Bilingual**: Full English/Spanish support
-- **Genín Mascot**: Your friendly domino coach
+
+---
+
+# Genín Coach — Advice System
+
+During your turn, click **"Ask Genín"** to get a move recommendation with a strategic explanation. Genín shows:
+
+1. **The recommended tile** rendered as a domino, with play direction (left/right)
+2. **A brief reason** — the dominant strategic factor (e.g., "support partner", "unload double with cover")
+3. **A detail line** — deeper context from one of these priority tiers:
+
+| Priority | Trigger | Detail shown |
+|----------|---------|-------------|
+| **Firme** | You hold ALL remaining tiles of a suit on an open end | "You are firme on 5s (3 tiles)" + whether the move preserves or spends it |
+| **Cuadrar/Cerrar** | The move makes both ends the same value | Blocking probabilities for opponents |
+| **Blocking** | The new end is a suit an opponent lacks | "Opp 1 lacks 3s" |
+| **Partner support** | Partner has a signaled suit | Partner's most likely tiles in that suit |
+| **Opponent reads** | Late game (16+ tiles played), opponent has ≤3 tiles | Estimated likely tiles for opponents |
+
+**Special cases:**
+- Only one legal move → Genín switches to a "thinking" pose and quips about it
+- La salida (first play) → "La Salida — open strong!"
+- Must pass → "Nothing to play — you must pass."
 
 ---
 

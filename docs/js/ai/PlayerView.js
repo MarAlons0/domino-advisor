@@ -33,6 +33,11 @@ export class PlayerView {
         // Cache for view-adjusted knownLocations
         this._locationCache = null;
         this._locationCacheGeneration = -1;
+
+        // Monte Carlo marginal probability cache
+        this._mcMarginals = null;        // Map<tileKey, Map<playerIndex, probability>>
+        this._mcGeneration = -1;         // Generation when marginals were computed
+        this._mcSampleCount = 500;       // Number of valid deals to sample
     }
 
     // ==================== Lifecycle ====================
@@ -53,6 +58,8 @@ export class PlayerView {
         this.isFirstPlay = true;
         this._locationCache = null;
         this._locationCacheGeneration = -1;
+        this._mcMarginals = null;
+        this._mcGeneration = -1;
     }
 
     /**
@@ -181,8 +188,22 @@ export class PlayerView {
         if (holders.size === 0) return 0;
         if (!holders.has(player)) return 0;
 
-        // Calculate raw (affinity-adjusted) probabilities for all possible holders
-        // then normalize so they sum correctly per tile
+        // Try MC marginals first
+        this._computeMCMarginals();
+        if (this._mcMarginals && this._mcMarginals.has(key)) {
+            return this._mcMarginals.get(key).get(player) || 0;
+        }
+
+        // Fallback: original heuristic (if MC sampling failed)
+        return this._heuristicProbability(player, key, tileObj, holders);
+    }
+
+    /**
+     * Original heuristic probability: N/M with affinity adjustment.
+     * Used as fallback when MC sampling fails.
+     * @private
+     */
+    _heuristicProbability(player, key, tileObj, holders) {
         let totalRaw = 0;
         const rawProbs = new Map();
 
@@ -201,7 +222,6 @@ export class PlayerView {
 
         if (totalRaw === 0) return 0;
 
-        // Normalize so probabilities for this tile sum to 1.0 across all holders
         return rawProbs.get(player) / totalRaw;
     }
 
@@ -321,6 +341,157 @@ export class PlayerView {
         return this.affinities;
     }
 
+    // ==================== Monte Carlo Marginals ====================
+
+    /**
+     * Compute MC marginal probabilities if cache is stale.
+     * Lazily called on first getProbability() after a generation change.
+     * @private
+     */
+    _computeMCMarginals() {
+        if (this._mcGeneration === this.handTracker._generation) {
+            return; // cache valid
+        }
+
+        const deals = this._sampleValidDeals(this._mcSampleCount);
+
+        if (deals.length < 50) {
+            this._mcMarginals = null; // signal to fall back to heuristic
+            this._mcGeneration = this.handTracker._generation;
+            return;
+        }
+
+        const marginals = new Map();
+
+        // Collect unknown tile keys (same set used in sampling)
+        for (const tile of this.handTracker.allTiles) {
+            const key = tile.toKey();
+            const htLocation = this.handTracker.knownLocations.get(key);
+            if (htLocation === 'played') continue;
+            if (this.ownTileKeys.has(key)) continue;
+            if (this.playerIndex === 0 && htLocation === 'human') continue;
+
+            const counts = new Map();
+            for (let p = 0; p < 4; p++) counts.set(p, 0);
+
+            for (const deal of deals) {
+                const holder = deal.get(key);
+                if (holder !== undefined) {
+                    counts.set(holder, counts.get(holder) + 1);
+                }
+            }
+
+            const probs = new Map();
+            for (const [p, count] of counts) {
+                if (count > 0) {
+                    probs.set(p, count / deals.length);
+                }
+            }
+            marginals.set(key, probs);
+        }
+
+        this._mcMarginals = marginals;
+        this._mcGeneration = this.handTracker._generation;
+    }
+
+    /**
+     * Sample valid deal completions consistent with all known constraints.
+     * Each deal assigns every unknown tile to a player such that each player
+     * ends up with exactly the right number of tiles.
+     *
+     * @param {number} numSamples - Target number of valid deals
+     * @returns {Array<Map<string, number>>} Array of valid deals (tileKey → playerIndex)
+     * @private
+     */
+    _sampleValidDeals(numSamples) {
+        // Collect unknown tiles and their possible holders
+        const unknownTiles = [];   // [{key, tile, holders}]
+        for (const tile of this.handTracker.allTiles) {
+            const key = tile.toKey();
+            const htLocation = this.handTracker.knownLocations.get(key);
+            if (htLocation === 'played') continue;
+            if (this.ownTileKeys.has(key)) continue;
+            if (this.playerIndex === 0 && htLocation === 'human') continue;
+
+            const holders = this._getViewPossibleHolders(key);
+            if (holders.size > 0) {
+                unknownTiles.push({ key, tile, holders: Array.from(holders) });
+            }
+        }
+
+        if (unknownTiles.length === 0) return [];
+
+        // Build target counts: how many tiles each player needs
+        const targetCounts = new Map();
+        for (let p = 0; p < 4; p++) {
+            if (p === this.playerIndex) continue;
+            // For human view (p=0), human tiles are known, so exclude self
+            // For computer views, self tiles are known, so exclude self
+            targetCounts.set(p, this.handTracker.tileCounts[p]);
+        }
+        // Own tiles are known, so our target for sampling is 0
+        // (we don't sample our own tiles)
+
+        const validDeals = [];
+        const maxAttempts = 3 * numSamples;
+
+        for (let attempt = 0; attempt < maxAttempts && validDeals.length < numSamples; attempt++) {
+            // Shuffle unknown tiles to randomize assignment order
+            const shuffled = unknownTiles.slice();
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+
+            const deal = new Map();
+            const currentCounts = new Map();
+            for (const [p, target] of targetCounts) {
+                currentCounts.set(p, 0);
+            }
+
+            let valid = true;
+            for (const { key, tile, holders } of shuffled) {
+                // Filter to eligible players (in holders AND still need tiles)
+                const eligible = holders.filter(p =>
+                    targetCounts.has(p) && currentCounts.get(p) < targetCounts.get(p)
+                );
+
+                if (eligible.length === 0) {
+                    valid = false;
+                    break;
+                }
+
+                // Affinity-weighted random selection
+                const weights = eligible.map(p => this._getTileAffinity(p, tile));
+                const totalWeight = weights.reduce((a, b) => a + b, 0);
+                let r = Math.random() * totalWeight;
+                let selected = eligible[eligible.length - 1];
+                for (let i = 0; i < eligible.length; i++) {
+                    r -= weights[i];
+                    if (r <= 0) { selected = eligible[i]; break; }
+                }
+                deal.set(key, selected);
+                currentCounts.set(selected, currentCounts.get(selected) + 1);
+            }
+
+            if (valid) {
+                // Verify all players hit their target counts
+                let countsMatch = true;
+                for (const [p, target] of targetCounts) {
+                    if (currentCounts.get(p) !== target) {
+                        countsMatch = false;
+                        break;
+                    }
+                }
+                if (countsMatch) {
+                    validDeals.push(deal);
+                }
+            }
+        }
+
+        return validDeals;
+    }
+
     // ==================== Internal Methods ====================
 
     /**
@@ -352,8 +523,10 @@ export class PlayerView {
      * @private
      */
     _getTileAffinity(player, tile) {
-        // TEMPORARILY DISABLED for Brier score baseline measurement
-        return 1.0;
+        const a1 = this.affinities[player][tile.high];
+        const a2 = this.affinities[player][tile.low];
+        if (tile.isDouble()) return a1;
+        return Math.sqrt(a1 * a2);
     }
 
     /**

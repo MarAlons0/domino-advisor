@@ -1108,9 +1108,41 @@ class DominoApp {
         const lines = [];
         const opponents = this.ai.getOpponents(0);
         const partnerIndex = 2;
+        const hand = state.hands[0];
+
+        // 0. Firme detection — you hold ALL remaining tiles of a suit on an open end
+        const { newLeftEnd, newRightEnd } = this.ai._getEndsAfterPlay(rec, chain);
+        const checkFirme = (endValue) => {
+            const myCount = this.ai.countSuitInHand(hand, endValue);
+            const remaining = this.ai.getRemainingInSuit(endValue);
+            return myCount > 0 && myCount === remaining ? myCount : 0;
+        };
+
+        const leftFirme = checkFirme(chain.leftEnd);
+        const rightFirme = checkFirme(chain.rightEnd);
+
+        if (leftFirme > 0 || rightFirme > 0) {
+            // Report each firme (could be both ends)
+            if (leftFirme > 0) {
+                lines.push(t('advice.detail.firme', chain.leftEnd, leftFirme));
+            }
+            if (rightFirme > 0 && chain.leftEnd !== chain.rightEnd) {
+                lines.push(t('advice.detail.firme', chain.rightEnd, rightFirme));
+            }
+
+            // Is this move spending or preserving a firme?
+            const playingOnFirmeEnd =
+                (rec.end === 'left' && leftFirme > 0) || (rec.end === 'right' && rightFirme > 0);
+            const firmeEnd = rec.end === 'left' ? chain.leftEnd : chain.rightEnd;
+
+            if (playingOnFirmeEnd) {
+                lines.push(t('advice.detail.firmeSpend', firmeEnd));
+            } else {
+                lines.push(t('advice.detail.firmePreserve', leftFirme > 0 ? chain.leftEnd : chain.rightEnd));
+            }
+        }
 
         // 1. Check for cuadrar/cerrar
-        const { newLeftEnd, newRightEnd } = this.ai._getEndsAfterPlay(rec, chain);
         if (newLeftEnd === newRightEnd) {
             const squaredVal = newLeftEnd;
             const currentCount = chain.countValue(squaredVal);

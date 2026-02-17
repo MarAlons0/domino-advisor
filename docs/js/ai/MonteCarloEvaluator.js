@@ -153,6 +153,7 @@ export class MonteCarloEvaluator {
 
     /**
      * Sample hands for all players except the viewer, weighted by probabilities.
+     * Retries on failed deals (where tiles can't be assigned to valid players).
      * @param {GameState} gameState
      * @param {number} [viewerIndex=0] - The player whose perspective we're sampling from
      * @param {PlayerView|HandTracker} [tracker] - Probability source
@@ -160,16 +161,34 @@ export class MonteCarloEvaluator {
      */
     sampleHands(gameState, viewerIndex = 0, tracker) {
         const src = tracker || this.handTracker;
-        const sampledHands = new Map();
+        const maxRetries = 10;
 
-        // Determine which players need sampled hands (all except the viewer)
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            const result = this._trySampleHands(gameState, viewerIndex, src);
+            if (result) return result;
+        }
+
+        // Last resort: return best-effort (allow incomplete deals)
+        return this._trySampleHands(gameState, viewerIndex, src, true);
+    }
+
+    /**
+     * Attempt to sample a valid hand distribution.
+     * @param {GameState} gameState
+     * @param {number} viewerIndex
+     * @param {PlayerView|HandTracker} src
+     * @param {boolean} [allowIncomplete=false] - If true, return even if counts don't match
+     * @returns {Map<number, Hand>|null} Sampled hands, or null if deal is invalid
+     * @private
+     */
+    _trySampleHands(gameState, viewerIndex, src, allowIncomplete = false) {
+        const sampledHands = new Map();
         const playersToSample = [0, 1, 2, 3].filter(p => p !== viewerIndex);
 
         for (const p of playersToSample) {
             sampledHands.set(p, new Hand());
         }
 
-        // Get unknown tiles from the viewer's perspective
         const locations = src.knownLocations || this.handTracker.knownLocations;
         const unknownTiles = [];
         for (const tile of this.handTracker.allTiles) {
@@ -180,25 +199,20 @@ export class MonteCarloEvaluator {
             }
         }
 
-        // Shuffle to randomize assignment order
         this.shuffleArray(unknownTiles);
 
-        // Track how many tiles each sampled player should have
         const targetCounts = new Map();
         for (const p of playersToSample) {
             targetCounts.set(p, this.handTracker.tileCounts[p]);
         }
 
-        // Assign tiles based on probabilities
         for (const tile of unknownTiles) {
             const eligiblePlayers = [];
             const weights = [];
 
             for (const p of playersToSample) {
-                // Skip if player already has enough tiles
                 if (sampledHands.get(p).size() >= targetCounts.get(p)) continue;
 
-                // Check if this player could have this tile
                 const prob = src.getProbability(p, tile);
                 if (prob > 0) {
                     eligiblePlayers.push(p);
@@ -207,9 +221,19 @@ export class MonteCarloEvaluator {
             }
 
             if (eligiblePlayers.length > 0) {
-                // Weighted random selection
                 const selected = this.weightedRandomSelect(eligiblePlayers, weights);
                 sampledHands.get(selected).add(tile);
+            } else if (!allowIncomplete) {
+                return null; // dead end — retry
+            }
+        }
+
+        // Validate: all players should have exactly their target tile count
+        if (!allowIncomplete) {
+            for (const p of playersToSample) {
+                if (sampledHands.get(p).size() !== targetCounts.get(p)) {
+                    return null;
+                }
             }
         }
 
