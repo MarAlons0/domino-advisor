@@ -1,4 +1,5 @@
 import { GameState } from '../models/GameState.js';
+import { t } from '../i18n/i18n.js';
 
 /**
  * StrategicExplainer - Generates rich, contextual explanations using traditional domino terminology.
@@ -191,17 +192,17 @@ export class StrategicExplainer {
 
         // 1. Opening play
         if (chain.isEmpty()) {
-            if (tile.isDouble()) return `La Salida (double ${tile.high})`;
-            return `La Salida (signals ${tile.high})`;
+            if (tile.isDouble()) return t('brief.salidaDouble', tile.high);
+            return t('brief.salidaSignals', tile.high);
         }
 
         // 2. Double management
         if (tile.isDouble()) {
             const hasCover = this._hasCoverForDouble(hand, tile);
             if (!hasCover && !smartAI.isSuitNearlyDead(tile.high)) {
-                return 'Ahorcado (risky double)';
+                return t('brief.ahorcado');
             }
-            return 'Double with cover';
+            return t('brief.doubleWithCover');
         }
 
         // 3. Cuadrar / Cerrar (squaring / locking the board)
@@ -211,20 +212,20 @@ export class StrategicExplainer {
             const currentCount = chain.countValue(squaredValue);
             const tileAdds = tile.isDouble() ? 2 : ((tile.high === squaredValue ? 1 : 0) + (tile.low === squaredValue ? 1 : 0));
             const afterCount = currentCount + tileAdds;
-            const doubleOnChain = chain.getTiles().some(t => t.isDouble() && t.high === squaredValue);
+            const doubleOnChain = chain.getTiles().some(ti => ti.isDouble() && ti.high === squaredValue);
             const isCerrar = afterCount >= 7 || (afterCount >= 6 && !doubleOnChain);
-            return isCerrar ? `Cerrar (${squaredValue})` : `Cuadrar (${squaredValue})`;
+            return isCerrar ? t('brief.cerrar', squaredValue) : t('brief.cuadrar', squaredValue);
         }
 
         // 4. Firme (guaranteed plays)
-        if (factors.firmeProtection >= 15) return 'Preserving firme';
-        if (factors.firmeProtection <= -25) return 'Spending firme (forced)';
+        if (factors.firmeProtection >= 15) return t('brief.preserveFirme');
+        if (factors.firmeProtection <= -25) return t('brief.spendFirme');
 
         // 5. Blocking
-        if (factors.blockingPotential >= 20) return 'Darle pase (blocking)';
+        if (factors.blockingPotential >= 20) return t('brief.darlePase');
 
         // 5b. Opponent suit avoidance
-        if (factors.oppSuitAvoidance <= -20) return "Plays opponent's suit";
+        if (factors.oppSuitAvoidance <= -20) return t('brief.playsOppSuit');
 
         // 6. Pace control (defensive/aggressive)
         if (factors.paceControl >= 10) {
@@ -233,30 +234,30 @@ export class StrategicExplainer {
                 gameState.hands[opponents[0]].size(),
                 gameState.hands[opponents[1]].size()
             );
-            if (minOppTiles <= 2) return 'Defensive (opp close)';
-            return 'Opening for partner';
+            if (minOppTiles <= 2) return t('brief.defensive');
+            return t('brief.openForPartner');
         }
 
         // 7. Partner support
-        if (factors.partnerSupport >= 15) return 'Partner support';
+        if (factors.partnerSupport >= 15) return t('brief.partnerSupport');
 
         // 8. Own suit protection
-        if (factors.ownSuitProtection >= 15) return 'Protecting own suit';
-        if (factors.ownSuitProtection <= -15) return 'Kills own suit (tradeoff)';
+        if (factors.ownSuitProtection >= 15) return t('brief.protectOwnSuit');
+        if (factors.ownSuitProtection <= -15) return t('brief.killsOwnSuit');
 
         // 9. Suit dominance
-        if (factors.suitDominance >= 25) return 'Team controls suit';
-        if (factors.suitDominance <= -25) return 'Avoiding opponent suit';
+        if (factors.suitDominance >= 25) return t('brief.teamControlsSuit');
+        if (factors.suitDominance <= -25) return t('brief.avoidOppSuit');
 
         // 10. Pip management
         if (factors.pipManagement >= 10 && this.context.phase !== 'late') {
-            return `High pips (${tile.pipCount()})`;
+            return t('brief.highPips', tile.pipCount());
         }
 
         // 11. Flexibility
-        if (factors.handFlexibility >= 18) return 'Keeps flexibility';
+        if (factors.handFlexibility >= 18) return t('brief.flexibility');
 
-        return 'Best option';
+        return t('brief.bestOption');
     }
 
     // ==================== Helpers ====================
@@ -317,7 +318,7 @@ export class StrategicExplainer {
         const currentCount = chain.countValue(squaredValue);
         const tileAdds = tile.isDouble() ? 2 : ((tile.high === squaredValue ? 1 : 0) + (tile.low === squaredValue ? 1 : 0));
         const afterCount = currentCount + tileAdds;
-        const doubleOnChain = chain.getTiles().some(t => t.isDouble() && t.high === squaredValue);
+        const doubleOnChain = chain.getTiles().some(ti => ti.isDouble() && ti.high === squaredValue);
         const isCerrar = afterCount >= 7 || (afterCount >= 6 && !doubleOnChain);
 
         const term = isCerrar ? 'Cerrar' : 'Cuadrar';
@@ -346,7 +347,7 @@ export class StrategicExplainer {
 
     _hasCoverForDouble(hand, doubleTile) {
         const value = doubleTile.high;
-        return hand.getTiles().some(t => t.hasValue(value) && !t.equals(doubleTile));
+        return hand.getTiles().some(ti => ti.hasValue(value) && !ti.equals(doubleTile));
     }
 
     /**
