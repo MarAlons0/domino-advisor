@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v0.4.4',
+        'app.version': 'v0.4.5',
         'app.createdBy': 'Created by',
 
         // Players
@@ -250,7 +250,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v0.4.4',
+        'app.version': 'v0.4.5',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -312,7 +312,7 @@ export const translations = {
         'log.newHand': 'Nueva Mano',
         'log.domino': '--- ¡Dominó! ---',
         'log.cerrado': '--- ¡Cerrado! ---',
-        'log.tranque': '--- ¡Tranque! ---',
+        'log.tranque': '--- ¡Cierre! ---',
         'log.teamPoints': '{0} +{1} pts',
         'log.tie': 'Empate - sin puntos',
         'log.matchOver': '=== Partida Terminada ===',
@@ -328,7 +328,7 @@ export const translations = {
         'result.closed': '{0} cerró el juego (cerró).',
         'result.closedTie': 'Empate - sin puntos.',
         'result.closedWin': '{0} gana con menos puntos.',
-        'result.blocked': 'Juego trancado (tranque).',
+        'result.blocked': 'Juego cerrado (cierre).',
         'result.blockedTie': 'Empate - sin puntos.',
         'result.blockedWin': '{0} gana con menos puntos.',
         'result.points': '+{0} puntos.',
@@ -374,7 +374,7 @@ export const translations = {
         'help.howToPlay.pass': '<strong>Pasar</strong> - Si no puedes jugar, el botón Paso se activa. Haz clic para pasar tu turno.',
         'help.scoring.title': 'Puntuación',
         'help.scoring.domino': '<strong>Dominó</strong> - Un jugador juega su última ficha. Su equipo anota el total de puntos en las manos de los oponentes.',
-        'help.scoring.blocked': '<strong>Juego trancado</strong> - Nadie puede jugar. El equipo con menos puntos gana la diferencia.',
+        'help.scoring.blocked': '<strong>Juego cerrado</strong> - Nadie puede jugar. El equipo con menos puntos gana la diferencia.',
         'help.scoring.match': '<strong>Partida</strong> - El primer equipo en llegar a 100 puntos gana.',
         'help.features.title': 'Características',
         'help.features.quiz': '<strong>Probar</strong> - Pon a prueba tu habilidad para predecir qué fichas tienen los otros jugadores basándote en sus jugadas y pasos.',
@@ -472,7 +472,7 @@ export const translations = {
         'advice.mustPass': 'No hay jugada — tienes que pasar.',
 
         // Advice detail
-        'advice.detail.cerrar': 'Cerrar en {0}s — ¡tranca el juego!',
+        'advice.detail.cerrar': 'Cerrar en {0}s — ¡cierra el juego!',
         'advice.detail.cuadrar': 'Cuadrar en {0}s',
         'advice.detail.oppsLack': '{0} no tiene {1}s',
         'advice.detail.oppBlocked': '{0} no puede jugar ({1}%)',

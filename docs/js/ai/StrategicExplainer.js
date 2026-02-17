@@ -3,15 +3,16 @@ import { GameState } from '../models/GameState.js';
 /**
  * StrategicExplainer - Generates rich, contextual explanations using traditional domino terminology.
  *
- * Aligned with SmartAI's 9 scoring factors:
+ * Aligned with SmartAI's 10 scoring factors:
  *   suitDominance, doubleManagement, partnerSupport, ownSuitProtection,
- *   firmeProtection, blockingPotential, pipManagement, handFlexibility, paceControl
+ *   firmeProtection, oppSuitAvoidance, blockingPotential, pipManagement, handFlexibility, paceControl
  *
  * Traditional Terms:
  * - La Salida: Opening play that signals strategy to partner
  * - Ahorcado: Playing a double without cover (risky)
  * - Darle Pase: Forcing an opponent to pass
  * - Cuadrar: Squaring the board (both ends have the same value)
+ * - Cerrar: Locking the board by cuadrar when placing the 7th (or 6th if double outstanding) tile of a suit
  * - La Puerta / Firme: Holding all remaining tiles of a suit on an open end
  * - Cover: Having follow-up plays after playing a double
  */
@@ -124,6 +125,17 @@ export class StrategicExplainer {
             parts.push(`Spending a **firme** tile — you lose guaranteed plays on that end.`);
         }
 
+        // --- Opponent suit avoidance ---
+        if (factors.oppSuitAvoidance <= -20) {
+            const opponents = smartAI.getOpponents(playerIndex);
+            const oppSuits = opponents
+                .filter(o => smartAI.signaledSuits[o] !== null && !smartAI.killedOwnSuit[o])
+                .map(o => smartAI.signaledSuits[o]);
+            if (oppSuits.length > 0) {
+                parts.push(`Warning: leaves an end open in opponent's suit (${oppSuits.join(', ')}s).`);
+            }
+        }
+
         // --- Blocking (Darle Pase / Cuadrar) ---
         if (factors.blockingPotential >= 15) {
             parts.push(this._explainBlocking(move, gameState, playerIndex, smartAI));
@@ -192,11 +204,16 @@ export class StrategicExplainer {
             return 'Double with cover';
         }
 
-        // 3. Cuadrar (squaring the board)
+        // 3. Cuadrar / Cerrar (squaring / locking the board)
         if (this._willSquareBoard(tile, end, chain)) {
             const currentEndValue = end === 'left' ? chain.leftEnd : chain.rightEnd;
             const squaredValue = tile.getOtherValue(currentEndValue);
-            return `Cuadrar (${squaredValue})`;
+            const currentCount = chain.countValue(squaredValue);
+            const tileAdds = tile.isDouble() ? 2 : ((tile.high === squaredValue ? 1 : 0) + (tile.low === squaredValue ? 1 : 0));
+            const afterCount = currentCount + tileAdds;
+            const doubleOnChain = chain.getTiles().some(t => t.isDouble() && t.high === squaredValue);
+            const isCerrar = afterCount >= 7 || (afterCount >= 6 && !doubleOnChain);
+            return isCerrar ? `Cerrar (${squaredValue})` : `Cuadrar (${squaredValue})`;
         }
 
         // 4. Firme (guaranteed plays)
@@ -205,6 +222,9 @@ export class StrategicExplainer {
 
         // 5. Blocking
         if (factors.blockingPotential >= 20) return 'Darle pase (blocking)';
+
+        // 5b. Opponent suit avoidance
+        if (factors.oppSuitAvoidance <= -20) return "Plays opponent's suit";
 
         // 6. Pace control (defensive/aggressive)
         if (factors.paceControl >= 10) {
@@ -293,6 +313,16 @@ export class StrategicExplainer {
         const squaredValue = tile.getOtherValue(currentEndValue);
         const opponents = smartAI.getOpponents(playerIndex);
 
+        // Cerrar: placing the 7th tile of the suit, or the 6th if the double is still outstanding
+        const currentCount = chain.countValue(squaredValue);
+        const tileAdds = tile.isDouble() ? 2 : ((tile.high === squaredValue ? 1 : 0) + (tile.low === squaredValue ? 1 : 0));
+        const afterCount = currentCount + tileAdds;
+        const doubleOnChain = chain.getTiles().some(t => t.isDouble() && t.high === squaredValue);
+        const isCerrar = afterCount >= 7 || (afterCount >= 6 && !doubleOnChain);
+
+        const term = isCerrar ? 'Cerrar' : 'Cuadrar';
+        const verb = isCerrar ? 'Locking' : 'Squaring';
+
         let isStrategic = false;
         for (const opp of opponents) {
             if (gameState.passHistory[opp].has(squaredValue) ||
@@ -303,9 +333,9 @@ export class StrategicExplainer {
         }
 
         if (isStrategic) {
-            return `**Cuadrar** — Squaring the board on ${squaredValue} traps opponents who lack this suit.`;
+            return `**${term}** — ${verb} the board on ${squaredValue} traps opponents who lack this suit.`;
         }
-        return `**Cuadrar** — Squaring the board on ${squaredValue}.`;
+        return `**${term}** — ${verb} the board on ${squaredValue}.`;
     }
 
     _getNewEnd(tile, end, chain) {

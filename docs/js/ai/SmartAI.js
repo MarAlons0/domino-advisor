@@ -520,6 +520,7 @@ export class SmartAI {
                     'Partn': m.factors.partnerSupport,
                     'Own': m.factors.ownSuitProtection,
                     'Firme': m.factors.firmeProtection,
+                    'OppSt': m.factors.oppSuitAvoidance,
                     'Block': m.factors.blockingPotential,
                     'Pip': Math.round(m.factors.pipManagement * 10) / 10,
                     'Flex': m.factors.handFlexibility,
@@ -535,6 +536,7 @@ export class SmartAI {
                     'Partn': m.factors.partnerSupport,
                     'Own': m.factors.ownSuitProtection,
                     'Firme': m.factors.firmeProtection,
+                    'OppSt': m.factors.oppSuitAvoidance,
                     'Block': m.factors.blockingPotential,
                     'Pip': Math.round(m.factors.pipManagement * 10) / 10,
                     'Flex': m.factors.handFlexibility,
@@ -858,6 +860,7 @@ export class SmartAI {
             partnerSupport: 0,
             ownSuitProtection: 0,
             firmeProtection: 0,
+            oppSuitAvoidance: 0,
             blockingPotential: 0,
             pipManagement: 0,
             handFlexibility: 0,
@@ -1000,6 +1003,20 @@ export class SmartAI {
             }
         }
 
+        // 5b. OPPONENT SUIT AVOIDANCE - penalize leaving ends in opponents' strong suits
+        if (!chain.isEmpty()) {
+            const { newLeftEnd: avLeft, newRightEnd: avRight } = this._getEndsAfterPlay(move, chain);
+            let oppSuitPenalty = 0;
+            for (const opp of opponents) {
+                const oppSuit = this.signaledSuits[opp];
+                if (oppSuit === null || this.killedOwnSuit[opp]) continue;
+                if (avLeft === oppSuit || avRight === oppSuit) {
+                    oppSuitPenalty -= 20;
+                }
+            }
+            factors.oppSuitAvoidance = oppSuitPenalty;
+        }
+
         // 6. BLOCKING - exploit inferred weaknesses (passes + play choices)
         let blockingScore = 0;
         for (const opp of opponents) {
@@ -1090,6 +1107,7 @@ export class SmartAI {
         if (score.factors.ownSuitProtection < -15) dominated.push('kills own suit');
         if (score.factors.firmeProtection >= 15) dominated.push('preserve firme');
         if (score.factors.firmeProtection < -15) dominated.push('spends firme');
+        if (score.factors.oppSuitAvoidance <= -20) dominated.push('plays opponent suit');
         if (score.factors.blockingPotential >= 20) dominated.push('block opponent');
         if (score.factors.pipManagement >= 10) dominated.push('high pip tile');
         if (score.factors.handFlexibility >= 18) dominated.push('keeps flexibility');

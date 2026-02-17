@@ -1149,7 +1149,11 @@ class DominoApp {
             const tileAdds = rec.tile.isDouble() ? 2 : ((rec.tile.high === squaredVal ? 1 : 0) + (rec.tile.low === squaredVal ? 1 : 0));
             const afterCount = currentCount + tileAdds;
 
-            if (afterCount >= 7) {
+            // Cerrar: placing the 7th tile of the suit, or the 6th if the double is still outstanding
+            const doubleOnChain = chain.getTiles().some(t => t.isDouble() && t.high === squaredVal);
+            const isCerrar = afterCount >= 7 || (afterCount >= 6 && !doubleOnChain);
+
+            if (isCerrar) {
                 lines.push(t('advice.detail.cerrar', squaredVal));
             } else {
                 lines.push(t('advice.detail.cuadrar', squaredVal));
