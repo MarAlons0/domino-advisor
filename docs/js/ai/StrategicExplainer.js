@@ -91,9 +91,9 @@ export class StrategicExplainer {
             const newEnd = this._getNewEnd(tile, end, chain);
             if (newEnd !== null && newEnd !== -1) {
                 if (factors.suitDominance >= 15) {
-                    parts.push(`Your team controls ${newEnd}s — leaving this suit open is favorable.`);
+                    parts.push(t('explain.teamControlsSuit', newEnd));
                 } else {
-                    parts.push(`Opponents control ${newEnd}s — leaving this end open favors them.`);
+                    parts.push(t('explain.oppsControlSuit', newEnd));
                 }
             }
         }
@@ -102,7 +102,7 @@ export class StrategicExplainer {
         if (factors.partnerSupport >= 15) {
             const partnerSuit = smartAI.signaledSuits[partnerIndex];
             if (partnerSuit !== null) {
-                parts.push(`Supporting partner's signaled suit (${partnerSuit}s).`);
+                parts.push(t('explain.partnerSupport', partnerSuit));
             }
         }
 
@@ -110,20 +110,20 @@ export class StrategicExplainer {
         if (factors.ownSuitProtection >= 15) {
             const ownSuit = smartAI.signaledSuits[playerIndex];
             if (ownSuit !== null) {
-                parts.push(`Keeping your signaled suit (${ownSuit}s) open on the board.`);
+                parts.push(t('explain.keepOwnSuit', ownSuit));
             }
         } else if (factors.ownSuitProtection <= -15) {
             const ownSuit = smartAI.signaledSuits[playerIndex];
             if (ownSuit !== null) {
-                parts.push(`Warning: this kills your own signaled suit (${ownSuit}s).`);
+                parts.push(t('explain.killsOwnSuit', ownSuit));
             }
         }
 
         // --- Firme protection (La Puerta) ---
         if (factors.firmeProtection >= 15) {
-            parts.push(`**Firme** — you hold all remaining tiles on that end, guaranteeing future plays.`);
+            parts.push(t('explain.firme'));
         } else if (factors.firmeProtection <= -15) {
-            parts.push(`Spending a **firme** tile — you lose guaranteed plays on that end.`);
+            parts.push(t('explain.spendFirme'));
         }
 
         // --- Opponent suit avoidance ---
@@ -133,7 +133,7 @@ export class StrategicExplainer {
                 .filter(o => smartAI.signaledSuits[o] !== null && !smartAI.killedOwnSuit[o])
                 .map(o => smartAI.signaledSuits[o]);
             if (oppSuits.length > 0) {
-                parts.push(`Warning: leaves an end open in opponent's suit (${oppSuits.join(', ')}s).`);
+                parts.push(t('explain.oppSuitWarning', oppSuits.join(', ')));
             }
         }
 
@@ -148,12 +148,12 @@ export class StrategicExplainer {
 
         // --- Pip management ---
         if (factors.pipManagement >= 10 && this.context.phase !== 'late') {
-            parts.push(`Unloading high-pip tile early (${tile.pipCount()} pips).`);
+            parts.push(t('explain.highPips', tile.pipCount()));
         }
 
         // --- Hand flexibility ---
         if (factors.handFlexibility >= 18) {
-            parts.push(`Keeps your hand flexible — many distinct values remain.`);
+            parts.push(t('explain.flexibility'));
         }
 
         // --- Pace control ---
@@ -164,9 +164,9 @@ export class StrategicExplainer {
                 gameState.hands[opponents[1]].size()
             );
             if (minOppTiles <= 2) {
-                parts.push(`Defensive play — leaving values opponents lack to slow them down.`);
+                parts.push(t('explain.defensive'));
             } else {
-                parts.push(`Opening the game for partner who's close to winning.`);
+                parts.push(t('explain.openForPartner'));
             }
         }
 
@@ -264,9 +264,9 @@ export class StrategicExplainer {
 
     _explainSalida(tile) {
         if (tile.isDouble()) {
-            return `**La Salida** — Opening with double ${tile.high} signals this as your strong suit to your partner.`;
+            return t('explain.salidaDouble', tile.high);
         }
-        return `**La Salida** — Opening with ${tile.toString()} signals ${tile.high} as your strong suit to your partner.`;
+        return t('explain.salidaTile', tile.toString(), tile.high);
     }
 
     _explainDouble(tile, hand, smartAI) {
@@ -274,11 +274,11 @@ export class StrategicExplainer {
         const suitNearlyDead = smartAI.isSuitNearlyDead(tile.high);
 
         if (hasCover) {
-            return `Playing double ${tile.high} with **cover** — you have follow-up plays in this suit.`;
+            return t('explain.doubleWithCover', tile.high);
         } else if (suitNearlyDead) {
-            return `Playing double ${tile.high} — suit is nearly exhausted, low risk.`;
+            return t('explain.doubleNearlyDead', tile.high);
         } else {
-            return `**Ahorcado** — Playing double ${tile.high} without cover is risky, but necessary here.`;
+            return t('explain.ahorcado', tile.high);
         }
     }
 
@@ -296,9 +296,9 @@ export class StrategicExplainer {
         }
 
         if (blockedPlayers.length > 0) {
-            return `**Darle pase** — Forcing ${blockedPlayers.join(' and ')} to pass (they lack ${newEnd}s).`;
+            return t('explain.darlePaseForcing', blockedPlayers.join(` ${t('and')} `), newEnd);
         }
-        return `**Darle pase** — Leaving an unfavorable end for opponents.`;
+        return t('explain.darlePase');
     }
 
     _willSquareBoard(tile, end, chain) {
@@ -321,9 +321,6 @@ export class StrategicExplainer {
         const doubleOnChain = chain.getTiles().some(ti => ti.isDouble() && ti.high === squaredValue);
         const isCerrar = afterCount >= 7 || (afterCount >= 6 && !doubleOnChain);
 
-        const term = isCerrar ? 'Cerrar' : 'Cuadrar';
-        const verb = isCerrar ? 'Locking' : 'Squaring';
-
         let isStrategic = false;
         for (const opp of opponents) {
             if (gameState.passHistory[opp].has(squaredValue) ||
@@ -334,9 +331,9 @@ export class StrategicExplainer {
         }
 
         if (isStrategic) {
-            return `**${term}** — ${verb} the board on ${squaredValue} traps opponents who lack this suit.`;
+            return t(isCerrar ? 'explain.cerrarStrategic' : 'explain.cuadrarStrategic', squaredValue);
         }
-        return `**${term}** — ${verb} the board on ${squaredValue}.`;
+        return t(isCerrar ? 'explain.cerrar' : 'explain.cuadrar', squaredValue);
     }
 
     _getNewEnd(tile, end, chain) {
@@ -356,20 +353,20 @@ export class StrategicExplainer {
     _getGeneralExplanation(factors) {
         const dominated = [];
 
-        if (factors.suitDominance >= 15) dominated.push('suit dominance');
-        if (factors.suitDominance <= -15) dominated.push('avoiding opponent suit');
-        if (factors.doubleManagement >= 20) dominated.push('unload double safely');
-        if (factors.partnerSupport >= 10) dominated.push('partner support');
-        if (factors.ownSuitProtection >= 10) dominated.push('own suit protection');
-        if (factors.firmeProtection >= 10) dominated.push('preserving firme');
-        if (factors.blockingPotential >= 10) dominated.push('blocking potential');
-        if (factors.handFlexibility >= 15) dominated.push('hand flexibility');
-        if (factors.paceControl >= 10) dominated.push('pace control');
+        if (factors.suitDominance >= 15) dominated.push(t('explain.factor.suitDominance'));
+        if (factors.suitDominance <= -15) dominated.push(t('explain.factor.avoidOppSuit'));
+        if (factors.doubleManagement >= 20) dominated.push(t('explain.factor.unloadDouble'));
+        if (factors.partnerSupport >= 10) dominated.push(t('explain.factor.partnerSupport'));
+        if (factors.ownSuitProtection >= 10) dominated.push(t('explain.factor.ownSuit'));
+        if (factors.firmeProtection >= 10) dominated.push(t('explain.factor.firme'));
+        if (factors.blockingPotential >= 10) dominated.push(t('explain.factor.blocking'));
+        if (factors.handFlexibility >= 15) dominated.push(t('explain.factor.flexibility'));
+        if (factors.paceControl >= 10) dominated.push(t('explain.factor.paceControl'));
 
         if (dominated.length === 0) {
-            return 'Best available move based on current position.';
+            return t('explain.bestMove');
         }
 
-        return `Strategic advantages: ${dominated.join(', ')}.`;
+        return t('explain.strategicAdvantages', dominated.join(', '));
     }
 }
