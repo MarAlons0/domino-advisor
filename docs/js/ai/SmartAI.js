@@ -176,8 +176,34 @@ export class SmartAI {
             this.suitSkipCount[playerIndex][signaledSuit]++;
         }
 
-        // INFERENCE 2: If they could play on a suit but consistently avoid it
-        // (This is tracked cumulatively through passes)
+        // INFERENCE 2: General end-choice soft evidence
+        // Every time a player ends up NOT playing on the avoided end, it is soft
+        // evidence they may lack tiles for that suit. Weighted by team context:
+        //   - Playing on partner's suit end (expected team support) → skip, no new info
+        //   - Avoiding partner's suit end (surprising choice) → stronger evidence (+1)
+        //   - Neither end is partner's suit (neutral) → moderate evidence (+0.5)
+        //
+        // Guards:
+        //   - Skip if suit already confirmed absent via pass (no new information)
+        //   - Skip if suit nearly dead (≤1 tile remaining — unremarkable not to have it)
+        //   - Skip if cuadrar (the play IS on the avoided end's value, introduced as newEnd)
+        if (!isCuadrar && !this.inferredDeadSuits[playerIndex].has(avoided)) {
+            const remainingInAvoided = this.getRemainingInSuit(avoided);
+            if (remainingInAvoided >= 2) {
+                const partnerIndex = GameState.getPartner(playerIndex);
+                const partnerSuit = this.signaledSuits[partnerIndex];
+
+                if (playedOn === partnerSuit) {
+                    // Expected team play — not informative about avoided suit
+                } else if (avoided === partnerSuit) {
+                    // Surprising: avoided partner's suit end — stronger soft evidence
+                    this.suitSkipCount[playerIndex][avoided] += 1;
+                } else {
+                    // Neutral — moderate soft evidence
+                    this.suitSkipCount[playerIndex][avoided] += 0.5;
+                }
+            }
+        }
 
         // INFERENCE 3: Update their signaled suit based on what they're playing
         // Skip if cuadrar already updated the signal
