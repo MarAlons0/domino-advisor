@@ -70,14 +70,25 @@ export class SmartAI {
         // Each number appears on exactly 7 tiles in a double-six set
         this.suitCounts = [0, 0, 0, 0, 0, 0, 0]; // Index = suit value (0-6)
 
-        // Track inferred "dead" suits for each player (suits they likely don't have)
-        // This goes beyond just passes - includes inferences from play choices
+        // Track inferred "dead" suits for each player — PASSES ONLY (hard constraints)
+        // Soft inferences from play choices are tracked separately in suitSkipCount
         this.inferredDeadSuits = [new Set(), new Set(), new Set(), new Set()];
+
+        // Soft suit avoidance evidence: how many times each player bypassed playing
+        // on a suit when they had the opportunity (and hadn't already passed on it).
+        // suitSkipCount[player][value] — graduated, not binary.
+        this.suitSkipCount = [
+            new Array(7).fill(0),
+            new Array(7).fill(0),
+            new Array(7).fill(0),
+            new Array(7).fill(0)
+        ];
 
         // Track each player's "signaled" strong suit (from their plays)
         this.signaledSuits = [null, null, null, null];
 
         // Track if a player has "killed" their own signaled suit
+        // Used for signal-reliability checks only — does NOT feed inferredDeadSuits
         this.killedOwnSuit = [false, false, false, false];
 
         // Track number of plays in this hand (for early-game priority rules)
@@ -141,9 +152,10 @@ export class SmartAI {
                 // Override signaled suit — cuadrar is a stronger commitment than salida
                 this.signaledSuits[playerIndex] = avoided;
                 // If they cuadrar on a previously killed suit, the earlier inference
-                // was likely wrong — restore it
+                // was likely wrong — restore signal reliability and reset soft evidence
                 if (this.killedOwnSuit[playerIndex] && signaledSuit === avoided) {
                     this.killedOwnSuit[playerIndex] = false;
+                    this.suitSkipCount[playerIndex][avoided] = 0;
                 }
             }
         }
@@ -159,9 +171,9 @@ export class SmartAI {
             playedOn !== signaledSuit &&
             tile.hasValue(avoided)) {
             // They had a choice to play on their signaled suit but chose not to
-            // This suggests they may be out of that suit
+            // Mark signal as unreliable; accumulate soft evidence (not a hard inference)
             this.killedOwnSuit[playerIndex] = true;
-            this.inferredDeadSuits[playerIndex].add(signaledSuit);
+            this.suitSkipCount[playerIndex][signaledSuit]++;
         }
 
         // INFERENCE 2: If they could play on a suit but consistently avoid it
@@ -211,7 +223,8 @@ export class SmartAI {
     }
 
     /**
-     * Check if we think a player lacks a specific suit.
+     * Check if a player has hard-confirmed absence of a suit (from passes only).
+     * For soft avoidance evidence use suitSkipCount[player][suit] directly.
      */
     playerLacksSuit(playerIndex, suit) {
         return this.inferredDeadSuits[playerIndex].has(suit);
@@ -1038,18 +1051,21 @@ export class SmartAI {
             factors.oppSuitAvoidance = oppSuitPenalty;
         }
 
-        // 6. BLOCKING - exploit inferred weaknesses (passes + play choices)
+        // 6. BLOCKING - exploit inferred weaknesses (passes + soft avoidance evidence)
         let blockingScore = 0;
         for (const opp of opponents) {
             const passedSuits = gameState.passHistory[opp];
-            const inferredDead = this.inferredDeadSuits[opp];
 
             if (newEndValue !== null && newEndValue !== -1) {
                 if (passedSuits.has(newEndValue)) {
+                    // Hard evidence: opponent passed on this suit — strong block signal
                     blockingScore += 20;
-                }
-                if (inferredDead.has(newEndValue)) {
-                    blockingScore += 15;
+                } else {
+                    // Soft evidence: graduated by how many times opponent avoided this suit
+                    const skipCount = this.suitSkipCount[opp][newEndValue];
+                    if (skipCount > 0) {
+                        blockingScore += Math.min(10, skipCount * 5);
+                    }
                 }
             }
         }
