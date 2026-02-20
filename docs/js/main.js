@@ -854,6 +854,11 @@ class DominoApp {
         this.messageBox.classList.add('visible');
         this.modalOverlay.classList.add('visible');
 
+        // Always reset to hand-end button state (may be stale from a prior match-end)
+        this.continueBtn.textContent = t('btn.continue');
+        this.reviewBtn.style.display = 'none';
+        if (this.messageGenin) this.messageGenin.style.display = 'none';
+
         const reasonText = data.reason === 'domino' ? t('log.domino') :
                            data.reason === 'closed' ? t('log.cerrado') : t('log.tranque');
         this.log(reasonText, 'system');

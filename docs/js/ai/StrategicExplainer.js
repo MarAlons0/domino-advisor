@@ -133,7 +133,8 @@ export class StrategicExplainer {
                 .filter(o => smartAI.signaledSuits[o] !== null && !smartAI.killedOwnSuit[o])
                 .map(o => smartAI.signaledSuits[o]);
             if (oppSuits.length > 0) {
-                parts.push(t('explain.oppSuitWarning', oppSuits.join(', ')));
+                const oppSuitLabels = oppSuits.map(s => `${s}s`).join(', ');
+                parts.push(t('explain.oppSuitWarning', oppSuitLabels));
             }
         }
 
