@@ -276,11 +276,20 @@ export class Game {
             this.state.scores.match[result.winningTeam] += result.points;
         }
 
-        // Remember who won for next hand
+        // Remember who leads next hand
         if (dominoPlayer !== null) {
+            // Domino: the player who dominoed leads
             this.state.lastHandWinner = dominoPlayer;
+        } else if (reason === 'closed' && closingPlayer !== null) {
+            // Cerrar: closer leads if their team won; opponent immediately after closer leads if their team lost
+            const closingTeam = GameState.getTeam(closingPlayer);
+            if (result.winningTeam === closingTeam) {
+                this.state.lastHandWinner = closingPlayer;
+            } else {
+                this.state.lastHandWinner = (closingPlayer + 1) % 4;
+            }
         } else if (result.winningTeam >= 0) {
-            // Closed/blocked: winning team's first player leads
+            // Blocked: first player of winning team leads
             this.state.lastHandWinner = result.winningTeam === 0 ? 0 : 1;
         }
 
