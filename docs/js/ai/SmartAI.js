@@ -127,13 +127,34 @@ export class SmartAI {
         const playedOn = (end === 'left') ? leftEnd : rightEnd;
         const avoided = (end === 'left') ? rightEnd : leftEnd;
 
-        // Get this player's signaled suit
+        // Get this player's signaled suit (before any updates)
         const signaledSuit = this.signaledSuits[playerIndex];
+
+        // INFERENCE 0: CUADRAR - squaring the board is a strong suit signal
+        // Cuadrar happens when the new end value introduced equals the other end
+        // (doubles can never create cuadrar from a non-cuadrar board)
+        let isCuadrar = false;
+        if (!tile.isDouble()) {
+            const newEndValue = tile.getOtherValue(playedOn);
+            if (newEndValue === avoided) {
+                isCuadrar = true;
+                // Override signaled suit — cuadrar is a stronger commitment than salida
+                this.signaledSuits[playerIndex] = avoided;
+                // If they cuadrar on a previously killed suit, the earlier inference
+                // was likely wrong — restore it
+                if (this.killedOwnSuit[playerIndex] && signaledSuit === avoided) {
+                    this.killedOwnSuit[playerIndex] = false;
+                }
+            }
+        }
 
         // INFERENCE 1: If they avoided their own signaled suit, they might be out
         // Only applies if the tile COULD have played on the signaled suit end
         // (i.e., the tile has a value matching the avoided end)
-        if (signaledSuit !== null &&
+        // Skip if this was a cuadrar — cuadrar on the signaled suit reinforces it,
+        // and cuadrar on a different suit updates the signal rather than killing it
+        if (!isCuadrar &&
+            signaledSuit !== null &&
             avoided === signaledSuit &&
             playedOn !== signaledSuit &&
             tile.hasValue(avoided)) {
@@ -147,8 +168,8 @@ export class SmartAI {
         // (This is tracked cumulatively through passes)
 
         // INFERENCE 3: Update their signaled suit based on what they're playing
-        // If they keep playing a particular suit, that becomes their signal
-        if (!tile.isDouble()) {
+        // Skip if cuadrar already updated the signal
+        if (!isCuadrar && !tile.isDouble()) {
             const newEnd = tile.getOtherValue(playedOn);
             if (newEnd !== -1 && this.signaledSuits[playerIndex] === null) {
                 // First non-double play, establish signal with the value introduced
