@@ -41,12 +41,18 @@ docs/js/
 │   ├── Chain.js            # The played tile chain
 │   ├── GameState.js        # Complete game state snapshot
 │   └── MatchHistory.js     # Record of plays for debrief
+├── stats/
+│   ├── StorageService.js   # localStorage abstraction (swap-ready for IndexedDB/cloud)
+│   ├── PlayerStats.js      # Lifetime stats tracking (matches, hands, cerrado, coaching)
+│   └── BadgeSystem.js      # 12 achievement badges with unlock conditions
 ├── services/
 │   ├── ClaudeService.js    # Claude API integration for analysis
 │   └── QuizStorage.js      # localStorage for quiz history
 ├── ui/
 │   ├── DebriefUI.js        # Post-match review modal
-│   └── SettingsUI.js       # Settings modal
+│   ├── SettingsUI.js       # Settings modal
+│   ├── StatsUI.js          # Lifetime stats & badges modal
+│   └── BadgeToast.js       # Achievement unlock toast notifications
 └── i18n/
     ├── i18n.js             # Translation engine
     └── translations.js     # EN/ES strings
@@ -457,8 +463,11 @@ This means simulations reflect **behavioral signals** (salida choice, suit intro
 - **Bayesian Inference**: AI tracks suit affinities from play patterns (salida, suit introduction, end avoidance) to sharpen probability estimates
 - **Quiz Mode**: Test your ability to predict opponent hands
 - **Debrief**: Post-match analysis with play-by-play review
+- **Lifetime Stats & Badges**: Trophy icon opens a stats modal with match history, hand breakdown, cerrado records, and coaching metrics. Twelve achievement badges unlock as you hit milestones and appear as toast notifications.
+- **Tile Attribution**: Toggle "Show who played" to overlay semi-transparent color masks (cyan/red/purple/yellow) on each chain tile, identifying its player at a glance. Desktop also shows a shape indicator (●■▲◆) for a second visual cue.
 - **Claude Integration**: Optional AI-powered play style analysis
 - **Bilingual**: Full English/Spanish support
+- **Mobile-Optimized**: Portrait-mode layout stacks the header vertically so buttons never overlap the title
 
 ---
 
