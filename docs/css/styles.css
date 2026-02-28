@@ -2262,16 +2262,24 @@ button:disabled {
 
     /* Header adjustments */
     .app-header {
-        margin-bottom: 12px;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+
+    .header-buttons {
+        position: static;
+        justify-content: center;
+    }
+
+    .attribution {
+        position: static;
+        font-size: 8px;
+        margin-top: 0;
     }
 
     h1 {
         font-size: 1.2rem;
-    }
-
-    .attribution {
-        font-size: 8px;
-        bottom: -12px;
     }
 
     /* Table adjustments */
