@@ -2304,6 +2304,22 @@ button:disabled {
         padding: 6px 10px;
     }
 
+    /* Player indicator: add colored background on mobile for visibility */
+    .player-indicator {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        border: 1px solid rgba(0,0,0,0.5);
+        font-size: 9px;
+        text-shadow: none;
+        color: #000;
+    }
+
+    .player-indicator.player-0 { background-color: #00d4ff; }
+    .player-indicator.player-1 { background-color: #ff6b6b; }
+    .player-indicator.player-2 { background-color: #22c55e; }
+    .player-indicator.player-3 { background-color: #f59e0b; }
+
     /* Table adjustments */
     .table {
         min-height: 280px;
