@@ -43,10 +43,10 @@ export class BadgeToast {
             requestAnimationFrame(() => toast.classList.add('visible'));
         });
 
-        // Remove after 4 seconds
+        // Remove after 7 seconds
         setTimeout(() => {
             toast.classList.remove('visible');
             setTimeout(() => toast.remove(), 400);
-        }, 4000);
+        }, 7000);
     }
 }

@@ -719,10 +719,10 @@ button:disabled {
     pointer-events: none;
 }
 
-.domino.show-player.played-by-0::after { background: rgba(0, 212, 255, 0.18); }
-.domino.show-player.played-by-1::after { background: rgba(255, 107, 107, 0.18); }
-.domino.show-player.played-by-2::after { background: rgba(168, 85, 247, 0.18); }
-.domino.show-player.played-by-3::after { background: rgba(250, 204, 21, 0.18); }
+.domino.show-player.played-by-0::after { background: rgba(0, 212, 255, 0.28); }
+.domino.show-player.played-by-1::after { background: rgba(255, 107, 107, 0.28); }
+.domino.show-player.played-by-2::after { background: rgba(168, 85, 247, 0.28); }
+.domino.show-player.played-by-3::after { background: rgba(250, 204, 21, 0.28); }
 
 /* Player legend */
 .player-legend {
