@@ -113,10 +113,6 @@ h1 .version {
     color: #666;
 }
 
-.btn-label {
-    display: none;
-}
-
 .settings-btn,
 .help-btn,
 .docs-btn {
@@ -2300,16 +2296,7 @@ button:disabled {
     .help-btn,
     .docs-btn,
     .stats-btn {
-        padding: 6px 8px;
-        flex-direction: column;
-        gap: 2px;
-    }
-
-    .btn-label {
-        display: block;
-        font-size: 9px;
-        color: #888;
-        line-height: 1;
+        padding: 8px;
     }
 
     .lang-toggle {

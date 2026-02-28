@@ -25,9 +25,6 @@ export const translations = {
         'team.teamB': 'Team B (Opponents)',
 
         // Game controls
-        'btn.docs': 'Docs',
-        'btn.help': 'Help',
-        'btn.settings': 'Settings',
         'btn.newGame': 'New Game',
         'btn.quizMe': 'Quiz Me',
         'btn.pass': 'Pass',
@@ -400,9 +397,6 @@ export const translations = {
         'team.teamB': 'Equipo B (Oponentes)',
 
         // Game controls
-        'btn.docs': 'Docs',
-        'btn.help': 'Ayuda',
-        'btn.settings': 'Config',
         'btn.newGame': 'Nueva Partida',
         'btn.quizMe': 'Pruébame',
         'btn.pass': 'Paso',
