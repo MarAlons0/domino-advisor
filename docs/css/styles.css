@@ -676,31 +676,30 @@ button:disabled {
 
 .player-indicator {
     position: absolute;
-    top: -4px;
-    right: -4px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid #1a1a2e;
-    font-size: 7px;
-    font-weight: bold;
+    top: -5px;
+    right: -5px;
+    width: 16px;
+    height: 16px;
+    background: transparent;
+    border: none;
+    font-size: 13px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #000;
     z-index: 1;
+    text-shadow: 0 0 3px #000, 0 0 3px #000;
 }
 
 .domino.vertical .player-indicator {
-    top: -4px;
-    right: -4px;
+    top: -5px;
+    right: -5px;
 }
 
 /* Player indicator colors */
-.player-indicator.player-0 { background-color: #00d4ff; }
-.player-indicator.player-1 { background-color: #ff6b6b; }
-.player-indicator.player-2 { background-color: #22c55e; }
-.player-indicator.player-3 { background-color: #f59e0b; }
+.player-indicator.player-0 { color: #00d4ff; }
+.player-indicator.player-1 { color: #ff6b6b; }
+.player-indicator.player-2 { color: #22c55e; }
+.player-indicator.player-3 { color: #f59e0b; }
 
 /* Subtle glow effect when attribution is on */
 .domino.show-player.played-by-0 { box-shadow: 0 0 8px rgba(0, 212, 255, 0.4); }
@@ -724,15 +723,14 @@ button:disabled {
 }
 
 .legend-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
+    font-size: 12px;
+    line-height: 1;
 }
 
-.legend-dot.player-0 { background-color: #00d4ff; }
-.legend-dot.player-1 { background-color: #ff6b6b; }
-.legend-dot.player-2 { background-color: #22c55e; }
-.legend-dot.player-3 { background-color: #f59e0b; }
+.legend-dot.player-0::before { content: '●'; color: #00d4ff; }
+.legend-dot.player-1::before { content: '■'; color: #ff6b6b; }
+.legend-dot.player-2::before { content: '▲'; color: #22c55e; }
+.legend-dot.player-3::before { content: '◆'; color: #f59e0b; }
 
 .legend-label {
     color: #888;
@@ -2433,8 +2431,7 @@ button:disabled {
     }
 
     .legend-dot {
-        width: 8px;
-        height: 8px;
+        font-size: 10px;
     }
 
     /* Sidebar / Log area */
@@ -2679,4 +2676,233 @@ button:disabled {
     .tile-grid {
         grid-template-columns: repeat(3, 1fr);
     }
+}
+
+/* ==================== Stats Button ==================== */
+.stats-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+    transition: color 0.2s, background 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stats-btn:hover {
+    color: #00d4ff;
+    background: rgba(0, 212, 255, 0.1);
+}
+
+/* ==================== Stats Modal ==================== */
+.stats-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #16213e;
+    border: 1px solid #333;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 560px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+.stats-modal.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+}
+
+.stats-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #00d4ff;
+}
+
+.stats-body {
+    overflow-y: auto;
+    padding: 16px 20px;
+    flex: 1;
+}
+
+.stats-empty {
+    text-align: center;
+    color: #888;
+    padding: 40px 0;
+    font-size: 0.95rem;
+}
+
+.stats-section {
+    margin-bottom: 24px;
+}
+
+.stats-section h3 {
+    color: #00d4ff;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 10px 0;
+    border-bottom: 1px solid #2a3a5a;
+    padding-bottom: 6px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #0f1a2e;
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+
+.stat-item .stat-label {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.stat-item .stat-value {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #eee;
+}
+
+/* Reason breakdown table */
+.stats-reason-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 0.82rem;
+}
+
+.stats-reason-table th,
+.stats-reason-table td {
+    padding: 6px 10px;
+    text-align: center;
+    border: 1px solid #2a3a5a;
+}
+
+.stats-reason-table th {
+    color: #888;
+    background: #0f1a2e;
+}
+
+.stats-reason-table td:first-child {
+    text-align: left;
+    color: #aaa;
+}
+
+/* Badge grid */
+.stats-badge-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.badge-card {
+    background: #0f1a2e;
+    border: 1px solid #2a3a5a;
+    border-radius: 8px;
+    padding: 12px 8px;
+    text-align: center;
+    transition: border-color 0.2s;
+}
+
+.badge-card.locked {
+    opacity: 0.4;
+    filter: grayscale(1);
+}
+
+.badge-card-icon {
+    font-size: 1.8rem;
+    margin-bottom: 6px;
+}
+
+.badge-card-title {
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: #eee;
+    margin-bottom: 4px;
+}
+
+.badge-card-desc {
+    font-size: 0.7rem;
+    color: #888;
+    line-height: 1.3;
+}
+
+/* ==================== Badge Toast ==================== */
+#badge-toast-container {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.badge-toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #16213e;
+    border: 1px solid #00d4ff;
+    border-radius: 10px;
+    padding: 12px 16px;
+    min-width: 220px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.4s, transform 0.4s;
+    pointer-events: auto;
+}
+
+.badge-toast.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.badge-toast-icon {
+    font-size: 1.8rem;
+    flex-shrink: 0;
+}
+
+.badge-toast-title {
+    font-weight: bold;
+    color: #eee;
+    font-size: 0.9rem;
+}
+
+.badge-toast-earned {
+    font-size: 0.75rem;
+    color: #00d4ff;
 }

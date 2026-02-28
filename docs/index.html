@@ -25,6 +25,16 @@
                     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
                 </svg>
             </a>
+            <button id="stats-btn" class="stats-btn" title="Stats">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+                    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+                    <path d="M4 22h16"></path>
+                    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+                    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+                    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+                </svg>
+            </button>
             <button id="help-btn" class="help-btn" title="Help">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
@@ -314,6 +324,90 @@
         </div>
     </div>
 
+    <!-- Stats Modal -->
+    <div class="modal-overlay" id="stats-overlay"></div>
+    <div class="stats-modal" id="stats-modal">
+        <div class="stats-header">
+            <h2 data-i18n="stats.title">Player Stats</h2>
+            <button id="close-stats-btn" class="close-btn">&times;</button>
+        </div>
+        <div class="stats-body">
+            <div id="stats-empty" class="stats-empty" style="display:none;" data-i18n="stats.empty">Play a match to see your stats!</div>
+            <div id="stats-body-content">
+                <!-- Matches Section -->
+                <div class="stats-section">
+                    <h3 data-i18n="stats.section.matches">Matches</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.matches.played">Played</span><span class="stat-value" id="stat-matches-played">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.matches.won">Won</span><span class="stat-value" id="stat-matches-won">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.matches.lost">Lost</span><span class="stat-value" id="stat-matches-lost">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.matches.winPct">Win %</span><span class="stat-value" id="stat-matches-win-pct">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.matches.streak">Current Streak</span><span class="stat-value" id="stat-matches-streak">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.matches.bestStreak">Best Streak</span><span class="stat-value" id="stat-matches-best-streak">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.matches.zapatosGiven">Zapatos Given</span><span class="stat-value" id="stat-matches-zapatos-given">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.matches.zapatosReceived">Zapatos Received</span><span class="stat-value" id="stat-matches-zapatos-received">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.matches.winMargin">Largest Win Margin</span><span class="stat-value" id="stat-matches-win-margin">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.matches.deficit">Largest Comeback</span><span class="stat-value" id="stat-matches-deficit">--</span></div>
+                    </div>
+                </div>
+
+                <!-- Hands Section -->
+                <div class="stats-section">
+                    <h3 data-i18n="stats.section.hands">Hands</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.hands.played">Played</span><span class="stat-value" id="stat-hands-played">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.hands.won">Won</span><span class="stat-value" id="stat-hands-won">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.hands.lost">Lost</span><span class="stat-value" id="stat-hands-lost">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.hands.tied">Tied</span><span class="stat-value" id="stat-hands-tied">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.hands.winPct">Win %</span><span class="stat-value" id="stat-hands-win-pct">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.hands.largestScore">Largest Score</span><span class="stat-value" id="stat-hands-largest-score">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.hands.largestSurrender">Largest Surrender</span><span class="stat-value" id="stat-hands-largest-surrender">--</span></div>
+                    </div>
+                    <table class="stats-reason-table">
+                        <thead><tr><th></th><th data-i18n="stats.hands.won">Won</th><th data-i18n="stats.hands.lost">Lost</th></tr></thead>
+                        <tbody>
+                            <tr><td data-i18n="stats.reason.domino">Domino</td><td id="stat-hands-domino-won">--</td><td id="stat-hands-domino-lost">--</td></tr>
+                            <tr><td data-i18n="stats.reason.closed">Closed</td><td id="stat-hands-closed-won">--</td><td id="stat-hands-closed-lost">--</td></tr>
+                            <tr><td data-i18n="stats.reason.blocked">Blocked</td><td id="stat-hands-blocked-won">--</td><td id="stat-hands-blocked-lost">--</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Cerrado Section -->
+                <div class="stats-section">
+                    <h3 data-i18n="stats.section.cerrado">Cerrado</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.cerrado.teamTotal">Team Cerrados</span><span class="stat-value" id="stat-cerrado-team-total">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.cerrado.teamWon">Won by Cerrado</span><span class="stat-value" id="stat-cerrado-team-won">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.cerrado.youClosed">You Closed</span><span class="stat-value" id="stat-cerrado-you-closed">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.cerrado.partnerClosed">Partner Closed</span><span class="stat-value" id="stat-cerrado-partner-closed">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.cerrado.opponentTotal">Opp Cerrados</span><span class="stat-value" id="stat-cerrado-opponent-total">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.cerrado.largestScore">Largest Win</span><span class="stat-value" id="stat-cerrado-largest-score">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.cerrado.largestSurrender">Largest Loss</span><span class="stat-value" id="stat-cerrado-largest-surrender">--</span></div>
+                    </div>
+                </div>
+
+                <!-- Coaching Section -->
+                <div class="stats-section">
+                    <h3 data-i18n="stats.section.coaching">Coaching</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.coaching.agreements">Genín Agreements</span><span class="stat-value" id="stat-coaching-agreements">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.coaching.agreementPct">Agreement Rate</span><span class="stat-value" id="stat-coaching-agreement-pct">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.coaching.overrides">Overrides Won</span><span class="stat-value" id="stat-coaching-overrides">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.coaching.quizAttempts">Quiz Attempts</span><span class="stat-value" id="stat-coaching-quiz-attempts">--</span></div>
+                        <div class="stat-item"><span class="stat-label" data-i18n="stats.coaching.bestQuiz">Best Quiz Score</span><span class="stat-value" id="stat-coaching-best-quiz">--</span></div>
+                    </div>
+                </div>
+
+                <!-- Badges Section -->
+                <div class="stats-section">
+                    <h3 data-i18n="stats.section.badges">Badges</h3>
+                    <div id="stats-badge-grid" class="stats-badge-grid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Debrief Modal -->
     <div class="modal-overlay" id="debrief-overlay"></div>
     <div class="debrief-modal" id="debrief-modal">
@@ -432,6 +526,8 @@
             <button id="debrief-new-match-btn" data-i18n="btn.newMatch">New Match</button>
         </div>
     </div>
+
+    <div id="badge-toast-container"></div>
 
     <script type="module" src="js/main.js?v=25"></script>
 </body>

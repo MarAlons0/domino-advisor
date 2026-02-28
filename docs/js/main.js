@@ -5,6 +5,10 @@ import { HandTracker } from './ai/HandTracker.js';
 import { PlayerView } from './ai/PlayerView.js';
 import { DebriefUI } from './ui/DebriefUI.js';
 import { SettingsUI } from './ui/SettingsUI.js';
+import { StatsUI } from './ui/StatsUI.js';
+import { BadgeToast } from './ui/BadgeToast.js';
+import { PlayerStats } from './stats/PlayerStats.js';
+import { BadgeSystem } from './stats/BadgeSystem.js';
 import { QuizStorage } from './services/QuizStorage.js';
 import { Tile } from './models/Tile.js';
 import { ProbabilityAnalyzer } from './ai/ProbabilityAnalyzer.js';
@@ -119,6 +123,11 @@ class DominoApp {
         // UI modules
         this.debriefUI = new DebriefUI();
         this.settingsUI = new SettingsUI();
+        this.playerStats = new PlayerStats();
+        this.playerStats.load();
+        this.badgeSystem = new BadgeSystem();
+        this.badgeToast = new BadgeToast();
+        this.statsUI = new StatsUI(this.playerStats);
 
         this.initElements();
         this.initEventHandlers();
@@ -204,6 +213,9 @@ class DominoApp {
     initUIModules() {
         // Initialize settings UI
         this.settingsUI.init();
+
+        // Initialize stats UI
+        this.statsUI.init();
 
         // Initialize debrief UI
         this.debriefUI.init();
@@ -478,6 +490,7 @@ class DominoApp {
         this.log(t('log.newMatch'), 'system');
         this.ai.resetForNewHand();
         if (this.probAnalyzer) this.probAnalyzer.resetMatch();
+        this.playerStats.resetMatchSession();
         this.game.newMatch();
 
         // Initialize hand tracker with human's hand
@@ -867,6 +880,12 @@ class DominoApp {
         } else {
             this.log(t('log.tie'), 'system');
         }
+
+        // Record stats and check for hand badges
+        this.playerStats.recordHandResult(data, this.game.getMatchHistory());
+        const hBadges = this.badgeSystem.checkHandBadges(this.playerStats.get());
+        if (hBadges.length) this.badgeToast.showBadges(hBadges);
+        this.playerStats.save(this.playerStats.get());
     }
 
     getHandQuizResultsText() {
@@ -925,6 +944,14 @@ class DominoApp {
 
         this.log(t('log.matchOver'), 'system');
         this.log(t('log.teamWins', winnerName), 'system');
+
+        // Record coaching data, match result, and check for match badges
+        const mh = this.game.getMatchHistory();
+        this.playerStats.recordCoachingData(mh.getHumanStats(), mh.getQuizStats());
+        this.playerStats.recordMatchResult(data);
+        const mBadges = this.badgeSystem.checkMatchBadges(this.playerStats.get());
+        if (mBadges.length) this.badgeToast.showBadges(mBadges);
+        this.playerStats.save(this.playerStats.get());
     }
 
     showDebrief() {
