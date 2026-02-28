@@ -2270,6 +2270,7 @@ button:disabled {
     .header-buttons {
         position: static;
         justify-content: center;
+        gap: 10px;
     }
 
     .attribution {
@@ -2280,6 +2281,27 @@ button:disabled {
 
     h1 {
         font-size: 1.2rem;
+    }
+
+    /* Larger icons and tap targets on mobile */
+    .settings-btn svg,
+    .help-btn svg,
+    .docs-btn svg,
+    .stats-btn svg {
+        width: 26px;
+        height: 26px;
+    }
+
+    .settings-btn,
+    .help-btn,
+    .docs-btn,
+    .stats-btn {
+        padding: 8px;
+    }
+
+    .lang-toggle {
+        font-size: 13px;
+        padding: 6px 10px;
     }
 
     /* Table adjustments */
