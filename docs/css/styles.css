@@ -707,6 +707,52 @@ button:disabled {
 .domino.show-player.played-by-2 { box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
 .domino.show-player.played-by-3 { box-shadow: 0 0 8px rgba(245, 158, 11, 0.4); }
 
+/* Pattern stripe at bottom of tile — color + pattern for color-blind accessibility */
+.domino.show-player {
+    position: relative;
+}
+
+.domino.show-player::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+}
+
+/* Player 0 — solid */
+.domino.show-player.played-by-0::after {
+    background: #00d4ff;
+}
+
+/* Player 1 — long dashes */
+.domino.show-player.played-by-1::after {
+    background: repeating-linear-gradient(
+        to right,
+        #ff6b6b 0, #ff6b6b 8px,
+        transparent 8px, transparent 12px
+    );
+}
+
+/* Player 2 — short dashes */
+.domino.show-player.played-by-2::after {
+    background: repeating-linear-gradient(
+        to right,
+        #22c55e 0, #22c55e 4px,
+        transparent 4px, transparent 7px
+    );
+}
+
+/* Player 3 — dots */
+.domino.show-player.played-by-3::after {
+    background: repeating-linear-gradient(
+        to right,
+        #f59e0b 0, #f59e0b 2px,
+        transparent 2px, transparent 6px
+    );
+}
+
 /* Player legend */
 .player-legend {
     display: flex;
@@ -723,14 +769,28 @@ button:disabled {
 }
 
 .legend-dot {
-    font-size: 12px;
-    line-height: 1;
+    width: 24px;
+    height: 6px;
+    border-radius: 1px;
+    flex-shrink: 0;
 }
 
-.legend-dot.player-0::before { content: '●'; color: #00d4ff; }
-.legend-dot.player-1::before { content: '■'; color: #ff6b6b; }
-.legend-dot.player-2::before { content: '▲'; color: #22c55e; }
-.legend-dot.player-3::before { content: '◆'; color: #f59e0b; }
+.legend-dot.player-0 { background: #00d4ff; }
+.legend-dot.player-1 {
+    background: repeating-linear-gradient(
+        to right, #ff6b6b 0, #ff6b6b 8px, transparent 8px, transparent 12px
+    );
+}
+.legend-dot.player-2 {
+    background: repeating-linear-gradient(
+        to right, #22c55e 0, #22c55e 4px, transparent 4px, transparent 7px
+    );
+}
+.legend-dot.player-3 {
+    background: repeating-linear-gradient(
+        to right, #f59e0b 0, #f59e0b 2px, transparent 2px, transparent 6px
+    );
+}
 
 .legend-label {
     color: #888;
@@ -2304,21 +2364,10 @@ button:disabled {
         padding: 6px 10px;
     }
 
-    /* Player indicator: add colored background on mobile for visibility */
+    /* Hide corner indicator on mobile — bottom stripe is sufficient */
     .player-indicator {
-        width: 14px;
-        height: 14px;
-        border-radius: 3px;
-        border: 1px solid rgba(0,0,0,0.5);
-        font-size: 9px;
-        text-shadow: none;
-        color: #000;
+        display: none;
     }
-
-    .player-indicator.player-0 { background-color: #00d4ff; }
-    .player-indicator.player-1 { background-color: #ff6b6b; }
-    .player-indicator.player-2 { background-color: #22c55e; }
-    .player-indicator.player-3 { background-color: #f59e0b; }
 
     /* Table adjustments */
     .table {
@@ -2477,7 +2526,8 @@ button:disabled {
     }
 
     .legend-dot {
-        font-size: 10px;
+        width: 20px;
+        height: 5px;
     }
 
     /* Sidebar / Log area */
