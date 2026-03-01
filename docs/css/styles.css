@@ -488,7 +488,6 @@ h1 .version {
 }
 
 .hand .domino:hover:not(.disabled) {
-    transform: translateY(-8px) scale(1.05);
     box-shadow: 0 8px 20px rgba(0, 212, 255, 0.3);
 }
 
