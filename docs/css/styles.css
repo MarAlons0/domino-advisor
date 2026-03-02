@@ -338,6 +338,52 @@ h1 .version {
     gap: 2px;
 }
 
+/* Each tile row: 3 columns — left arm | start tile | right arm */
+.chain-paired-row {
+    display: grid;
+    grid-template-columns: 1fr 60px 1fr;
+    align-items: center;
+}
+
+.chain-left-cell {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 2px;
+}
+
+.chain-right-cell {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 2px;
+}
+
+.chain-start-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 2px;
+}
+
+/* Full-width continuation row (left arm above anchor, right arm below) */
+.chain-cont-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+}
+
+/* Full-width turn connector between continuation rows */
+.chain-cont-connector {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 20px;
+}
+
 .chain-row {
     display: flex;
     align-items: center;
@@ -2353,6 +2399,11 @@ button:disabled {
         padding: 5px;
     }
 
+    .chain-paired-row,
+    .chain-turn-pair {
+        grid-template-columns: 1fr 46px 1fr;
+    }
+
     .chain .domino.horizontal {
         width: 44px;
         height: 22px;
@@ -2692,6 +2743,11 @@ button:disabled {
         min-height: 240px;
         grid-template-rows: 40px 1fr 40px;
         grid-template-columns: 40px 1fr 40px;
+    }
+
+    .chain-paired-row,
+    .chain-turn-pair {
+        grid-template-columns: 1fr 40px 1fr;
     }
 
     .chain .domino.horizontal {

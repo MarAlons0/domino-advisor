@@ -562,6 +562,27 @@ class DominoApp {
         this.handCount.textContent = `(${state.hands[0].size()} ${t('hand.tiles')})`;
     }
 
+    _buildDominoEl(pt, flip = false) {
+        const isDouble = pt.tile.isDouble();
+        const orientation = isDouble ? 'vertical' : 'horizontal';
+        let leftVal = pt.leftValue;
+        let rightVal = pt.rightValue;
+        if (flip && !isDouble) { leftVal = pt.rightValue; rightVal = pt.leftValue; }
+        const domino = createDominoElement(leftVal, rightVal, orientation, isDouble);
+        if (this.showTileAttribution && pt.playedBy !== undefined && pt.playedBy >= 0) {
+            domino.classList.add('show-player', `played-by-${pt.playedBy}`);
+            const indicator = document.createElement('div');
+            indicator.className = `player-indicator player-${pt.playedBy}`;
+            const initials = [
+                t('attribution.initials.you'), t('attribution.initials.opp1'),
+                t('attribution.initials.partner'), t('attribution.initials.opp2')
+            ];
+            indicator.textContent = initials[pt.playedBy];
+            domino.appendChild(indicator);
+        }
+        return domino;
+    }
+
     renderChain(chain) {
         this.chainContainer.innerHTML = '';
 
@@ -575,78 +596,102 @@ class DominoApp {
         }
 
         const placedTiles = chain.getPlacedTiles();
-
-        // Calculate tiles per row based on available width
+        const F = chain.firstTileIndex;
         const tilesPerRow = this._calculateTilesPerRow();
+        const halfCap = Math.floor((tilesPerRow - 1) / 2); // arm slots in 3-col anchor row
+        const contCap = tilesPerRow;                        // slots in full-width cont rows
 
-        // Create the chain container
+        // leftArm[0] = tile immediately left of start; [1] = next outward, etc.
+        const leftArm  = placedTiles.slice(0, F).reverse();
+        const startPt  = placedTiles[F];
+        const rightArm = placedTiles.slice(F + 1);
+
         const chainDiv = document.createElement('div');
         chainDiv.className = 'chain';
 
-        // Split tiles into rows
-        let currentRow = null;
-        let rowIndex = 0;
+        // --- Anchor row: [left-arm tail | start tile | right-arm tail] ---
+        const anchorRow = document.createElement('div');
+        anchorRow.className = 'chain-paired-row';
 
-        placedTiles.forEach((pt, index) => {
-            // Start a new row if needed
-            if (index % tilesPerRow === 0) {
-                if (currentRow) {
-                    chainDiv.appendChild(currentRow);
-                    // Add turn connector between rows (L-shaped with arrow)
-                    const turn = document.createElement('div');
-                    turn.className = 'chain-turn' + (rowIndex % 2 === 0 ? ' left-side' : '');
-                    turn.innerHTML = '<div class="turn-connector"></div>';
-                    chainDiv.appendChild(turn);
-                }
-                currentRow = document.createElement('div');
-                currentRow.className = 'chain-row' + (rowIndex % 2 === 1 ? ' reverse' : '');
-                rowIndex++;
-            }
+        const leftCell = document.createElement('div');
+        leftCell.className = 'chain-left-cell'; // CSS default: flex-end (toward center)
+        [...leftArm.slice(0, halfCap)].reverse()
+            .forEach(pt => leftCell.appendChild(this._buildDominoEl(pt, false)));
 
-            const isDouble = pt.tile.isDouble();
-            const orientation = isDouble ? 'vertical' : 'horizontal';
+        const centerCell = document.createElement('div');
+        centerCell.className = 'chain-start-cell';
+        centerCell.appendChild(this._buildDominoEl(startPt, false));
 
-            // In reversed rows, flip the tile orientation so connecting pips stay adjacent
-            const isReversedRow = (Math.floor(index / tilesPerRow) % 2 === 1);
+        const rightCell = document.createElement('div');
+        rightCell.className = 'chain-right-cell'; // CSS default: flex-start (toward center)
+        rightArm.slice(0, halfCap)
+            .forEach(pt => rightCell.appendChild(this._buildDominoEl(pt, false)));
 
-            let leftVal = pt.leftValue;
-            let rightVal = pt.rightValue;
+        anchorRow.appendChild(leftCell);
+        anchorRow.appendChild(centerCell);
+        anchorRow.appendChild(rightCell);
+        chainDiv.appendChild(anchorRow);
 
-            if (isReversedRow && !isDouble) {
-                // Swap left/right for reversed rows (non-doubles only)
-                leftVal = pt.rightValue;
-                rightVal = pt.leftValue;
-            }
+        // --- Left arm continuation rows (fold UPWARD above anchor) ---
+        // la=1,3,… start at LEFT wall (flex-start, forward display, flip=true)
+        // la=2,4,… start at RIGHT wall (flex-end, reversed display, flip=false)
+        // Connector between anchor and la=1 is at LEFT wall; between la=1 and la=2 at RIGHT wall.
+        // Each pair is prepended so la=1 ends up just above anchor, la=N at the very top.
+        for (let la = 1; ; la++) {
+            const start = halfCap + (la - 1) * contCap;
+            const slice = leftArm.slice(start, start + contCap);
+            if (slice.length === 0) break;
 
-            const domino = createDominoElement(leftVal, rightVal, orientation, isDouble);
+            const flip    = (la % 2 === 1);
+            const justify = (la % 2 === 1) ? 'flex-start' : 'flex-end';
+            const display = (la % 2 === 1) ? [...slice] : [...slice].reverse();
+            const connSide = (la % 2 === 1) ? 'left' : 'right';
 
-            // Add player attribution if enabled
-            if (this.showTileAttribution && pt.playedBy !== undefined && pt.playedBy >= 0) {
-                domino.classList.add('show-player', `played-by-${pt.playedBy}`);
+            const connEl = this._buildConnectorRow(connSide);
+            const rowEl = document.createElement('div');
+            rowEl.className = 'chain-cont-row';
+            rowEl.style.justifyContent = justify;
+            display.forEach(pt => rowEl.appendChild(this._buildDominoEl(pt, flip)));
 
-                // Add player indicator dot
-                const indicator = document.createElement('div');
-                indicator.className = `player-indicator player-${pt.playedBy}`;
-                // Use translated initials
-                const initials = [
-                    t('attribution.initials.you'),
-                    t('attribution.initials.opp1'),
-                    t('attribution.initials.partner'),
-                    t('attribution.initials.opp2')
-                ];
-                indicator.textContent = initials[pt.playedBy];
-                domino.appendChild(indicator);
-            }
+            // prepend connEl then rowEl → rowEl lands above connEl in DOM
+            chainDiv.prepend(connEl);
+            chainDiv.prepend(rowEl);
+        }
 
-            currentRow.appendChild(domino);
-        });
+        // --- Right arm continuation rows (fold DOWNWARD below anchor) ---
+        // ra=1,3,… start at RIGHT wall (flex-end, reversed display, flip=true)
+        // ra=2,4,… start at LEFT wall (flex-start, forward display, flip=false)
+        // Connector between anchor and ra=1 is at RIGHT wall; between ra=1 and ra=2 at LEFT wall.
+        for (let ra = 1; ; ra++) {
+            const start = halfCap + (ra - 1) * contCap;
+            const slice = rightArm.slice(start, start + contCap);
+            if (slice.length === 0) break;
 
-        // Add the last row
-        if (currentRow) {
-            chainDiv.appendChild(currentRow);
+            const flip    = (ra % 2 === 1);
+            const justify = (ra % 2 === 1) ? 'flex-end' : 'flex-start';
+            const display = (ra % 2 === 1) ? [...slice].reverse() : [...slice];
+            const connSide = (ra % 2 === 1) ? 'right' : 'left';
+
+            const connEl = this._buildConnectorRow(connSide);
+            const rowEl = document.createElement('div');
+            rowEl.className = 'chain-cont-row';
+            rowEl.style.justifyContent = justify;
+            display.forEach(pt => rowEl.appendChild(this._buildDominoEl(pt, flip)));
+
+            chainDiv.appendChild(connEl);
+            chainDiv.appendChild(rowEl);
         }
 
         this.chainContainer.appendChild(chainDiv);
+    }
+
+    _buildConnectorRow(side) {
+        const el = document.createElement('div');
+        el.className = 'chain-cont-connector';
+        el.style.justifyContent = (side === 'left') ? 'flex-start' : 'flex-end';
+        const cls = (side === 'left') ? 'chain-turn left-side' : 'chain-turn';
+        el.innerHTML = `<div class="${cls}"><div class="turn-connector"></div></div>`;
+        return el;
     }
 
     /**

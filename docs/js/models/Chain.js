@@ -21,6 +21,8 @@ export class Chain {
         this.leftEnd = null;
         /** @type {number|null} */
         this.rightEnd = null;
+        /** @type {number} Index of the first-played (start) tile in placedTiles */
+        this.firstTileIndex = 0;
     }
 
     /**
@@ -97,6 +99,7 @@ export class Chain {
                 playedBy: playedBy
             });
             this.leftEnd = newLeftEnd;
+            this.firstTileIndex++;
 
         } else if (end === 'right') {
             if (!tile.hasValue(this.rightEnd)) return false;
@@ -180,6 +183,7 @@ export class Chain {
         });
         chain.leftEnd = this.leftEnd;
         chain.rightEnd = this.rightEnd;
+        chain.firstTileIndex = this.firstTileIndex;
         return chain;
     }
 

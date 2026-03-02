@@ -249,7 +249,8 @@ export class GameState {
                     rightValue: pt.rightValue
                 })),
                 leftEnd: this.chain.leftEnd,
-                rightEnd: this.chain.rightEnd
+                rightEnd: this.chain.rightEnd,
+                firstTileIndex: this.chain.firstTileIndex
             },
             currentPlayer: this.currentPlayer,
             consecutivePasses: this.consecutivePasses,
@@ -288,6 +289,7 @@ export class GameState {
         });
         state.chain.leftEnd = json.chain.leftEnd;
         state.chain.rightEnd = json.chain.rightEnd;
+        state.chain.firstTileIndex = json.chain.firstTileIndex ?? 0;
 
         state.currentPlayer = json.currentPlayer;
         state.consecutivePasses = json.consecutivePasses;
