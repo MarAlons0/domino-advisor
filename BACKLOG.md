@@ -245,39 +245,7 @@ Teach traditional terminology through the UI.
 
 ---
 
-### UX-X. Fixed Chain Position (Stable Tile Layout)
-**Priority:** Medium
-**Complexity:** Medium
-
-The tile chain currently shifts horizontally as new tiles are added, because rows are centered and rebuilt from scratch on each turn. In real dominoes, players build a mental map of where each tile sits on the table — that spatial memory is part of the game. The moving chain breaks this mental model and adds cognitive load.
-
-**Goal:** Pin the starting tile (la salida) to the horizontal center of the table. Tiles added to the right arm move rightward; tiles added to the left arm move leftward. Once placed, no tile shifts horizontally. The table may expand vertically (new rows above or below) as needed — that is acceptable.
-
-**Desired layout:**
-```
-      LEFT ARM          |  start  |      RIGHT ARM
-T5  T4  T3  T2  T1     | [6|6]  |  T1  T2  T3  T4  T5
-                                                      ↓
-     T9  T8  T7  T6 ←←←←←←←←←←←←←←←←←←←←←←← T6
-     ↓
-→ T10  T11  T12 ...
-```
-
-**Implementation approach:**
-- **Data model change (small):** Add `firstTileIndex` to `Chain.js` — starts at 0, increments each time a tile is played on the left end. This lets the renderer know the split point.
-  - `placedTiles[0 .. firstTileIndex-1]` = left arm (ordered leftmost → center)
-  - `placedTiles[firstTileIndex]` = starting tile (center anchor)
-  - `placedTiles[firstTileIndex+1 .. end]` = right arm
-- **Rendering rewrite (bulk of work):** Rewrite `renderChain()` in `main.js` to render two independent arms from the fixed center point:
-  - Right arm: left-anchored at center, grows rightward — new tiles appear at far right, existing tiles never shift
-  - Left arm: right-anchored at center, grows leftward — new tiles appear at far left, existing tiles never shift
-- **Independent wrap logic:** Each arm wraps at its own edge (right arm wraps at right wall, left arm wraps at left wall), independent of the other
-- **Vertical expansion:** Chain container expands vertically as rows are added; `overflow-y: auto` or natural growth is fine
-
-**Notes:**
-- Mobile: arms will be shorter before wrapping (fewer tiles per row); verify the layout still reads clearly
-- Turn connectors (L-shape arrows) need to be adapted for the two-arm model
-- The starting tile is rendered once, as the shared anchor between both arms
+### ~~UX-X. Fixed Chain Position (Stable Tile Layout)~~ *(completed v0.4.6, Mar 2026)*
 
 ---
 
@@ -361,6 +329,14 @@ Give each named AI player a distinct playing style by parameterizing strategy we
 ---
 
 ## Completed Features
+
+### Fixed Chain Position / Stable Tile Layout (Mar 2026)
+- Start tile (la salida) pinned to horizontal center of the table at all times
+- Left arm folds upward above the anchor row; right arm folds downward below it
+- Each continuation row uses the full container width (not half-width)
+- Turn connectors (L-shaped) indicate which wall each arm wraps at
+- `Chain.firstTileIndex` tracks the split point between left arm, start tile, and right arm
+- Pip flip logic preserves connecting-pip alignment after each wall turn
 
 ### Monte Carlo Look-Ahead Simulation (Feb 2026)
 - Probability-weighted hand sampling using HandTracker distributions
