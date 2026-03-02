@@ -20,6 +20,14 @@ A web-based domino game that simulates 4-player partnership dominoes (Cuban/Puer
 ## Architecture
 
 ```
+docs/
+├── manifest.json           # PWA manifest (name, icons, display: standalone)
+├── service-worker.js       # Cache-first SW; pre-caches core assets, caches JS modules on first fetch
+├── icons/
+│   └── icon.svg            # [3|4] domino tile icon (navy + cyan dots)
+└── js/
+    (see below)
+
 docs/js/
 ├── main.js                 # Application entry point, UI controller
 ├── ai/
@@ -466,6 +474,7 @@ This means simulations reflect **behavioral signals** (salida choice, suit intro
 - **Lifetime Stats & Badges**: Trophy icon opens a stats modal with match history, hand breakdown, cerrado records, and coaching metrics. Twelve achievement badges unlock as you hit milestones and appear as toast notifications.
 - **Tile Attribution**: Toggle "Show who played" to overlay semi-transparent color masks (cyan/red/purple/yellow) on each chain tile, identifying its player at a glance. Desktop also shows a shape indicator (●■▲◆) for a second visual cue.
 - **Claude Integration**: Optional AI-powered play style analysis
+- **PWA / Installable**: Add to home screen on iPhone (Safari) or Android (Chrome) — runs full-screen with no browser chrome and works offline after first load
 - **Bilingual**: Full English/Spanish support
 - **Mobile-Optimized**: Portrait-mode layout stacks the header vertically so buttons never overlap the title
 
