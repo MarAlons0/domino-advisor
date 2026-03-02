@@ -235,20 +235,20 @@ h1 .version {
 .player-name.opponent-team { color: #fca5a5; }
 
 /* Individual player colors */
-.player-color-0 { color: #00d4ff; } /* You - Cyan */
-.player-color-1 { color: #ff6b6b; } /* Opp 1 - Coral */
-.player-color-2 { color: #a855f7; } /* Partner - Purple */
-.player-color-3 { color: #facc15; } /* Opp 2 - Yellow */
+.player-color-0 { color: #ffffff; } /* You - White */
+.player-color-1 { color: #ef4444; } /* Opp 1 - Red */
+.player-color-2 { color: #3b82f6; } /* Partner - Blue */
+.player-color-3 { color: #eab308; } /* Opp 2 - Yellow */
 
-.player-bg-0 { background-color: #00d4ff; }
-.player-bg-1 { background-color: #ff6b6b; }
-.player-bg-2 { background-color: #a855f7; }
-.player-bg-3 { background-color: #facc15; }
+.player-bg-0 { background-color: #ffffff; }
+.player-bg-1 { background-color: #ef4444; }
+.player-bg-2 { background-color: #3b82f6; }
+.player-bg-3 { background-color: #eab308; }
 
-.player-border-0 { border-color: #00d4ff; }
-.player-border-1 { border-color: #ff6b6b; }
-.player-border-2 { border-color: #a855f7; }
-.player-border-3 { border-color: #facc15; }
+.player-border-0 { border-color: #ffffff; }
+.player-border-1 { border-color: #ef4444; }
+.player-border-2 { border-color: #3b82f6; }
+.player-border-3 { border-color: #eab308; }
 
 /* Pass Badge - pulses on player position */
 .pass-badge {
@@ -695,16 +695,16 @@ button:disabled {
 }
 
 /* Player indicator colors */
-.player-indicator.player-0 { color: #00d4ff; }
-.player-indicator.player-1 { color: #ff6b6b; }
-.player-indicator.player-2 { color: #a855f7; }
-.player-indicator.player-3 { color: #facc15; }
+.player-indicator.player-0 { color: #ffffff; -webkit-text-stroke: 1.5px #000; text-shadow: none; }
+.player-indicator.player-1 { color: #ef4444; }
+.player-indicator.player-2 { color: #3b82f6; }
+.player-indicator.player-3 { color: #eab308; }
 
-/* Subtle glow effect when attribution is on */
-.domino.show-player.played-by-0 { box-shadow: 0 0 8px rgba(0, 212, 255, 0.4); }
-.domino.show-player.played-by-1 { box-shadow: 0 0 8px rgba(255, 107, 107, 0.4); }
-.domino.show-player.played-by-2 { box-shadow: 0 0 8px rgba(168, 85, 247, 0.4); }
-.domino.show-player.played-by-3 { box-shadow: 0 0 8px rgba(250, 204, 21, 0.4); }
+/* Glow effect when attribution is on */
+.domino.show-player.played-by-0 { box-shadow: 0 0 8px rgba(255, 255, 255, 0.6); }
+.domino.show-player.played-by-1 { box-shadow: 0 0 8px rgba(239, 68, 68, 0.5); }
+.domino.show-player.played-by-2 { box-shadow: 0 0 8px rgba(59, 130, 246, 0.5); }
+.domino.show-player.played-by-3 { box-shadow: 0 0 8px rgba(234, 179, 8, 0.5); }
 
 /* Semi-transparent color overlay over the full tile */
 .domino.show-player {
@@ -718,10 +718,10 @@ button:disabled {
     pointer-events: none;
 }
 
-.domino.show-player.played-by-0::after { background: rgba(0, 212, 255, 0.28); }
-.domino.show-player.played-by-1::after { background: rgba(255, 107, 107, 0.28); }
-.domino.show-player.played-by-2::after { background: rgba(168, 85, 247, 0.28); }
-.domino.show-player.played-by-3::after { background: rgba(250, 204, 21, 0.28); }
+/* No overlay for Player 0 (you) — tiles stay plain */
+.domino.show-player.played-by-1::after { background: rgba(239, 68, 68, 0.28); }
+.domino.show-player.played-by-2::after { background: rgba(59, 130, 246, 0.28); }
+.domino.show-player.played-by-3::after { background: rgba(234, 179, 8, 0.28); }
 
 /* Player legend */
 .player-legend {
@@ -743,10 +743,10 @@ button:disabled {
     line-height: 1;
 }
 
-.legend-dot.player-0::before { content: '●'; color: #00d4ff; }
-.legend-dot.player-1::before { content: '■'; color: #ff6b6b; }
-.legend-dot.player-2::before { content: '▲'; color: #a855f7; }
-.legend-dot.player-3::before { content: '◆'; color: #facc15; }
+.legend-dot.player-0::before { content: '●'; color: #ffffff; -webkit-text-stroke: 1px #000; }
+.legend-dot.player-1::before { content: '▶'; color: #ef4444; }
+.legend-dot.player-2::before { content: '▲'; color: #3b82f6; }
+.legend-dot.player-3::before { content: '◀'; color: #eab308; }
 
 .legend-label {
     color: #888;
@@ -792,10 +792,10 @@ button:disabled {
     border-bottom: 1px solid #0f3460;
 }
 
-.log-entry.player-0 { color: #00d4ff; } /* You - Cyan */
-.log-entry.player-1 { color: #ff6b6b; } /* Opp 1 - Coral */
-.log-entry.player-2 { color: #a855f7; } /* Partner - Purple */
-.log-entry.player-3 { color: #facc15; } /* Opp 2 - Yellow */
+.log-entry.player-0 { color: #ffffff; } /* You - White */
+.log-entry.player-1 { color: #ef4444; } /* Opp 1 - Red */
+.log-entry.player-2 { color: #3b82f6; } /* Partner - Blue */
+.log-entry.player-3 { color: #eab308; } /* Opp 2 - Yellow */
 .log-entry.system { color: #ffd93d; }
 
 /* Pass entries - more prominent */

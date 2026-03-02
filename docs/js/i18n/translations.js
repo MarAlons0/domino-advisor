@@ -47,9 +47,9 @@ export const translations = {
         // Attribution
         'attribution.show': 'Show who played each tile',
         'attribution.initials.you': '●',
-        'attribution.initials.opp1': '■',
+        'attribution.initials.opp1': '▶',
         'attribution.initials.partner': '▲',
-        'attribution.initials.opp2': '◆',
+        'attribution.initials.opp2': '◀',
 
         // End selection modal
         'endSelect.title': 'Play on which end?',
@@ -420,9 +420,9 @@ export const translations = {
         // Attribution
         'attribution.show': 'Mostrar quién jugó cada ficha',
         'attribution.initials.you': '●',
-        'attribution.initials.opp1': '■',
+        'attribution.initials.opp1': '▶',
         'attribution.initials.partner': '▲',
-        'attribution.initials.opp2': '◆',
+        'attribution.initials.opp2': '◀',
 
         // End selection modal
         'endSelect.title': '¿En qué punta jugar?',
