@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <!-- Background -->
+  <rect width="192" height="192" rx="24" ry="24" fill="#1a1a2e"/>
+
+  <!-- Domino tile body -->
+  <rect x="24" y="56" width="144" height="80" rx="10" ry="10" fill="#f5f0e8"/>
+
+  <!-- Center divider line -->
+  <line x1="96" y1="62" x2="96" y2="130" stroke="#1a1a2e" stroke-width="3"/>
+
+  <!-- Left half: 3 pips (diagonal: top-right, center, bottom-left) -->
+  <!-- Top-right pip -->
+  <circle cx="78" cy="74" r="7" fill="#00d4ff"/>
+  <!-- Center pip -->
+  <circle cx="60" cy="96" r="7" fill="#00d4ff"/>
+  <!-- Bottom-left pip -->
+  <circle cx="42" cy="118" r="7" fill="#00d4ff"/>
+
+  <!-- Right half: 4 pips (2x2 grid) -->
+  <!-- Top-left pip -->
+  <circle cx="114" cy="74" r="7" fill="#00d4ff"/>
+  <!-- Top-right pip -->
+  <circle cx="150" cy="74" r="7" fill="#00d4ff"/>
+  <!-- Bottom-left pip -->
+  <circle cx="114" cy="118" r="7" fill="#00d4ff"/>
+  <!-- Bottom-right pip -->
+  <circle cx="150" cy="118" r="7" fill="#00d4ff"/>
+</svg>

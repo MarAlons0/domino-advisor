@@ -1,0 +1,20 @@
+{
+  "name": "7 Fichas",
+  "short_name": "7 Fichas",
+  "description": "Partnership Dominoes coaching app vs. AI",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#00d4ff",
+  "orientation": "portrait",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
