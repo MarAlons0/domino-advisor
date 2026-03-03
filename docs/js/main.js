@@ -841,7 +841,7 @@ class DominoApp {
             setTimeout(() => {
                 this.hideThinkingIndicator();
                 setTimeout(() => this.playAITurn(), 500);
-            }, 8500);
+            }, 5500);
         }
     }
 
