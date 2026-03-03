@@ -469,7 +469,7 @@ class DominoApp {
                 this.probAnalyzer.analyzeAndLog(this.game.getState().hands);
             }
             // Delay modal on domino so the slam animation has time to play
-            const delay = data.reason === 'domino' ? 600 : 0;
+            const delay = data.reason === 'domino' ? 1800 : 0;
             setTimeout(() => this.showHandEndMessage(data), delay);
         };
 
