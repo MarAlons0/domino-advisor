@@ -833,8 +833,8 @@ class DominoApp {
 
     scheduleAITurn() {
         const state = this.game.getState();
-        if (this.game.mustPass()) {
-            // No valid moves — pass quickly, no indicator
+        if (state.chain.isEmpty() || this.game.mustPass()) {
+            // First move of the hand or forced pass — play quickly, no indicator
             setTimeout(() => this.playAITurn(), 800);
         } else {
             this.showThinkingIndicator(state.currentPlayer);
