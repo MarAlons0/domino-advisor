@@ -17,6 +17,7 @@ export const translations = {
         'player.opp2': 'Opp 2',
         'player.opponent1': 'Opponent 1',
         'player.opponent2': 'Opponent 2',
+        'thinking': 'Thinking…',
 
         // Teams
         'team.yours': 'Your Team',
@@ -390,6 +391,7 @@ export const translations = {
         'player.opp2': 'Opo 2',
         'player.opponent1': 'Oponente 1',
         'player.opponent2': 'Oponente 2',
+        'thinking': 'Pensando…',
 
         // Teams
         'team.yours': 'Tu Equipo',

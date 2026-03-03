@@ -108,7 +108,6 @@ class DominoApp {
         this.probAnalyzer = DEBUG_AI ? new ProbabilityAnalyzer(this.playerViews) : null;
 
         this.selectedTile = null;
-        this.aiDelay = 3000; // 3 seconds per AI move
 
         // Quiz state
         this.quizTargetPlayer = null;
@@ -487,6 +486,7 @@ class DominoApp {
 
     startNewGame() {
         this.clearLog();
+        this.hideThinkingIndicator();
         this.log(t('log.newMatch'), 'system');
         this.ai.resetForNewHand();
         if (this.probAnalyzer) this.probAnalyzer.resetMatch();
@@ -832,7 +832,31 @@ class DominoApp {
     }
 
     scheduleAITurn() {
-        setTimeout(() => this.playAITurn(), this.aiDelay);
+        const state = this.game.getState();
+        if (this.game.mustPass()) {
+            // No valid moves — pass quickly, no indicator
+            setTimeout(() => this.playAITurn(), 800);
+        } else {
+            this.showThinkingIndicator(state.currentPlayer);
+            setTimeout(() => {
+                this.hideThinkingIndicator();
+                setTimeout(() => this.playAITurn(), 500);
+            }, 8500);
+        }
+    }
+
+    showThinkingIndicator(player) {
+        this.hideThinkingIndicator();
+        const nameEl = this.playerNames[player];
+        if (!nameEl) return;
+        const indicator = document.createElement('span');
+        indicator.className = 'thinking-indicator';
+        indicator.textContent = t('thinking');
+        nameEl.parentElement.appendChild(indicator);
+    }
+
+    hideThinkingIndicator() {
+        document.querySelectorAll('.thinking-indicator').forEach(el => el.remove());
     }
 
     playAITurn() {
