@@ -781,6 +781,21 @@ button:disabled {
 .domino.show-player.played-by-2::after { background: rgba(59, 130, 246, 0.28); }
 .domino.show-player.played-by-3::after { background: rgba(234, 179, 8, 0.28); }
 
+/* Tile slam animation — [6|6] or domino */
+.tile-slam {
+    animation: tile-slam 500ms ease-out forwards;
+    position: relative;
+    z-index: 10;
+}
+
+@keyframes tile-slam {
+    0%   { transform: scale(1);    box-shadow: none; }
+    20%  { transform: scale(1.45); box-shadow: 0 0 22px #00d4ff; }
+    55%  { transform: scale(0.92); box-shadow: 0 0 6px rgba(0, 212, 255, 0.4); }
+    80%  { transform: scale(1.08); box-shadow: none; }
+    100% { transform: scale(1);    box-shadow: none; }
+}
+
 /* Player legend */
 .player-legend {
     display: flex;

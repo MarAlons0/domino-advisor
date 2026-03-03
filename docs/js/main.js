@@ -468,7 +468,9 @@ class DominoApp {
             if (this.probAnalyzer) {
                 this.probAnalyzer.analyzeAndLog(this.game.getState().hands);
             }
-            this.showHandEndMessage(data);
+            // Delay modal on domino so the slam animation has time to play
+            const delay = data.reason === 'domino' ? 600 : 0;
+            setTimeout(() => this.showHandEndMessage(data), delay);
         };
 
         this.game.onMatchEnd = (data) => {
@@ -580,7 +582,19 @@ class DominoApp {
             indicator.textContent = initials[pt.playedBy];
             domino.appendChild(indicator);
         }
+        if (this._slamTile && pt.tile === this._slamTile) {
+            domino.classList.add('tile-slam');
+            this._slamTile = null;
+        }
         return domino;
+    }
+
+    _checkSlamCondition(tile) {
+        const state = this.game.getState();
+        const hand = state.hands[state.currentPlayer];
+        if (tile.isDoubleSix() || hand.getTiles().length === 1) {
+            this._slamTile = tile;
+        }
     }
 
     renderChain(chain) {
@@ -779,6 +793,7 @@ class DominoApp {
         const aiRec = this.ai.getRecommendation(this.game.getState(), 0);
 
         if (movesForTile.length === 1) {
+            this._checkSlamCondition(tile);
             this.game.playTurn(tile, movesForTile[0].end, { aiRecommendation: aiRec });
             this.afterHumanPlay();
         } else {
@@ -799,6 +814,7 @@ class DominoApp {
     playSelectedTile(end) {
         if (!this.selectedTile) return;
 
+        this._checkSlamCondition(this.selectedTile);
         this.game.playTurn(this.selectedTile, end, { aiRecommendation: this.pendingAiRecommendation });
         this.hideEndSelection();
         this.pendingAiRecommendation = null;
@@ -870,6 +886,7 @@ class DominoApp {
         const move = this.ai.chooseMove(state, state.currentPlayer);
 
         if (move) {
+            this._checkSlamCondition(move.tile);
             this.game.playTurn(move.tile, move.end, { reasoning: move.reasoning });
         } else {
             this.game.pass();
