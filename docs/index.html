@@ -535,7 +535,7 @@
 
     <script type="module" src="js/main.js?v=25"></script>
     <script>
-      if ('serviceWorker' in navigator) {
+      if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./service-worker.js')
             .catch(err => console.warn('SW:', err));
