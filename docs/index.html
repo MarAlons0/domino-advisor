@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>7 Fichas v1.0.1</title>
+    <title>7 Fichas v1.0.3</title>
     <meta name="theme-color" content="#00d4ff">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/icon.svg">
-    <link rel="stylesheet" href="css/styles.css?v=36">
+    <link rel="stylesheet" href="css/styles.css?v=37">
 </head>
 <body>
     <header class="app-header">
         <div class="brand">
-            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.0.1</span></h1>
+            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.0.3</span></h1>
             <p class="subtitle" data-i18n="app.subtitle">Partnership Dominoes vs. AI</p>
         </div>
         <p class="attribution"><span data-i18n="app.createdBy">Created by</span> <a href="https://looking4nature.com" target="_blank" rel="noopener">Mario Alonso</a></p>
@@ -74,6 +74,7 @@
                 <div class="player-position player-top">
                     <div class="player-info">
                         <div class="player-name player-color-2" id="player-2-name" data-i18n="player.partner">Partner</div>
+                        <div class="diff-badge" id="diff-badge-2"></div>
                         <div class="tile-count horizontal" id="player-2-tiles"></div>
                     </div>
                 </div>
@@ -82,6 +83,7 @@
                 <div class="player-position player-left">
                     <div class="player-info">
                         <div class="player-name player-color-3" id="player-3-name" data-i18n="player.opp2">Opp 2</div>
+                        <div class="diff-badge" id="diff-badge-3"></div>
                         <div class="tile-count vertical" id="player-3-tiles"></div>
                     </div>
                 </div>
@@ -97,6 +99,7 @@
                 <div class="player-position player-right">
                     <div class="player-info">
                         <div class="player-name player-color-1" id="player-1-name" data-i18n="player.opp1">Opp 1</div>
+                        <div class="diff-badge" id="diff-badge-1"></div>
                         <div class="tile-count vertical" id="player-1-tiles"></div>
                     </div>
                 </div>
@@ -281,6 +284,7 @@
             <section class="help-section">
                 <h3 data-i18n="help.features.title">Features</h3>
                 <ul>
+                    <li data-i18n="help.features.difficulty" data-i18n-html><strong>AI Difficulty</strong> - In Settings (⚙), set each AI player to Beginner, Experienced, or Master.</li>
                     <li data-i18n="help.features.stats" data-i18n-html><strong>Stats &amp; Badges</strong> - Tap the trophy icon to see lifetime stats and your earned achievements. Badges unlock as you hit milestones.</li>
                     <li data-i18n="help.features.quiz" data-i18n-html><strong>Quiz Me</strong> - Test your ability to predict what tiles other players hold based on their plays and passes.</li>
                     <li data-i18n="help.features.showWho" data-i18n-html><strong>Show who played</strong> - Toggle to see color overlays (cyan/red/purple/yellow) on each chain tile showing who played it.</li>
@@ -310,10 +314,43 @@
         </div>
         <div class="settings-content">
             <div class="settings-section">
+                <h3 data-i18n="settings.difficulty.title">Player Difficulty</h3>
+                <p class="settings-description" data-i18n="settings.difficulty.description">
+                    Set the skill level for each AI player.
+                </p>
+                <div class="difficulty-row">
+                    <span class="difficulty-label" data-i18n="settings.difficulty.opp1">Opp 1</span>
+                    <div class="difficulty-buttons">
+                        <button class="diff-btn" data-player="1" data-level="beginner" data-i18n="settings.difficulty.beginner">Beginner</button>
+                        <button class="diff-btn" data-player="1" data-level="experienced" data-i18n="settings.difficulty.experienced">Experienced</button>
+                        <button class="diff-btn active" data-player="1" data-level="master" data-i18n="settings.difficulty.master">Master</button>
+                    </div>
+                </div>
+                <div class="difficulty-row">
+                    <span class="difficulty-label" data-i18n="settings.difficulty.partner">Partner</span>
+                    <div class="difficulty-buttons">
+                        <button class="diff-btn" data-player="2" data-level="beginner" data-i18n="settings.difficulty.beginner">Beginner</button>
+                        <button class="diff-btn" data-player="2" data-level="experienced" data-i18n="settings.difficulty.experienced">Experienced</button>
+                        <button class="diff-btn active" data-player="2" data-level="master" data-i18n="settings.difficulty.master">Master</button>
+                    </div>
+                </div>
+                <div class="difficulty-row">
+                    <span class="difficulty-label" data-i18n="settings.difficulty.opp2">Opp 2</span>
+                    <div class="difficulty-buttons">
+                        <button class="diff-btn" data-player="3" data-level="beginner" data-i18n="settings.difficulty.beginner">Beginner</button>
+                        <button class="diff-btn" data-player="3" data-level="experienced" data-i18n="settings.difficulty.experienced">Experienced</button>
+                        <button class="diff-btn active" data-player="3" data-level="master" data-i18n="settings.difficulty.master">Master</button>
+                    </div>
+                </div>
+            </div>
+            <div class="settings-section">
                 <h3 data-i18n="settings.apiKey.title">Claude API Key</h3>
                 <p class="settings-description" data-i18n="settings.apiKey.description">
                     Enter your Claude API key to enable AI-powered play style analysis.
                     Your key is stored locally and only sent to Anthropic's API.
+                </p>
+                <p class="settings-description api-key-note" data-i18n="settings.apiKey.note">
+                    Requires a personal API key from console.anthropic.com. Each user of the app needs their own key.
                 </p>
                 <div class="api-key-input-group">
                     <input type="password" id="api-key-input" data-i18n-placeholder="settings.apiKey.placeholder" placeholder="Enter your Claude API key..." />

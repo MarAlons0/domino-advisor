@@ -15,15 +15,15 @@ export const BADGES = [
 
 const BADGE_CONDITIONS = {
     first_win:        (s) => s.matches.won >= 1,
-    first_cerrado:    (s) => s.cerrado.teamWon >= 1,
-    cerrado_40:       (s) => s.cerrado.largestScore >= 40,
-    cerrado_50:       (s) => s.cerrado.largestScore >= 50,
+    first_cerrado:    (s) => s.cerrado.youClosed >= 1,
+    cerrado_40:       (s) => s.cerrado.youClosedLargestScore >= 40,
+    cerrado_50:       (s) => s.cerrado.youClosedLargestScore >= 50,
     zapato:           (s) => s.matches.zapatosGiven >= 1,
     comeback:         (s) => s.matches.largestDeficitOvercome >= 80,
     win_streak_3:     (s) => s.matches.bestWinStreak >= 3,
     win_streak_5:     (s) => s.matches.bestWinStreak >= 5,
     domino_master:    (s) => s.hands.byReason.domino.won >= 20,
-    cerrado_master:   (s) => s.cerrado.teamWon >= 10,
+    cerrado_master:   (s) => s.cerrado.youClosed >= 10,
     genin_student:    (s) => s.coaching.geninAgreements >= 20,
     independent_mind: (s) => s.coaching.handOverridesWon >= 5,
 };

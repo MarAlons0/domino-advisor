@@ -34,6 +34,7 @@ export class SmartAI {
         this.explainer = new StrategicExplainer();
         this.handTracker = null; // Set by game controller
         this.playerViews = null; // Set by game controller (array of 4 PlayerViews)
+        this.difficulties = ['master', 'master', 'master', 'master'];
         this.resetForNewHand();
 
         if (DEBUG_AI) {
@@ -57,6 +58,10 @@ export class SmartAI {
      */
     setPlayerViews(views) {
         this.playerViews = views;
+    }
+
+    setDifficulty(playerIndex, level) {
+        this.difficulties[playerIndex] = level;
     }
 
     /**
@@ -311,6 +316,10 @@ export class SmartAI {
             return move;
         }
 
+        if (this.difficulties[playerIndex] === 'beginner') {
+            return this._chooseMoveSimple(gameState, playerIndex);
+        }
+
         // PRIORITY 1: Check for winning move (domino)
         const winningMove = this._findWinningMove(validMoves, hand);
         if (DEBUG_AI) {
@@ -398,7 +407,9 @@ export class SmartAI {
             certainty = this.monteCarloEvaluator.calculateCertainty(gameState, gameState.chain, activeView);
 
             for (const move of scoredMoves) {
-                const mcResult = this.monteCarloEvaluator.evaluateMove(move, gameState, playerIndex, activeView);
+                const mcOptions = this.difficulties[playerIndex] === 'experienced'
+                    ? { maxDepth: 3, maxSamples: 50 } : {};
+                const mcResult = this.monteCarloEvaluator.evaluateMove(move, gameState, playerIndex, activeView, mcOptions);
                 move.mcResult = mcResult;
 
                 // Blend static and MC scores based on certainty
@@ -445,6 +456,33 @@ export class SmartAI {
         }
 
         return bestMove;
+    }
+
+    /**
+     * Simplified move selection for Beginner difficulty.
+     * Only uses own hand + chain. Scores by how many remaining tiles connect
+     * to the new open end after the move. Tie-break: higher pip count.
+     * @private
+     */
+    _chooseMoveSimple(gameState, playerIndex) {
+        const hand = gameState.hands[playerIndex];
+        const chain = gameState.chain;
+        const validMoves = Rules.getValidMoves(hand, chain);
+        if (!validMoves.length) return null;
+        if (validMoves.length === 1) return { ...validMoves[0], reasoning: 'Only valid move' };
+
+        let best = validMoves[0], bestScore = -Infinity;
+        for (const move of validMoves) {
+            const playedValue = chain.isEmpty() ? null
+                : (move.end === 'left' ? chain.leftEnd : chain.rightEnd);
+            const newEnd = move.tile.isDouble() ? move.tile.high
+                : (playedValue === move.tile.high ? move.tile.low : move.tile.high);
+            const connecting = hand.getTiles()
+                .filter(t => t !== move.tile && (t.high === newEnd || t.low === newEnd)).length;
+            const score = connecting + move.tile.pipCount() * 0.1;
+            if (score > bestScore) { bestScore = score; best = move; }
+        }
+        return { ...best, reasoning: 'Beginner: keep strongest suit open' };
     }
 
     /**

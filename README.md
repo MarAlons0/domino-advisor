@@ -1,6 +1,6 @@
 # 7 Fichas - Partnership Dominoes vs. AI
 
-A web-based domino game that simulates 4-player partnership dominoes (Cuban/Puerto Rican style) with an intelligent AI opponent. Built as a training tool to help players improve their strategic thinking.
+**v1.0.2** — A web-based domino game that simulates 4-player partnership dominoes (Cuban/Puerto Rican style) with an intelligent AI opponent. Built as a training tool to help players improve their strategic thinking.
 
 **Live Demo:** [https://maralons0.github.io/domino-advisor/](https://maralons0.github.io/domino-advisor/)
 
@@ -68,6 +68,26 @@ docs/js/
 
 ---
 
+# AI Difficulty Levels
+
+Each AI player (Opp 1, Partner, Opp 2) can be set independently via the Settings (⚙) panel. The setting is stored in localStorage under `7fichas_difficulty` and takes effect immediately — no need to start a new game.
+
+| Layer | Beginner | Experienced | Master |
+|---|---|---|---|
+| Priority system (winning / blocking / partner support) | ✗ | ✓ | ✓ |
+| 9-factor heuristic scoring | ✗ (simplified) | ✓ | ✓ |
+| Bayesian inference (suit affinities, PlayerView) | ✗ | ✓ | ✓ |
+| HandTracker pass constraints | ✗ | ✓ | ✓ |
+| Monte Carlo look-ahead | ✗ | capped (depth 3, samples 50) | full adaptive |
+
+**Beginner** uses `_chooseMoveSimple()`: reads only its own hand and the chain. For each valid move it counts how many remaining hand tiles connect to the new open end (staying in a strong suit), with high-pip count as a tie-breaker. No inference about what other players hold.
+
+**Experienced** runs the full priority and scoring system but caps Monte Carlo look-ahead at depth 3 and 50 samples, making it slightly less optimal in late-game reads.
+
+**Master** uses the complete engine with adaptive depth (2–6) and samples (30–100) driven by certainty.
+
+---
+
 # AI Decision-Making Engine
 
 The SmartAI implements a **priority-based decision system** with **weighted scoring fallback**. This section documents exactly how the AI chooses its moves.
@@ -86,19 +106,24 @@ The SmartAI implements a **priority-based decision system** with **weighted scor
 │                    │                                        │
 │                   No                                        │
 │                    ▼                                        │
-│  3. PRIORITY 1: Winning move? ──Yes──► Play it (domino!)    │
+│  3. Difficulty = Beginner? ──Yes──► _chooseMoveSimple()     │
 │                    │                                        │
 │                   No                                        │
 │                    ▼                                        │
-│  4. PRIORITY 2: Block with P > 0.7? ──Yes──► Play it        │
+│  4. PRIORITY 1: Winning move? ──Yes──► Play it (domino!)    │
 │                    │                                        │
 │                   No                                        │
 │                    ▼                                        │
-│  5. PRIORITY 3: Partner support (plays < 8)? ──Yes──► Play  │
+│  5. PRIORITY 2: Block with P > 0.7? ──Yes──► Play it        │
 │                    │                                        │
 │                   No                                        │
 │                    ▼                                        │
-│  6. FALLBACK: Score all moves, pick highest                 │
+│  6. PRIORITY 3: Partner support (plays < 8)? ──Yes──► Play  │
+│                    │                                        │
+│                   No                                        │
+│                    ▼                                        │
+│  7. FALLBACK: Score all moves, pick highest                 │
+│     (MC capped at depth 3 / 50 samples if Experienced)     │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -466,6 +491,7 @@ This means simulations reflect **behavioral signals** (salida choice, suit intro
 # Features
 
 - **Partnership Dominoes**: 4-player teams (You + Partner vs. Opponents)
+- **Configurable AI Difficulty**: Set each AI player (Opp 1, Partner, Opp 2) independently to Beginner, Experienced, or Master. Settings persist in localStorage.
 - **Smart AI**: Priority-based decisions with weighted scoring and Monte Carlo look-ahead
 - **Genín Coach**: Ask Genín for move advice with strategic explanations — firme detection, cuadrar/cerrar analysis, opponent reads, and partner support guidance
 - **Bayesian Inference**: AI tracks suit affinities from play patterns (salida, suit introduction, end avoidance) to sharpen probability estimates
@@ -473,7 +499,7 @@ This means simulations reflect **behavioral signals** (salida choice, suit intro
 - **Debrief**: Post-match analysis with play-by-play review
 - **Lifetime Stats & Badges**: Trophy icon opens a stats modal with match history, hand breakdown, cerrado records, and coaching metrics. Twelve achievement badges unlock as you hit milestones and appear as toast notifications.
 - **Tile Attribution**: Toggle "Show who played" to overlay semi-transparent color masks (cyan/red/purple/yellow) on each chain tile, identifying its player at a glance. Desktop also shows a shape indicator (●■▲◆) for a second visual cue.
-- **Claude Integration**: Optional AI-powered play style analysis
+- **Claude Integration**: Optional AI-powered play style analysis in the debrief. Requires a personal API key from [console.anthropic.com](https://console.anthropic.com) — each user needs their own.
 - **PWA / Installable**: Add to home screen on iPhone (Safari) or Android (Chrome) — runs full-screen with no browser chrome and works offline after first load
 - **Bilingual**: Full English/Spanish support
 - **Mobile-Optimized**: Portrait-mode layout stacks the header vertically so buttons never overlap the title

@@ -246,6 +246,34 @@ h1 .version {
 .player-name.your-team { color: #7dd3fc; }
 .player-name.opponent-team { color: #fca5a5; }
 
+.diff-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    border-radius: 8px;
+    line-height: 1.4;
+}
+
+.diff-badge-beginner {
+    background: rgba(255, 217, 61, 0.12);
+    color: #ffd93d;
+    border: 1px solid rgba(255, 217, 61, 0.3);
+}
+
+.diff-badge-experienced {
+    background: rgba(129, 140, 248, 0.12);
+    color: #818cf8;
+    border: 1px solid rgba(129, 140, 248, 0.3);
+}
+
+.diff-badge-master {
+    background: rgba(0, 212, 255, 0.08);
+    color: rgba(0, 212, 255, 0.6);
+    border: 1px solid rgba(0, 212, 255, 0.15);
+}
+
 /* Individual player colors */
 .player-color-0 { color: #ffffff; } /* You - White */
 .player-color-1 { color: #ef4444; } /* Opp 1 - Red */
@@ -1184,6 +1212,12 @@ button:disabled {
     line-height: 1.5;
 }
 
+.settings-description.api-key-note {
+    color: #6b7a99;
+    font-style: italic;
+    margin-top: -8px;
+}
+
 .api-key-input-group {
     display: flex;
     gap: 10px;
@@ -1271,6 +1305,51 @@ button:disabled {
 .key-status.info {
     background: rgba(99, 102, 241, 0.1);
     color: #6366f1;
+}
+
+.difficulty-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 8px;
+}
+
+.difficulty-label {
+    font-size: 13px;
+    color: #a8b2c8;
+    min-width: 44px;
+    flex-shrink: 0;
+}
+
+.difficulty-buttons {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+}
+
+.diff-btn {
+    flex: 1;
+    padding: 5px 4px;
+    background: #0a1628;
+    border: 1px solid #0f3460;
+    border-radius: 6px;
+    color: #a8b2c8;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.diff-btn:hover {
+    background: #162040;
+    color: #c8d2e8;
+}
+
+.diff-btn.active {
+    background: rgba(0, 212, 255, 0.1);
+    border-color: #00d4ff;
+    color: #00d4ff;
+    font-weight: bold;
 }
 
 /* Debrief Modal */

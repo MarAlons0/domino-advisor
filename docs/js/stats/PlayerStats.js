@@ -21,7 +21,8 @@ const DEFAULT_STATS = {
     },
     cerrado: {
         teamTotal: 0, teamWon: 0, youClosed: 0, partnerClosed: 0,
-        opponentTotal: 0, largestScore: 0, largestSurrender: 0
+        opponentTotal: 0, largestScore: 0, largestSurrender: 0,
+        youClosedLargestScore: 0
     },
     coaching: {
         geninAgreements: 0, geninTotal: 0,
@@ -111,8 +112,12 @@ export class PlayerStats {
             stats.cerrado.teamTotal++;
             if (winningTeam === 0) {
                 stats.cerrado.teamWon++;
-                if (closingPlayer === 0) stats.cerrado.youClosed++;
-                else if (closingPlayer === 2) stats.cerrado.partnerClosed++;
+                if (closingPlayer === 0) {
+                    stats.cerrado.youClosed++;
+                    if (points > 0) {
+                        stats.cerrado.youClosedLargestScore = Math.max(stats.cerrado.youClosedLargestScore, points);
+                    }
+                } else if (closingPlayer === 2) stats.cerrado.partnerClosed++;
                 if (points > 0) {
                     stats.cerrado.largestScore = Math.max(stats.cerrado.largestScore, points);
                 }

@@ -30,7 +30,7 @@ export class MonteCarloEvaluator {
      * @param {PlayerView} [view] - Optional PlayerView for probability lookups (falls back to handTracker)
      * @returns {{score: number, certainty: number, depth: number, samples: number}}
      */
-    evaluateMove(move, gameState, playerIndex, view) {
+    evaluateMove(move, gameState, playerIndex, view, options = {}) {
         const tracker = view || this.handTracker;
         const chain = gameState.chain;
 
@@ -38,8 +38,10 @@ export class MonteCarloEvaluator {
         const certainty = this.calculateCertainty(gameState, chain, tracker);
 
         // Adaptive depth and samples based on certainty
-        const depth = Math.ceil(1 + certainty * 5);  // Range: 2-6
-        const samples = Math.ceil(100 * (1 - certainty * 0.7));  // Range: 30-100
+        let depth = Math.ceil(1 + certainty * 5);  // Range: 2-6
+        let samples = Math.ceil(100 * (1 - certainty * 0.7));  // Range: 30-100
+        if (options.maxDepth)   depth   = Math.min(depth,   options.maxDepth);
+        if (options.maxSamples) samples = Math.min(samples, options.maxSamples);
 
         let totalScore = 0;
         const outcomes = [];

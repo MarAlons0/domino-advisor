@@ -313,6 +313,59 @@ Give the three computer players distinct names and visual identities.
 
 ---
 
+### UX-E. Tile Slam Effect
+**Priority:** Medium
+**Complexity:** Low
+
+Play a satisfying "slam" animation when a player plays the [6|6] or dominoes (plays their last tile). These are the two highest-drama moments in a hand — the opening power move and the winning strike.
+
+**Triggers:**
+- **[6|6] played** — anytime the double-six hits the chain, not just as the opener
+- **Domino** — any player plays their last tile to win the hand
+
+**Animation concept:**
+- The tile drops onto the chain with a quick scale-up → overshoot → settle (`transform: scale`) — like a physical slam
+- Brief table shake or ripple effect radiating from the tile (CSS `@keyframes` translate on the chain container)
+- Optional: short flash or glow on the tile itself (cyan for your team, red for opponents)
+- Duration should be snappy — ~400–600 ms total so it feels punchy, not sluggish
+
+**Sound (optional / stretch goal):**
+- A single short tap/thud sound effect on slam
+- Must respect a mute toggle or system silent mode
+- Only add if a suitable royalty-free sound can be sourced; skip otherwise
+
+**Implementation notes:**
+- Tile render happens in `Chain.js` / UI layer — add a CSS class (e.g. `.tile-slam`) triggered once on insertion
+- Remove the class after the animation ends (`animationend` event) to allow re-triggering
+- Should work on mobile (no hover dependency)
+- EN/ES not required (pure visual)
+
+---
+
+### UX-D. AI Thinking Indicator
+**Priority:** Medium
+**Complexity:** Low
+
+Before each AI player makes their move, show a brief "Thinking…" label (or lightbulb icon 💡) next to that player's position on the board. The total time between the previous move and the AI's actual move should feel like 8–10 seconds, giving human players time to absorb the board state and follow the game's cadence.
+
+**Behavior:**
+- Indicator appears as soon as it becomes an AI player's turn
+- Stays visible for the bulk of the delay, disappears just before the tile is played
+- Does **not** appear when a player passes (pass is instantaneous — no deliberation to signal)
+- Applies to all 3 computer players (Opp 1, Partner, Opp 2)
+
+**Design options (pick one):**
+- Text label: "Thinking…" near the player name
+- Lightbulb icon (💡) with a subtle pulse animation
+- Animated ellipsis dots (·  · ·  · · ·) for a quieter look
+
+**Implementation notes:**
+- Current AI move delay is likely a short `setTimeout` in `Game.js` or `main.js` — extend it to ~8–10 s total
+- Show indicator at turn start, clear it ~500 ms before the move fires so the tile play feels snappy
+- EN/ES label required if using text ("Thinking…" / "Pensando…")
+
+---
+
 ### UX-C. AI Personalities
 **Priority:** Low
 **Complexity:** Medium

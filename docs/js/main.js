@@ -10,6 +10,7 @@ import { BadgeToast } from './ui/BadgeToast.js';
 import { PlayerStats } from './stats/PlayerStats.js';
 import { BadgeSystem } from './stats/BadgeSystem.js';
 import { QuizStorage } from './services/QuizStorage.js';
+import { StorageService } from './stats/StorageService.js';
 import { Tile } from './models/Tile.js';
 import { ProbabilityAnalyzer } from './ai/ProbabilityAnalyzer.js';
 import { t, i18n } from './i18n/i18n.js';
@@ -213,6 +214,15 @@ class DominoApp {
         // Initialize settings UI
         this.settingsUI.init();
 
+        // Apply persisted AI difficulty settings
+        const savedDiff = StorageService.get('7fichas_difficulty') || { opp1: 'master', partner: 'master', opp2: 'master' };
+        this.ai.setDifficulty(1, savedDiff.opp1);
+        this.ai.setDifficulty(2, savedDiff.partner || 'master');
+        this.ai.setDifficulty(3, savedDiff.opp2);
+        this.settingsUI.onDifficultyChange = (playerIndex, level) => {
+            this.ai.setDifficulty(playerIndex, level);
+        };
+
         // Initialize stats UI
         this.statsUI.init();
 
@@ -237,6 +247,7 @@ class DominoApp {
         // Listen for language changes to update dynamic content
         i18n.onLanguageChange(() => {
             this._updateLanguageToggle();
+            this.settingsUI.refreshBadges();
             this.hideAdviceBubble();
             // Re-render chain if game is active (for open ends text)
             const state = this.game.getState();

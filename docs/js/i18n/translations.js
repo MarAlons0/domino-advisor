@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.0.1',
+        'app.version': 'v1.0.3',
         'app.createdBy': 'Created by',
 
         // Players
@@ -135,11 +135,12 @@ export const translations = {
         'help.scoring.blocked': '<strong>Blocked game</strong> - No one can play. The team with fewer pips wins the difference.',
         'help.scoring.match': '<strong>Match</strong> - First team to 100 points wins.',
         'help.features.title': 'Features',
+        'help.features.difficulty': '<strong>AI Difficulty</strong> - In Settings (⚙), set each AI player (Opp 1, Partner, Opp 2) to Beginner, Experienced, or Master. Beginner plays only from their own hand with no strategic inference. Experienced adds full strategy but limits look-ahead. Master uses the complete engine.',
         'help.features.stats': '<strong>Stats &amp; Badges</strong> - Tap the trophy icon to see lifetime stats and your earned achievements. Badges unlock as you hit milestones.',
         'help.features.quiz': '<strong>Quiz Me</strong> - Test your ability to predict what tiles other players hold based on their plays and passes.',
         'help.features.showWho': '<strong>Show who played</strong> - Toggle to see color overlays (cyan/red/purple/yellow) on each chain tile showing who played it.',
         'help.features.debrief': '<strong>Match Debrief</strong> - After the match ends, review your plays and get feedback on optimal choices.',
-        'help.features.analysis': '<strong>Play Style Analysis</strong> - In the debrief, use your Claude API key to get personalized analysis of your playing style.',
+        'help.features.analysis': '<strong>Play Style Analysis</strong> - In the debrief, use your own Claude API key (console.anthropic.com) to get personalized analysis of your playing style.',
         'help.strategy.title': 'Strategy Tips',
         'help.strategy.track': '<strong>Track passes</strong> - When someone passes, they lack both open-end values. Remember this!',
         'help.strategy.support': '<strong>Support your partner</strong> - Notice what suits your partner plays and try to keep those open.',
@@ -161,6 +162,15 @@ export const translations = {
         'settings.apiKey.enterKey': 'Please enter an API key',
         'settings.apiKey.noKey': 'No API key configured',
         'settings.apiKey.testing': 'Testing connection...',
+        'settings.difficulty.title': 'Player Difficulty',
+        'settings.difficulty.description': 'Set the skill level for each AI player.',
+        'settings.difficulty.beginner': 'Beginner',
+        'settings.difficulty.experienced': 'Experienced',
+        'settings.difficulty.master': 'Master',
+        'settings.difficulty.opp1': 'Opp 1',
+        'settings.difficulty.partner': 'Partner',
+        'settings.difficulty.opp2': 'Opp 2',
+        'settings.apiKey.note': 'Requires a personal API key from console.anthropic.com. Each user of the app needs their own key.',
 
         // Debrief modal
         'debrief.title': 'Match Debrief',
@@ -381,7 +391,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.0.1',
+        'app.version': 'v1.0.3',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -509,11 +519,12 @@ export const translations = {
         'help.scoring.blocked': '<strong>Juego cerrado</strong> - Nadie puede jugar. El equipo con menos puntos gana la diferencia.',
         'help.scoring.match': '<strong>Partida</strong> - El primer equipo en llegar a 100 puntos gana.',
         'help.features.title': 'Características',
+        'help.features.difficulty': '<strong>Dificultad IA</strong> - En Configuración (⚙), elige el nivel de cada jugador de IA (Rival 1, Compañero, Rival 2): Principiante, Experimentado o Maestro. El Principiante juega solo con su propia mano sin inferencia estratégica. El Experimentado usa estrategia completa pero limita el análisis de jugadas futuras. El Maestro usa el motor completo.',
         'help.features.stats': '<strong>Estadísticas e Insignias</strong> - Toca el icono del trofeo para ver estadísticas de por vida y logros desbloqueados. Las insignias se ganan al alcanzar hitos.',
         'help.features.quiz': '<strong>Probar</strong> - Pon a prueba tu habilidad para predecir qué fichas tienen los otros jugadores basándote en sus jugadas y pasos.',
         'help.features.showWho': '<strong>Mostrar quién jugó</strong> - Activa para ver máscaras de color (cyan/rojo/morado/amarillo) sobre cada ficha indicando quién la jugó.',
         'help.features.debrief': '<strong>Resumen de Partida</strong> - Después de que termine la partida, revisa tus jugadas y obtén comentarios sobre las opciones óptimas.',
-        'help.features.analysis': '<strong>Análisis de Estilo de Juego</strong> - En el resumen, usa tu clave API de Claude para obtener un análisis personalizado de tu estilo de juego.',
+        'help.features.analysis': '<strong>Análisis de Estilo de Juego</strong> - En el resumen, usa tu propia clave API de Claude (console.anthropic.com) para obtener un análisis personalizado de tu estilo de juego.',
         'help.strategy.title': 'Consejos Estratégicos',
         'help.strategy.track': '<strong>Rastrea los pasos</strong> - Cuando alguien pasa, no tiene ningún valor de las puntas abiertas. ¡Recuérdalo!',
         'help.strategy.support': '<strong>Apoya a tu pareja</strong> - Observa qué palos juega tu pareja e intenta mantenerlos abiertos.',
@@ -535,6 +546,15 @@ export const translations = {
         'settings.apiKey.enterKey': 'Por favor ingresa una clave API',
         'settings.apiKey.noKey': 'No hay clave API configurada',
         'settings.apiKey.testing': 'Probando conexión...',
+        'settings.difficulty.title': 'Dificultad de Jugadores',
+        'settings.difficulty.description': 'Elige el nivel de cada jugador de IA.',
+        'settings.difficulty.beginner': 'Principiante',
+        'settings.difficulty.experienced': 'Experimentado',
+        'settings.difficulty.master': 'Maestro',
+        'settings.difficulty.opp1': 'Rival 1',
+        'settings.difficulty.partner': 'Compañero',
+        'settings.difficulty.opp2': 'Rival 2',
+        'settings.apiKey.note': 'Requiere una clave API personal de console.anthropic.com. Cada usuario de la app necesita su propia clave.',
 
         // Debrief modal
         'debrief.title': 'Resumen de Partida',
