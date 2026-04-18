@@ -343,6 +343,11 @@ export class MonteCarloEvaluator {
         // Apply the move
         this.applyMove(simState, currentPlayer, bestMove);
 
+        // Check if this move closed the game (cerrado)
+        if (simState.chain.isClosed()) {
+            return { type: 'closed', state: simState };
+        }
+
         // Continue simulation
         return this.simulate(simState, originalPlayer, remainingDepth - 1);
     }
@@ -369,7 +374,7 @@ export class MonteCarloEvaluator {
             }
         }
 
-        if (outcome.type === 'blocked') {
+        if (outcome.type === 'blocked' || outcome.type === 'closed') {
             const teamAPips = state.hands[0].pipCount() + state.hands[2].pipCount();
             const teamBPips = state.hands[1].pipCount() + state.hands[3].pipCount();
 
