@@ -35,6 +35,7 @@ export class SmartAI {
         this.handTracker = null; // Set by game controller
         this.playerViews = null; // Set by game controller (array of 4 PlayerViews)
         this.difficulties = ['master', 'master', 'master', 'master'];
+        this.cerrarLog = []; // Session-wide cerrar decision outcomes (dev diagnostic)
         this.resetForNewHand();
 
         if (DEBUG_AI) {
@@ -98,6 +99,9 @@ export class SmartAI {
 
         // Track number of plays in this hand (for early-game priority rules)
         this.playCount = 0;
+
+        // Pending cerrar decision for this hand (set when AI commits to cerrar, cleared at hand end)
+        this._pendingCerrar = null;
     }
 
     /**
@@ -267,9 +271,10 @@ export class SmartAI {
      *
      * Priority order:
      * 1. Winning move (domino)
-     * 2. High-confidence blocking (cuadrar with P > 0.7)
-     * 3. Partner support (first 8 plays)
-     * 4. Weighted scoring (fallback)
+     * 2. Cerrar (close) when probability-weighted pip edge favors our team
+     * 3. High-confidence blocking (cuadrar with P > 0.7)
+     * 4. Partner support (first 8 plays)
+     * 5. Weighted scoring (fallback)
      *
      * @param {GameState} gameState - The current game state
      * @param {number} playerIndex - Which player the AI is playing as
@@ -334,8 +339,39 @@ export class SmartAI {
             return { ...winningMove, reasoning: 'Winning move - domino!' };
         }
 
-        // PRIORITY 2: Check for high-confidence blocking opportunity
-        const blockingMove = this._findHighConfidenceBlock(validMoves, gameState, playerIndex, chain, activeView);
+        // PRIORITY 2: Cerrar — close the game when probability-weighted pip edge favors us
+        const { move: cerrarMove, excludeCerrar } = this._findCerrarMove(validMoves, gameState, playerIndex, chain, activeView);
+        if (DEBUG_AI) {
+            debugInfo.priorities.cerrarMove = cerrarMove ? cerrarMove.tile.toString() : null;
+            debugInfo.priorities.excludeCerrar = excludeCerrar;
+        }
+        if (cerrarMove) {
+            if (DEBUG_AI) {
+                debugInfo.scoredMoves = validMoves.map(move => {
+                    const staticScore = this.scoreMove(move, gameState, playerIndex, activeView);
+                    return {
+                        tile: move.tile.toString(),
+                        end: move.end,
+                        staticTotal: staticScore.total,
+                        factors: staticScore.factors,
+                        isChosen: move.tile.equals(cerrarMove.tile) && move.end === cerrarMove.end
+                    };
+                }).sort((a, b) => b.staticTotal - a.staticTotal);
+                debugInfo.chosen = cerrarMove.tile.toString();
+                debugInfo.chosenReason = `PRIORITY 2: Cerrar (${cerrarMove.reasoning})`;
+                this._logDebug(debugInfo, activeView);
+            }
+            return cerrarMove;
+        }
+
+        // If closing is unfavorable, exclude cerrar candidates from remaining evaluation
+        const candidateMoves = excludeCerrar
+            ? validMoves.filter(m => !this._willCerrar(m, chain))
+            : validMoves;
+        const evalMoves = candidateMoves.length > 0 ? candidateMoves : validMoves;
+
+        // PRIORITY 3: Check for high-confidence blocking opportunity
+        const blockingMove = this._findHighConfidenceBlock(evalMoves, gameState, playerIndex, chain, activeView);
         if (DEBUG_AI) {
             debugInfo.priorities.blockingMove = blockingMove ? {
                 tile: blockingMove.tile.toString(),
@@ -344,8 +380,7 @@ export class SmartAI {
         }
         if (blockingMove) {
             if (DEBUG_AI) {
-                // Also compute and show all move scores for comparison
-                debugInfo.scoredMoves = validMoves.map(move => {
+                debugInfo.scoredMoves = evalMoves.map(move => {
                     const staticScore = this.scoreMove(move, gameState, playerIndex, activeView);
                     return {
                         tile: move.tile.toString(),
@@ -356,22 +391,21 @@ export class SmartAI {
                     };
                 }).sort((a, b) => b.staticTotal - a.staticTotal);
                 debugInfo.chosen = blockingMove.tile.toString();
-                debugInfo.chosenReason = `PRIORITY 2: High-confidence block (P=${blockingMove.blockProb.toFixed(2)})`;
+                debugInfo.chosenReason = `PRIORITY 3: High-confidence block (P=${blockingMove.blockProb.toFixed(2)})`;
                 this._logDebug(debugInfo, activeView);
             }
             return blockingMove;
         }
 
-        // PRIORITY 3: Partner support in early game (first 8 plays)
-        const partnerSupportMove = this._findPartnerSupportMove(validMoves, gameState, playerIndex, chain, activeView);
+        // PRIORITY 4: Partner support in early game (first 8 plays)
+        const partnerSupportMove = this._findPartnerSupportMove(evalMoves, gameState, playerIndex, chain, activeView);
         if (DEBUG_AI) {
             debugInfo.priorities.partnerSupport = partnerSupportMove ? partnerSupportMove.tile.toString() : null;
             debugInfo.priorities.partnerSupportActive = this.playCount < 8;
         }
         if (partnerSupportMove && this.playCount < 8) {
             if (DEBUG_AI) {
-                // Also compute and show all move scores for comparison
-                debugInfo.scoredMoves = validMoves.map(move => {
+                debugInfo.scoredMoves = evalMoves.map(move => {
                     const staticScore = this.scoreMove(move, gameState, playerIndex, activeView);
                     return {
                         tile: move.tile.toString(),
@@ -382,14 +416,14 @@ export class SmartAI {
                     };
                 }).sort((a, b) => b.staticTotal - a.staticTotal);
                 debugInfo.chosen = partnerSupportMove.tile.toString();
-                debugInfo.chosenReason = 'PRIORITY 3: Partner support (early game)';
+                debugInfo.chosenReason = 'PRIORITY 4: Partner support (early game)';
                 this._logDebug(debugInfo, activeView);
             }
             return partnerSupportMove;
         }
 
         // FALLBACK: Score each move with static scoring + Monte Carlo
-        const scoredMoves = validMoves.map(move => {
+        const scoredMoves = evalMoves.map(move => {
             const staticScore = this.scoreMove(move, gameState, playerIndex, activeView);
             return {
                 ...move,
@@ -513,9 +547,12 @@ export class SmartAI {
         // Priority checks
         console.group('Priority Checks');
         console.log(`1. Winning move: ${info.priorities.winningMove || 'No'}`);
-        console.log(`2. High-confidence block: ${info.priorities.blockingMove ?
+        console.log(`2. Cerrar: ${info.priorities.cerrarMove
+            ? `Yes - ${info.priorities.cerrarMove}`
+            : info.priorities.excludeCerrar ? 'Excluded (pip disadvantage)' : 'No'}`);
+        console.log(`3. High-confidence block: ${info.priorities.blockingMove ?
             `Yes - ${info.priorities.blockingMove.tile} (P=${info.priorities.blockingMove.prob.toFixed(2)})` : 'No'}`);
-        console.log(`3. Partner support: ${info.priorities.partnerSupport || 'No'} ${
+        console.log(`4. Partner support: ${info.priorities.partnerSupport || 'No'} ${
             info.priorities.partnerSupportActive === false ? '(disabled after play 8)' : ''}`);
         console.groupEnd();
 
@@ -650,6 +687,164 @@ export class SmartAI {
             console.log(`  Explanation: ${info.chosenExplanation}`);
         }
 
+        console.groupEnd();
+    }
+
+    /**
+     * Check whether a move would legally close (cerrar) the game.
+     * Closing requires: both ends equal the same value after play AND that value
+     * is dead (all 7 tiles with that value are on the chain).
+     * @private
+     */
+    _willCerrar(move, chain) {
+        if (chain.isEmpty()) return false;
+        const { newLeftEnd, newRightEnd } = this._getEndsAfterPlay(move, chain);
+        if (newLeftEnd !== newRightEnd) return false;
+        // chain.countValue counts every tile (including doubles) as 1 for each of its
+        // values, so playing this tile adds exactly 1 more instance of newLeftEnd.
+        return chain.countValue(newLeftEnd) + 1 >= 7;
+    }
+
+    /**
+     * Evaluate whether to cerrar (close) when a closing move exists.
+     * Uses probability-weighted expected pip counts (Σ pipCount(t) × P(player holds t))
+     * to estimate the team pip edge without needing to see opponents' cards.
+     *
+     * Returns:
+     *   { move, excludeCerrar: false }  — a specific cerrar move to play
+     *   { move: null, excludeCerrar: true }  — cerrar is bad; caller should filter it out
+     *   { move: null, excludeCerrar: false } — too close to call; let normal scoring decide
+     * @private
+     */
+    _findCerrarMove(validMoves, gameState, playerIndex, chain, view) {
+        const cerrarMoves = validMoves.filter(m => this._willCerrar(m, chain));
+        if (cerrarMoves.length === 0) return { move: null, excludeCerrar: false };
+
+        const src = view || this.handTracker;
+        const { pipAdvantage } = src
+            ? this._estimateTeamPips(gameState, playerIndex, src)
+            : { pipAdvantage: 0 };
+        // pipAdvantage = E[oppTeamPips] - E[myTeamPips]; positive means we hold fewer pips
+
+        const opponents = this.getOpponents(playerIndex);
+        const minOppTiles = Math.min(
+            gameState.hands[opponents[0]].size(),
+            gameState.hands[opponents[1]].size()
+        );
+
+        if (DEBUG_AI) {
+            console.log(
+                `%c  Cerrar eval: expected pip edge ${pipAdvantage >= 0 ? '+' : ''}${Math.round(pipAdvantage)} | min opp tiles: ${minOppTiles}`,
+                'color: #ffd93d'
+            );
+        }
+
+        // Require a small minimum edge to avoid closing on near-ties (floating point noise)
+        const MIN_EDGE = 3;
+
+        if (pipAdvantage >= MIN_EDGE) {
+            const best = cerrarMoves[0];
+            this._pendingCerrar = { playerIndex, expectedPipEdge: pipAdvantage, defensive: false };
+            return {
+                move: { ...best, reasoning: `Cerrar — expected pip edge +${Math.round(pipAdvantage)}` },
+                excludeCerrar: false
+            };
+        }
+
+        if (pipAdvantage < -MIN_EDGE) {
+            if (minOppTiles <= 2) {
+                // Opponent is about to domino — defensive close beats conceding the hand
+                const best = cerrarMoves[0];
+                this._pendingCerrar = { playerIndex, expectedPipEdge: pipAdvantage, defensive: true };
+                return {
+                    move: { ...best, reasoning: `Defensive cerrar — opponent at ${minOppTiles} tile(s) (pip edge ${Math.round(pipAdvantage)})` },
+                    excludeCerrar: false
+                };
+            }
+            // Unfavorable: suppress cerrar moves so normal scoring ignores them
+            return { move: null, excludeCerrar: true };
+        }
+
+        // Edge within ±MIN_EDGE: no strong signal, let weighted scoring decide
+        return { move: null, excludeCerrar: false };
+    }
+
+    /**
+     * Record the actual outcome of the pending cerrar decision.
+     * Called from main.js when a hand ends with reason === 'closed'.
+     *
+     * @param {object} handData  - data from onHandEnd (winningTeam, points)
+     * @param {Hand[]} hands     - final hands array (for actual pip counts)
+     */
+    finalizeCerrarOutcome(handData, hands) {
+        if (!this._pendingCerrar) return;
+
+        const { playerIndex, expectedPipEdge, defensive } = this._pendingCerrar;
+        this._pendingCerrar = null;
+
+        const closingTeam = GameState.getTeam(playerIndex);
+        const won = handData.winningTeam === closingTeam;
+
+        const team0Pips = hands[0].pipCount() + hands[2].pipCount();
+        const team1Pips = hands[1].pipCount() + hands[3].pipCount();
+        // actualPipEdge: E[opp] - E[mine], same sign convention as expectedPipEdge
+        const actualPipEdge = closingTeam === 0
+            ? team1Pips - team0Pips
+            : team0Pips - team1Pips;
+
+        const entry = {
+            player: GameState.getPlayerName(playerIndex),
+            expectedPipEdge,
+            actualPipEdge,
+            delta: actualPipEdge - expectedPipEdge,
+            won,
+            points: won ? handData.points : -handData.points,
+            defensive
+        };
+
+        this.cerrarLog.push(entry);
+
+        if (DEBUG_AI) {
+            const sign = v => (v >= 0 ? '+' : '') + Math.round(v);
+            const status = won ? '%c✓ WON' : '%c✗ LOST';
+            const color = won ? 'color:#22c55e;font-weight:bold' : 'color:#ff6b6b;font-weight:bold';
+            console.log(
+                `%c🔒 Cerrar outcome [${entry.player}${defensive ? ' DEFENSIVE' : ''}]: ` +
+                `${status} ${sign(entry.points)} pts | ` +
+                `predicted edge ${sign(expectedPipEdge)} | actual ${sign(actualPipEdge)} | Δ ${sign(entry.delta)}`,
+                'color:#ffd93d', color
+            );
+        }
+    }
+
+    /**
+     * Log a summary of all cerrar decisions taken this match.
+     * Only prints in ?debug=ai mode.
+     */
+    logCerrarSummary() {
+        if (!DEBUG_AI || this.cerrarLog.length === 0) return;
+
+        const wins = this.cerrarLog.filter(e => e.won).length;
+        const avgExpected = this.cerrarLog.reduce((s, e) => s + e.expectedPipEdge, 0) / this.cerrarLog.length;
+        const avgActual  = this.cerrarLog.reduce((s, e) => s + e.actualPipEdge, 0)  / this.cerrarLog.length;
+        const avgDelta   = this.cerrarLog.reduce((s, e) => s + e.delta, 0)           / this.cerrarLog.length;
+        const sign = v => (v >= 0 ? '+' : '') + v.toFixed(1);
+
+        console.group('%c🔒 Cerrar Decision Summary', 'color:#ffd93d;font-weight:bold');
+        console.table(this.cerrarLog.map(e => ({
+            'Player':      e.player,
+            'Defensive':   e.defensive ? 'Yes' : '',
+            'Won':         e.won ? '✓' : '✗',
+            'Points':      (e.points >= 0 ? '+' : '') + e.points,
+            'Exp edge':    sign(e.expectedPipEdge),
+            'Act edge':    sign(e.actualPipEdge),
+            'Δ (act-pred)': sign(e.delta)
+        })));
+        console.log(
+            `Total: ${this.cerrarLog.length} cerrar(s) | ` +
+            `W/L: ${wins}/${this.cerrarLog.length - wins} | ` +
+            `Avg expected edge: ${sign(avgExpected)} | Avg actual: ${sign(avgActual)} | Avg Δ: ${sign(avgDelta)}`
+        );
         console.groupEnd();
     }
 

@@ -306,23 +306,22 @@ export class Game {
             }))
         });
 
-        // Emit hand end event
-        if (this.onHandEnd) {
-            this.onHandEnd({
-                reason: reason,
-                dominoPlayer: dominoPlayer,
-                closingPlayer: closingPlayer,
-                winningTeam: result.winningTeam,
-                points: result.points,
-                matchScores: [...this.state.scores.match]
-            });
-        }
-
-        // Check if match is over
+        // Check if match is over before emitting hand end event
         const matchResult = Rules.checkMatchOver(this.state.scores.match);
         if (matchResult.isOver) {
+            // Skip hand-end modal and go straight to match-end so Play Analysis isn't displaced
             this._endMatch(matchResult.winner);
         } else {
+            if (this.onHandEnd) {
+                this.onHandEnd({
+                    reason: reason,
+                    dominoPlayer: dominoPlayer,
+                    closingPlayer: closingPlayer,
+                    winningTeam: result.winningTeam,
+                    points: result.points,
+                    matchScores: [...this.state.scores.match]
+                });
+            }
             this._emitStateChange();
         }
     }

@@ -485,9 +485,8 @@ class DominoApp {
         };
 
         this.game.onMatchEnd = (data) => {
-            if (this.probAnalyzer) {
-                this.probAnalyzer.logMatchSummary();
-            }
+            if (this.probAnalyzer) this.probAnalyzer.logMatchSummary();
+            this.ai.logCerrarSummary();
             this.showMatchEndMessage(data);
         };
 
@@ -977,6 +976,11 @@ class DominoApp {
             this.log(t('log.teamPoints', winnerName, data.points), 'system');
         } else {
             this.log(t('log.tie'), 'system');
+        }
+
+        // Finalize any pending cerrar decision outcome (dev diagnostic, debug mode only)
+        if (data.reason === 'closed') {
+            this.ai.finalizeCerrarOutcome(data, this.game.getState().hands);
         }
 
         // Record stats and check for hand badges
