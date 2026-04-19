@@ -35,6 +35,7 @@ export class SmartAI {
         this.handTracker = null; // Set by game controller
         this.playerViews = null; // Set by game controller (array of 4 PlayerViews)
         this.difficulties = ['master', 'master', 'master', 'master'];
+        this.cerrarLog = []; // Session-wide cerrar decision outcomes (dev diagnostic)
         this.resetForNewHand();
 
         if (DEBUG_AI) {
@@ -98,6 +99,9 @@ export class SmartAI {
 
         // Track number of plays in this hand (for early-game priority rules)
         this.playCount = 0;
+
+        // Pending cerrar decision for this hand (set when AI commits to cerrar, cleared at hand end)
+        this._pendingCerrar = null;
     }
 
     /**
@@ -740,6 +744,7 @@ export class SmartAI {
 
         if (pipAdvantage >= MIN_EDGE) {
             const best = cerrarMoves[0];
+            this._pendingCerrar = { playerIndex, expectedPipEdge: pipAdvantage, defensive: false };
             return {
                 move: { ...best, reasoning: `Cerrar — expected pip edge +${Math.round(pipAdvantage)}` },
                 excludeCerrar: false
@@ -750,6 +755,7 @@ export class SmartAI {
             if (minOppTiles <= 2) {
                 // Opponent is about to domino — defensive close beats conceding the hand
                 const best = cerrarMoves[0];
+                this._pendingCerrar = { playerIndex, expectedPipEdge: pipAdvantage, defensive: true };
                 return {
                     move: { ...best, reasoning: `Defensive cerrar — opponent at ${minOppTiles} tile(s) (pip edge ${Math.round(pipAdvantage)})` },
                     excludeCerrar: false
@@ -761,6 +767,85 @@ export class SmartAI {
 
         // Edge within ±MIN_EDGE: no strong signal, let weighted scoring decide
         return { move: null, excludeCerrar: false };
+    }
+
+    /**
+     * Record the actual outcome of the pending cerrar decision.
+     * Called from main.js when a hand ends with reason === 'closed'.
+     *
+     * @param {object} handData  - data from onHandEnd (winningTeam, points)
+     * @param {Hand[]} hands     - final hands array (for actual pip counts)
+     */
+    finalizeCerrarOutcome(handData, hands) {
+        if (!this._pendingCerrar) return;
+
+        const { playerIndex, expectedPipEdge, defensive } = this._pendingCerrar;
+        this._pendingCerrar = null;
+
+        const closingTeam = GameState.getTeam(playerIndex);
+        const won = handData.winningTeam === closingTeam;
+
+        const team0Pips = hands[0].pipCount() + hands[2].pipCount();
+        const team1Pips = hands[1].pipCount() + hands[3].pipCount();
+        // actualPipEdge: E[opp] - E[mine], same sign convention as expectedPipEdge
+        const actualPipEdge = closingTeam === 0
+            ? team1Pips - team0Pips
+            : team0Pips - team1Pips;
+
+        const entry = {
+            player: GameState.getPlayerName(playerIndex),
+            expectedPipEdge,
+            actualPipEdge,
+            delta: actualPipEdge - expectedPipEdge,
+            won,
+            points: won ? handData.points : -handData.points,
+            defensive
+        };
+
+        this.cerrarLog.push(entry);
+
+        if (DEBUG_AI) {
+            const sign = v => (v >= 0 ? '+' : '') + Math.round(v);
+            const status = won ? '%c✓ WON' : '%c✗ LOST';
+            const color = won ? 'color:#22c55e;font-weight:bold' : 'color:#ff6b6b;font-weight:bold';
+            console.log(
+                `%c🔒 Cerrar outcome [${entry.player}${defensive ? ' DEFENSIVE' : ''}]: ` +
+                `${status} ${sign(entry.points)} pts | ` +
+                `predicted edge ${sign(expectedPipEdge)} | actual ${sign(actualPipEdge)} | Δ ${sign(entry.delta)}`,
+                'color:#ffd93d', color
+            );
+        }
+    }
+
+    /**
+     * Log a summary of all cerrar decisions taken this match.
+     * Only prints in ?debug=ai mode.
+     */
+    logCerrarSummary() {
+        if (!DEBUG_AI || this.cerrarLog.length === 0) return;
+
+        const wins = this.cerrarLog.filter(e => e.won).length;
+        const avgExpected = this.cerrarLog.reduce((s, e) => s + e.expectedPipEdge, 0) / this.cerrarLog.length;
+        const avgActual  = this.cerrarLog.reduce((s, e) => s + e.actualPipEdge, 0)  / this.cerrarLog.length;
+        const avgDelta   = this.cerrarLog.reduce((s, e) => s + e.delta, 0)           / this.cerrarLog.length;
+        const sign = v => (v >= 0 ? '+' : '') + v.toFixed(1);
+
+        console.group('%c🔒 Cerrar Decision Summary', 'color:#ffd93d;font-weight:bold');
+        console.table(this.cerrarLog.map(e => ({
+            'Player':      e.player,
+            'Defensive':   e.defensive ? 'Yes' : '',
+            'Won':         e.won ? '✓' : '✗',
+            'Points':      (e.points >= 0 ? '+' : '') + e.points,
+            'Exp edge':    sign(e.expectedPipEdge),
+            'Act edge':    sign(e.actualPipEdge),
+            'Δ (act-pred)': sign(e.delta)
+        })));
+        console.log(
+            `Total: ${this.cerrarLog.length} cerrar(s) | ` +
+            `W/L: ${wins}/${this.cerrarLog.length - wins} | ` +
+            `Avg expected edge: ${sign(avgExpected)} | Avg actual: ${sign(avgActual)} | Avg Δ: ${sign(avgDelta)}`
+        );
+        console.groupEnd();
     }
 
     /**
