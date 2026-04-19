@@ -485,6 +485,16 @@ class DominoApp {
         };
 
         this.game.onMatchEnd = (data) => {
+            // If the match ended on a cerrar hand, onHandEnd was skipped so we
+            // finalize the pending cerrar decision here instead
+            if (this.ai._pendingCerrar) {
+                const state = this.game.getState();
+                const hands = state.hands;
+                const team0Pips = hands[0].pipCount() + hands[2].pipCount();
+                const team1Pips = hands[1].pipCount() + hands[3].pipCount();
+                const points = data.winner === 0 ? team1Pips : team0Pips;
+                this.ai.finalizeCerrarOutcome({ winningTeam: data.winner, points }, hands);
+            }
             if (this.probAnalyzer) this.probAnalyzer.logMatchSummary();
             this.ai.logCerrarSummary();
             this.showMatchEndMessage(data);
