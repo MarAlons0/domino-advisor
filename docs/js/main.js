@@ -485,19 +485,25 @@ class DominoApp {
         };
 
         this.game.onMatchEnd = (data) => {
-            // If the match ended on a cerrar hand, onHandEnd was skipped so we
-            // finalize the pending cerrar decision here instead
-            if (this.ai._pendingCerrar) {
-                const state = this.game.getState();
-                const hands = state.hands;
-                const team0Pips = hands[0].pipCount() + hands[2].pipCount();
-                const team1Pips = hands[1].pipCount() + hands[3].pipCount();
-                const points = data.winner === 0 ? team1Pips : team0Pips;
-                this.ai.finalizeCerrarOutcome({ winningTeam: data.winner, points }, hands);
-            }
-            if (this.probAnalyzer) this.probAnalyzer.logMatchSummary();
-            this.ai.logCerrarSummary();
-            this.showMatchEndMessage(data);
+            // Delay the modal when the match ends on a domino so the slam animation
+            // has time to finish and the touch event that played the tile clears
+            // before the modal appears (prevents accidental "New Match" tap on iPad)
+            const delay = data.reason === 'domino' ? 1800 : 0;
+            setTimeout(() => {
+                // If the match ended on a cerrar hand, onHandEnd was skipped so we
+                // finalize the pending cerrar decision here instead
+                if (this.ai._pendingCerrar) {
+                    const state = this.game.getState();
+                    const hands = state.hands;
+                    const team0Pips = hands[0].pipCount() + hands[2].pipCount();
+                    const team1Pips = hands[1].pipCount() + hands[3].pipCount();
+                    const points = data.winner === 0 ? team1Pips : team0Pips;
+                    this.ai.finalizeCerrarOutcome({ winningTeam: data.winner, points }, hands);
+                }
+                if (this.probAnalyzer) this.probAnalyzer.logMatchSummary();
+                this.ai.logCerrarSummary();
+                this.showMatchEndMessage(data);
+            }, delay);
         };
 
         this.game.onError = (msg) => {
