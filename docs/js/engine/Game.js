@@ -310,7 +310,7 @@ export class Game {
         const matchResult = Rules.checkMatchOver(this.state.scores.match);
         if (matchResult.isOver) {
             // Skip hand-end modal and go straight to match-end so Play Analysis isn't displaced
-            this._endMatch(matchResult.winner);
+            this._endMatch(matchResult.winner, reason);
         } else {
             if (this.onHandEnd) {
                 this.onHandEnd({
@@ -328,16 +328,19 @@ export class Game {
 
     /**
      * End the match.
+     * @param {number} winner - Winning team index
+     * @param {string} [reason] - How the final hand ended ('domino', 'blocked', 'closed')
      * @private
      */
-    _endMatch(winner) {
+    _endMatch(winner, reason = 'domino') {
         this.state.gamePhase = 'matchOver';
         this.state.matchWinner = winner;
 
         if (this.onMatchEnd) {
             this.onMatchEnd({
                 winner: winner,
-                finalScores: [...this.state.scores.match]
+                finalScores: [...this.state.scores.match],
+                reason: reason
             });
         }
 
