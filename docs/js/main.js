@@ -1060,6 +1060,12 @@ class DominoApp {
         this.continueBtn.textContent = t('btn.newMatch');
         this.reviewBtn.style.display = 'inline-block';
 
+        // Briefly lock the "New Match" button so an accidental touch immediately
+        // after the domino can't skip the Play Analysis screen.
+        // The Review button stays active from the start.
+        this.continueBtn.disabled = true;
+        setTimeout(() => { this.continueBtn.disabled = false; }, 2500);
+
         this.log(t('log.matchOver'), 'system');
         this.log(t('log.teamWins', winnerName), 'system');
 
