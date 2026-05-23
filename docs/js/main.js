@@ -513,6 +513,13 @@ class DominoApp {
     }
 
     startNewGame() {
+        // Restore button states that may have been changed by the match-end modal
+        this.continueBtn.style.display = '';
+        this.continueBtn.textContent = t('btn.continue');
+        this.continueBtn.disabled = false;
+        this.reviewBtn.style.display = 'none';
+        this.newGameBtn.disabled = false;
+
         this.clearLog();
         this.hideThinkingIndicator();
         this.log(t('log.newMatch'), 'system');
@@ -1057,14 +1064,15 @@ class DominoApp {
             this.messageGenin.style.display = isYourTeam ? 'block' : 'none';
         }
 
-        this.continueBtn.textContent = t('btn.newMatch');
+        // Hide the "New Match" button entirely — Play Analysis is the only action
+        // on this modal. New Match is available inside the debrief, or via the
+        // header "New Game" button once the debrief is opened/closed.
+        this.continueBtn.style.display = 'none';
         this.reviewBtn.style.display = 'inline-block';
 
-        // Briefly lock the "New Match" button so an accidental touch immediately
-        // after the domino can't skip the Play Analysis screen.
-        // The Review button stays active from the start.
-        this.continueBtn.disabled = true;
-        setTimeout(() => { this.continueBtn.disabled = false; }, 2500);
+        // Block the header "New Game" button while the match-end modal is showing
+        // so an accidental tap on it can't skip the analysis screen
+        this.newGameBtn.disabled = true;
 
         this.log(t('log.matchOver'), 'system');
         this.log(t('log.teamWins', winnerName), 'system');
@@ -1082,6 +1090,11 @@ class DominoApp {
         // Hide message box first
         this.messageBox.classList.remove('visible');
         this.modalOverlay.classList.remove('visible');
+
+        // Re-enable the header "New Game" button now that the debrief is open
+        // (the debrief has its own "New Match" button; the header button is a fallback
+        // in case the user closes the debrief without starting a new game)
+        this.newGameBtn.disabled = false;
 
         // Show debrief UI
         const matchHistory = this.game.getMatchHistory();
