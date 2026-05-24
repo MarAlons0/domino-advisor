@@ -102,15 +102,22 @@ export class PlayerView {
             this._updateAffinity(player, newValue, 1.2);
         }
 
-        // End avoidance: if both ends were different and tile could have played on
-        // the other end but player chose this end, slight negative for avoided suit
-        if (leftEnd !== rightEnd && !tile.isDouble()) {
-            const avoided = (end === 'left') ? rightEnd : leftEnd;
-            if (tile.hasValue(avoided)) {
-                // Player had a choice and avoided this suit
-                this._updateAffinity(player, avoided, 0.85);
-            }
-        }
+        // Note: end-avoidance affinity updates are now driven by SmartAI.analyzePlayChoice()
+        // via applyAffinitySignal(), which applies team-contextual multipliers instead of
+        // the former context-free 0.85×.
+    }
+
+    /**
+     * Apply an affinity signal to a player's suit preference from external context.
+     * Called by SmartAI to inject team-contextual play inference, replacing the
+     * context-free 0.85× end-avoidance signal that was previously applied in
+     * recordPlayObservation().
+     * @param {number} player - Which player's affinity to update (0-3)
+     * @param {number} suit - Which suit (0-6)
+     * @param {number} multiplier - Affinity adjustment (< 1 = negative, > 1 = positive)
+     */
+    applyAffinitySignal(player, suit, multiplier) {
+        this._updateAffinity(player, suit, multiplier);
     }
 
     // ==================== Properties (MonteCarloEvaluator compatibility) ====================

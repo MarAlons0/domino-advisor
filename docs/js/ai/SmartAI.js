@@ -185,6 +185,10 @@ export class SmartAI {
             this.suitSkipCount[playerIndex][signaledSuit]++;
         }
 
+        // Compute partner context (shared by INFERENCE 2, 2b, and 2c below)
+        const partnerIndex = GameState.getPartner(playerIndex);
+        const partnerSuit = this.signaledSuits[partnerIndex];
+
         // INFERENCE 2: General end-choice soft evidence
         // Every time a player ends up NOT playing on the avoided end, it is soft
         // evidence they may lack tiles for that suit. Weighted by team context:
@@ -199,9 +203,6 @@ export class SmartAI {
         if (!isCuadrar && !this.inferredDeadSuits[playerIndex].has(avoided)) {
             const remainingInAvoided = this.getRemainingInSuit(avoided);
             if (remainingInAvoided >= 2) {
-                const partnerIndex = GameState.getPartner(playerIndex);
-                const partnerSuit = this.signaledSuits[partnerIndex];
-
                 if (playedOn === partnerSuit) {
                     // Expected team play — not informative about avoided suit
                 } else if (avoided === partnerSuit) {
@@ -211,6 +212,34 @@ export class SmartAI {
                     // Neutral — moderate soft evidence
                     this.suitSkipCount[playerIndex][avoided] += 0.5;
                 }
+
+                // INFERENCE 2b: Team-contextual affinity signal to PlayerViews.
+                // Only fires when the tile actually had the avoided suit (real choice was made).
+                // Replaces the context-free 0.85× that PlayerView.recordPlayObservation()
+                // previously applied for end-avoidance — now weighted by partnership context:
+                //   playedOn === partnerSuit → 1.0 (expected play, no negative signal)
+                //   avoided === partnerSuit  → 0.70 (surprising avoidance, stronger signal)
+                //   neutral                  → 0.85 (standard signal)
+                if (this.playerViews && tile.hasValue(avoided)) {
+                    const multiplier = (playedOn === partnerSuit) ? 1.0
+                                     : (avoided === partnerSuit)  ? 0.70
+                                     : 0.85;
+                    if (multiplier !== 1.0) {
+                        for (const view of this.playerViews) {
+                            view.applyAffinitySignal(playerIndex, avoided, multiplier);
+                        }
+                    }
+                }
+            }
+        }
+
+        // INFERENCE 2c: Cuadrar affinity boost.
+        // recordPlayObservation() already applies 1.2× for the value introduced;
+        // cuadrar is a stronger commitment (both ends now show that value) so we
+        // add an extra 1.3× on top — combined effect ≈ 1.56× for the cuadrar suit.
+        if (isCuadrar && this.playerViews) {
+            for (const view of this.playerViews) {
+                view.applyAffinitySignal(playerIndex, avoided, 1.3);
             }
         }
 
