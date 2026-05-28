@@ -2,6 +2,7 @@ import { Rules } from '../engine/Rules.js';
 import { GameState } from '../models/GameState.js';
 import { StrategicExplainer } from './StrategicExplainer.js';
 import { MonteCarloEvaluator } from './MonteCarloEvaluator.js';
+import { Hand } from '../models/Hand.js';
 
 // Check for debug mode via URL parameter (?debug=ai)
 const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'ai';
@@ -36,6 +37,29 @@ export class SmartAI {
         this.playerViews = null; // Set by game controller (array of 4 PlayerViews)
         this.difficulties = ['master', 'master', 'master', 'master'];
         this.cerrarLog = []; // Session-wide cerrar decision outcomes (dev diagnostic)
+        // Per-seat threshold for the "defensive close": take a P2 cuadrar block
+        // at a pip disadvantage only when an opponent's tile count is at or below
+        // this value. Default 2 = current behavior. 1 = only when an opponent has
+        // a single tile left. 0 = never (disable defensive closing). Used by the
+        // tournament harness to A/B the threshold.
+        this.defensiveCloseThreshold = [2, 2, 2, 2];
+        // Per-seat experiment flag: when true, that seat boosts pip-dumping in
+        // the late game so it steers incidental (non-block) closes toward a pip
+        // advantage. A/B'd via the tournament harness. Default false.
+        this.pipAwareClose = [false, false, false, false];
+        // Per-seat experiment flag: when true, the fallback path re-scores moves
+        // with a 2-ply lookahead (my move + next opponent's adversarial reply on
+        // the most-likely deal) instead of the Monte Carlo blend. Default false.
+        this.useLookahead2 = [false, false, false, false];
+        // Per-seat tolerance for move randomization: in the fallback path, pick
+        // uniformly among moves whose finalScore is within this many points of
+        // the top. Default 0 = always pick the single best move (deterministic).
+        // Used to measure the self-play cost of unpredictability.
+        this.randomizeTolerance = [0, 0, 0, 0];
+        // Optional instrumentation hook; called at the end of chooseMove with a
+        // structured record describing which decision path fired. Left null in
+        // production so there's no overhead when nothing is listening.
+        this.onDecision = null;
         this.resetForNewHand();
 
         if (DEBUG_AI) {
@@ -337,6 +361,7 @@ export class SmartAI {
             if (DEBUG_AI) {
                 this._logDebug({ ...debugInfo, chosen: 'PASS', chosenReason: 'No valid moves' }, activeView);
             }
+            this._emitDecision({ playerIndex, priority: 'pass', validMovesCount: 0, handSize: hand.size(), playCount: this.playCount });
             return null; // Must pass
         }
 
@@ -347,6 +372,7 @@ export class SmartAI {
                 debugInfo.chosenReason = 'Only valid move';
                 this._logDebug(debugInfo, activeView);
             }
+            this._emitDecision({ playerIndex, priority: 'only-move', validMovesCount: 1, handSize: hand.size(), playCount: this.playCount });
             return move;
         }
 
@@ -365,6 +391,7 @@ export class SmartAI {
                 debugInfo.chosenReason = 'PRIORITY 1: Winning move (domino)';
                 this._logDebug(debugInfo, activeView);
             }
+            this._emitDecision({ playerIndex, priority: 'winning', validMovesCount: validMoves.length, handSize: hand.size(), playCount: this.playCount });
             return { ...winningMove, reasoning: 'Winning move - domino!' };
         }
 
@@ -423,6 +450,7 @@ export class SmartAI {
                 debugInfo.chosenReason = `PRIORITY 3: High-confidence block (P=${blockingMove.blockProb.toFixed(2)})`;
                 this._logDebug(debugInfo, activeView);
             }
+            this._emitDecision({ playerIndex, priority: 'block', validMovesCount: validMoves.length, blockProb: blockingMove.blockProb, blockType: blockingMove.blockType, pipAdvantage: blockingMove.pipAdvantage, handSize: hand.size(), playCount: this.playCount });
             return blockingMove;
         }
 
@@ -448,6 +476,7 @@ export class SmartAI {
                 debugInfo.chosenReason = 'PRIORITY 4: Partner support (early game)';
                 this._logDebug(debugInfo, activeView);
             }
+            this._emitDecision({ playerIndex, priority: 'partner-support', validMovesCount: validMoves.length, handSize: hand.size(), playCount: this.playCount });
             return partnerSupportMove;
         }
 
@@ -466,7 +495,16 @@ export class SmartAI {
 
         // Apply Monte Carlo evaluation if available
         let certainty = 0;
-        if (this.monteCarloEvaluator && this.handTracker) {
+        if (this.useLookahead2[playerIndex] && this.monteCarloEvaluator) {
+            // 2-ply lookahead variant: re-score against the most-likely deal,
+            // accounting for the next opponent's adversarial best reply.
+            const mostLikely = this._mostLikelyHands(gameState, playerIndex, activeView);
+            for (const move of scoredMoves) {
+                const laValue = this._lookahead2Value(move, gameState, playerIndex, mostLikely);
+                move.lookaheadValue = laValue;
+                move.finalScore = move.staticTotal + laValue;
+            }
+        } else if (this.monteCarloEvaluator && this.handTracker) {
             certainty = this.monteCarloEvaluator.calculateCertainty(gameState, gameState.chain, activeView);
 
             for (const move of scoredMoves) {
@@ -499,7 +537,20 @@ export class SmartAI {
             }));
         }
 
-        const bestMove = scoredMoves[0];
+        // Flexibility metric: how many moves are within a small band of the top
+        // (i.e. how much "free" unpredictability is available at this decision).
+        const topScore = scoredMoves[0].finalScore;
+        const movesWithin5 = scoredMoves.filter(m => topScore - m.finalScore <= 5).length;
+        const movesWithin10 = scoredMoves.filter(m => topScore - m.finalScore <= 10).length;
+
+        // Optional move randomization: pick uniformly among moves within the
+        // configured tolerance of the top score. Default tolerance 0 = best move.
+        let bestMove = scoredMoves[0];
+        const tol = this.randomizeTolerance[playerIndex];
+        if (tol > 0 && scoredMoves.length > 1) {
+            const band = scoredMoves.filter(m => topScore - m.finalScore <= tol);
+            bestMove = band[Math.floor(Math.random() * band.length)];
+        }
         // Use strategic explainer for rich reasoning
         bestMove.reasoning = this.explainer.explainBrief(
             bestMove,
@@ -518,7 +569,148 @@ export class SmartAI {
             this._logDebug(debugInfo, activeView);
         }
 
+        if (this.onDecision) {
+            const topFactors = bestMove.score?.factors || {};
+            let topFactor = null, topFactorValue = 0;
+            for (const [k, v] of Object.entries(topFactors)) {
+                if (Math.abs(v) > Math.abs(topFactorValue)) { topFactor = k; topFactorValue = v; }
+            }
+            const margin = scoredMoves.length > 1
+                ? bestMove.finalScore - scoredMoves[1].finalScore
+                : null;
+            this._emitDecision({
+                playerIndex,
+                priority: 'fallback',
+                validMovesCount: validMoves.length,
+                topFactor,
+                topFactorValue,
+                scoreMargin: margin,
+                topScore,
+                movesWithin5,
+                movesWithin10,
+                certainty,
+                usedMC: bestMove.mcResult !== null,
+                handSize: hand.size(),
+                playCount: this.playCount,
+            });
+        }
+
         return bestMove;
+    }
+
+    _emitDecision(record) {
+        if (this.onDecision) this.onDecision(record);
+    }
+
+    /**
+     * Build a single most-likely full deal: assign each unknown tile to the
+     * player with the highest marginal probability, respecting tile counts.
+     * The viewer keeps their real hand. Returns Map<playerIndex, Hand> for the
+     * three non-viewer players.
+     * @private
+     */
+    _mostLikelyHands(gameState, playerIndex, view) {
+        const src = view || this.handTracker;
+        const locations = src.knownLocations || this.handTracker.knownLocations;
+        const players = [0, 1, 2, 3].filter(p => p !== playerIndex);
+        const target = new Map(players.map(p => [p, this.handTracker.tileCounts[p]]));
+        const hands = new Map(players.map(p => [p, new Hand()]));
+
+        const unknown = [];
+        for (const tile of this.handTracker.allTiles) {
+            if (locations.get(tile.toKey()) === 'unknown') unknown.push(tile);
+        }
+
+        // Greedy: assign the most-confident (tile, player) pairings first.
+        const cands = [];
+        for (const tile of unknown) {
+            for (const p of players) {
+                const pr = src.getProbability(p, tile);
+                if (pr > 0) cands.push({ tile, p, pr });
+            }
+        }
+        cands.sort((a, b) => b.pr - a.pr);
+
+        const assigned = new Set();
+        for (const c of cands) {
+            const key = c.tile.toKey();
+            if (assigned.has(key)) continue;
+            if (hands.get(c.p).size() >= target.get(c.p)) continue;
+            hands.get(c.p).add(c.tile);
+            assigned.add(key);
+        }
+        // Fill any leftover unknown tiles (capacity edge cases) into any open seat.
+        for (const tile of unknown) {
+            if (assigned.has(tile.toKey())) continue;
+            for (const p of players) {
+                if (hands.get(p).size() < target.get(p)) {
+                    hands.get(p).add(tile);
+                    assigned.add(tile.toKey());
+                    break;
+                }
+            }
+        }
+
+        return hands;
+    }
+
+    /**
+     * 2-ply lookahead value for a candidate move: apply the move on the
+     * most-likely deal, then let the next opponent pick their adversarial best
+     * reply (the one minimizing our team's position), and return the resulting
+     * position value from our perspective. Terminal outcomes after our move are
+     * scored directly.
+     * @private
+     */
+    _lookahead2Value(move, gameState, playerIndex, mostLikelyHands) {
+        const mce = this.monteCarloEvaluator;
+        const simState = mce.createSimulatedState(gameState, mostLikelyHands, playerIndex);
+        mce.applyMove(simState, playerIndex, move);
+
+        // Terminal check after our move.
+        for (let p = 0; p < 4; p++) {
+            if (simState.hands[p].isEmpty()) {
+                return mce.evaluateOutcome({ type: 'domino', winner: p, state: simState }, playerIndex);
+            }
+        }
+        if (simState.chain.isClosed && simState.chain.isClosed()) {
+            return mce.evaluateOutcome({ type: 'blocked', state: simState }, playerIndex);
+        }
+
+        // Next opponent's adversarial reply.
+        const nextPlayer = simState.currentPlayer; // (playerIndex + 1) % 4 — always an opponent
+        const replies = Rules.getValidMoves(simState.hands[nextPlayer], simState.chain, false);
+        if (replies.length === 0) {
+            // Opponent must pass; evaluate position as-is.
+            return mce.evaluatePosition(simState, playerIndex);
+        }
+
+        let worstForUs = Infinity;
+        for (const reply of replies) {
+            const branch = this._cloneSimState(simState);
+            mce.applyMove(branch, nextPlayer, reply);
+            let value;
+            const dominoer = branch.hands.findIndex(h => h.isEmpty());
+            if (dominoer >= 0) {
+                value = mce.evaluateOutcome({ type: 'domino', winner: dominoer, state: branch }, playerIndex);
+            } else {
+                value = mce.evaluatePosition(branch, playerIndex);
+            }
+            if (value < worstForUs) worstForUs = value;
+        }
+        return worstForUs;
+    }
+
+    /** Deep-clone a simulated state (hands + chain). @private */
+    _cloneSimState(s) {
+        return {
+            hands: s.hands.map(h => h.clone()),
+            chain: s.chain.clone(),
+            currentPlayer: s.currentPlayer,
+            passHistory: s.passHistory ? s.passHistory.map(set => new Set(set)) : [],
+            consecutivePasses: s.consecutivePasses,
+            gamePhase: s.gamePhase,
+        };
     }
 
     /**
@@ -1007,10 +1199,14 @@ export class SmartAI {
 
         if (pipAdvantage > 0) {
             // We have fewer pips - blocking is profitable
+            bestBlockMove.blockType = 'offensive';
+            bestBlockMove.pipAdvantage = pipAdvantage;
             bestBlockMove.reasoning = `High-confidence block (${Math.round(bestBlockMove.blockProb * 100)}%) - pip advantage ~${Math.round(pipAdvantage)} pts`;
             return bestBlockMove;
-        } else if (minOppTiles <= 2) {
+        } else if (minOppTiles <= this.defensiveCloseThreshold[playerIndex]) {
             // Opponent about to win - block defensively even with pip disadvantage
+            bestBlockMove.blockType = 'defensive';
+            bestBlockMove.pipAdvantage = pipAdvantage;
             bestBlockMove.reasoning = `Defensive block (${Math.round(bestBlockMove.blockProb * 100)}%) - opponent about to domino (pip disadvantage ~${Math.round(-pipAdvantage)})`;
             return bestBlockMove;
         } else {
@@ -1361,7 +1557,18 @@ export class SmartAI {
 
         // 7. PIP MANAGEMENT - prefer playing high-pip tiles early
         const tilesPlayed = chain.size();
-        if (tilesPlayed < 10) {
+        if (this.pipAwareClose[playerIndex]) {
+            // Pip-aware variant: keep dumping heavies attractive through the
+            // mid-game, and ramp it up sharply in the late game (≥16 tiles down,
+            // ~3 tiles left per hand) when a close or block is likely and the
+            // hand will be decided on remaining pips. This lets pipManagement
+            // compete with suitDominance instead of being swamped by it.
+            let mult;
+            if (tilesPlayed < 10) mult = 1.5;
+            else if (tilesPlayed < 16) mult = 1.5;
+            else mult = 3.0;
+            factors.pipManagement = tile.pipCount() * mult;
+        } else if (tilesPlayed < 10) {
             factors.pipManagement = tile.pipCount() * 1.5;
         } else {
             factors.pipManagement = tile.pipCount() * 0.5;

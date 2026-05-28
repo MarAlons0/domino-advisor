@@ -214,13 +214,21 @@ class DominoApp {
         // Initialize settings UI
         this.settingsUI.init();
 
-        // Apply persisted AI difficulty settings
-        const savedDiff = StorageService.get('7fichas_difficulty') || { opp1: 'master', partner: 'master', opp2: 'master' };
-        this.ai.setDifficulty(1, savedDiff.opp1);
-        this.ai.setDifficulty(2, savedDiff.partner || 'master');
-        this.ai.setDifficulty(3, savedDiff.opp2);
-        this.settingsUI.onDifficultyChange = (playerIndex, level) => {
+        // Apply persisted AI difficulty settings.
+        // Master-level AIs also randomize among near-equal moves (within 5 score
+        // points) so they're less predictable to human opponents. This is free
+        // in self-play (see tools/tournament.js rand5 A/B) but removes the fixed
+        // patterns a human can learn and exploit.
+        const applyDifficulty = (playerIndex, level) => {
             this.ai.setDifficulty(playerIndex, level);
+            this.ai.randomizeTolerance[playerIndex] = (level === 'master') ? 5 : 0;
+        };
+        const savedDiff = StorageService.get('7fichas_difficulty') || { opp1: 'master', partner: 'master', opp2: 'master' };
+        applyDifficulty(1, savedDiff.opp1);
+        applyDifficulty(2, savedDiff.partner || 'master');
+        applyDifficulty(3, savedDiff.opp2);
+        this.settingsUI.onDifficultyChange = (playerIndex, level) => {
+            applyDifficulty(playerIndex, level);
         };
 
         // Initialize stats UI
@@ -481,7 +489,12 @@ class DominoApp {
             }
             // Delay modal on domino so the slam animation has time to play
             const delay = data.reason === 'domino' ? 1800 : 0;
-            setTimeout(() => this.showHandEndMessage(data), delay);
+            setTimeout(() => {
+                // If the match ended during the delay, skip the hand-end message
+                // so the match-end message (with the Review Game button) stays on screen
+                if (this.game.getState().gamePhase === 'matchOver') return;
+                this.showHandEndMessage(data);
+            }, delay);
         };
 
         this.game.onMatchEnd = (data) => {

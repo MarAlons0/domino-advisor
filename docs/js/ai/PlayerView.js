@@ -38,6 +38,17 @@ export class PlayerView {
         this._mcMarginals = null;        // Map<tileKey, Map<playerIndex, probability>>
         this._mcGeneration = -1;         // Generation when marginals were computed
         this._mcSampleCount = 500;       // Number of valid deals to sample
+
+        // Per-deal, per-player suit-value bitmask (bits 0-6). Populated alongside
+        // _mcMarginals; consumed by getPassProbability / getBlockingProbability
+        // when useMcDerivedPassProb is true.
+        this._mcDealMasks = null;
+
+        // Variant flag: when true, pass/block probabilities are computed
+        // directly from MC sample deals (captures correlations between tile
+        // holdings) instead of the binomial approximation. Off by default so
+        // existing behavior is unchanged.
+        this.useMcDerivedPassProb = false;
     }
 
     // ==================== Lifecycle ====================
@@ -60,6 +71,7 @@ export class PlayerView {
         this._locationCacheGeneration = -1;
         this._mcMarginals = null;
         this._mcGeneration = -1;
+        this._mcDealMasks = null;
     }
 
     /**
@@ -254,6 +266,23 @@ export class PlayerView {
             return 1.0; // We have no tiles with this value
         }
 
+        // MC-derived path: fraction of sampled deals where the player holds
+        // zero tiles with this value. Naturally captures the negative
+        // correlation between tile holdings that the binomial approximation
+        // ignores.
+        if (this.useMcDerivedPassProb) {
+            this._computeMCMarginals();
+            if (this._mcDealMasks && this._mcDealMasks.length >= 50) {
+                const bit = 1 << value;
+                let count = 0;
+                for (const masks of this._mcDealMasks) {
+                    if ((masks[player] & bit) === 0) count++;
+                }
+                return count / this._mcDealMasks.length;
+            }
+            // Fall through to the binomial fallback if MC sampling failed.
+        }
+
         // Count tiles with this value that the player could have
         const tilesWithValue = [];
         for (const tile of this.handTracker.allTiles) {
@@ -287,6 +316,23 @@ export class PlayerView {
         if (value1 === value2) {
             return this.getPassProbability(player, value1);
         }
+
+        // MC-derived joint: fraction of sampled deals where the player holds
+        // zero tiles with either end value. Captures negative correlation
+        // (lacking suit V1 makes lacking V2 less likely) that the independent
+        // product formula misses.
+        if (this.useMcDerivedPassProb) {
+            this._computeMCMarginals();
+            if (this._mcDealMasks && this._mcDealMasks.length >= 50) {
+                const mask = (1 << value1) | (1 << value2);
+                let count = 0;
+                for (const masks of this._mcDealMasks) {
+                    if ((masks[player] & mask) === 0) count++;
+                }
+                return count / this._mcDealMasks.length;
+            }
+        }
+
         return this.getPassProbability(player, value1) * this.getPassProbability(player, value2);
     }
 
@@ -364,9 +410,34 @@ export class PlayerView {
 
         if (deals.length < 50) {
             this._mcMarginals = null; // signal to fall back to heuristic
+            this._mcDealMasks = null;
             this._mcGeneration = this.handTracker._generation;
             return;
         }
+
+        // Precompute per-deal suit-value bitmasks per player (bits 0-6 = which
+        // suit values that player holds in this sampled deal). Used by
+        // MC-derived pass/block probabilities. Built here so we walk deals once.
+        const keyToValues = new Map();
+        for (const tile of this.handTracker.allTiles) {
+            keyToValues.set(tile.toKey(), [tile.high, tile.low]);
+        }
+        let ownMask = 0;
+        for (const key of this.ownTileKeys) {
+            const vs = keyToValues.get(key);
+            if (vs) ownMask |= (1 << vs[0]) | (1 << vs[1]);
+        }
+        const dealMasks = new Array(deals.length);
+        for (let d = 0; d < deals.length; d++) {
+            const masks = [0, 0, 0, 0];
+            masks[this.playerIndex] = ownMask;
+            for (const [key, player] of deals[d]) {
+                const vs = keyToValues.get(key);
+                if (vs) masks[player] |= (1 << vs[0]) | (1 << vs[1]);
+            }
+            dealMasks[d] = masks;
+        }
+        this._mcDealMasks = dealMasks;
 
         const marginals = new Map();
 
