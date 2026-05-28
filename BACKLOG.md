@@ -98,10 +98,12 @@ Add a web app manifest and service worker to make 7 Fichas installable directly 
 Further enhancements to AI decision-making beyond initial implementation.
 
 **Potential additions:**
-- Defensive priority (when opponent has 1-2 tiles)
-- Configurable blocking threshold (currently 0.7)
+- ~~Defensive priority (when opponent has 1-2 tiles)~~ *(implemented at threshold 2; A/B shows threshold 0/1/2 are all neutral in self-play)*
+- Configurable blocking threshold (currently 0.7 — instrumentation shows blocks actually fire at mean P≈0.94, so it rarely binds)
 - AI personalities (aggressive, conservative, etc.)
-- Monte Carlo tuning (depth/sample parameters, evaluation function)
+- Monte Carlo tuning (depth/sample parameters, evaluation function) — *2-ply scoring-based lookahead variant tested, only marginal vs. current MC blend*
+
+**Status (May 2026):** Several of these can now be measured with the A/B harness (see Completed → *AI Tournament Harness & A/B Testing Framework*). Move-quality tweaks proved to be self-play washes; the productive direction was reducing AI predictability (rand5 shipped). Validate any future weight/strategy change with `node tools/tournament.js --ab --variant <name>`.
 
 ---
 
@@ -382,6 +384,33 @@ Give each named AI player a distinct playing style by parameterizing strategy we
 ---
 
 ## Completed Features
+
+### AI Tournament Harness & A/B Testing Framework (May 2026)
+Headless Node harness (`tools/tournament.js`) for measuring AI-strength changes with statistical rigor, plus the instrumentation to diagnose AI behavior. Added a root `package.json` so `docs/js` loads as ES modules under Node (browsers ignore it; the static site is unaffected).
+
+**Harness capabilities** (`node tools/tournament.js --help`):
+- Runs N AI-vs-AI matches (expert-vs-expert by default); reports per-team and per-seat win rates, hands/match, hand-outcome mix, score margins, and AI decision timing
+- `--ab --variant NAME` — Champion (current code) vs Challenger A/B with 95% confidence intervals; the challenger team alternates each match to cancel out seat bias
+- `--instrument` — per-decision breakdown: which priority fired (pass / only-move / winning / block / partner-support / fallback), dominant scoring-factor histogram, score-margin distribution, decision-flexibility metric, and closing-effectiveness analysis (offensive / defensive / incidental closes with win rate + pip margin)
+- `--all-variant NAME` — apply a variant to all four seats to measure its effect on a metric in isolation
+
+**Instrumentation added to SmartAI / PlayerView (all default-off, no production impact):**
+- `SmartAI.onDecision` hook emitting a structured record per move
+- Experiment flags: `defensiveCloseThreshold`, `pipAwareClose`, `useLookahead2`, `randomizeTolerance`, and `PlayerView.useMcDerivedPassProb`
+- Block-type tagging (offensive vs defensive cuadrar)
+
+**Key findings (expert-vs-expert self-play):**
+- AI-vs-AI is symmetric (~50/50, balanced across all four seats) — no structural bias
+- Closing effectiveness: offensive cuadrar wins ~90%; defensive cuadrar wins ~44% (by design — accepts a pip loss to stop an imminent domino); incidental closes ~57% and near coin-flip on pips (the real pip-management gap)
+- Five move-quality levers were all statistical washes vs. current code over 500–1500 matches each: MC-derived pass/block probabilities, defensive-close threshold (0/1/2), late-game pip-dumping, and 2-ply lookahead. Tuning move quality does **not** move self-play win rate
+- The exploitable weakness is **determinism**: ~24% of fallback decisions have ≥2 near-equal moves (within 5 pts), and randomizing among them is essentially free in self-play (rand5 ≈ 48.8% over 1000 matches)
+
+**Shipped:** master-level AIs now randomize among moves within 5 score points of the best (`main.js`) — less predictable to human opponents at no measured self-play cost. Still to validate: re-run the rand5 A/B against the v1.0.5 inference rewrite, and confirm it lowers the human win rate in real play.
+
+### Claude API Model Update (May 2026)
+- The Cloudflare Worker proxy (`domino-api`) was pinned to the retired `claude-3-haiku-20240307`, breaking post-game play-style analysis with a `not_found_error`
+- Updated to `claude-haiku-4-5-20251001` and redeployed
+- Hardened `ClaudeService.js` to surface the real API error message (reads `data.error.message`) instead of the generic "Unexpected response format from API"
 
 ### Fixed Chain Position / Stable Tile Layout (Mar 2026)
 - Start tile (la salida) pinned to horizontal center of the table at all times
