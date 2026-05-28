@@ -115,6 +115,15 @@ export class ClaudeService {
 
             const data = await response.json();
 
+            // The proxy can return a 200 whose body is actually an Anthropic
+            // error envelope ({ type: 'error', error: { type, message } }).
+            // Surface that message instead of the generic "unexpected format".
+            if (data?.type === 'error' || data?.error) {
+                const apiMessage = data?.error?.message || data?.error || 'API error';
+                console.error('Claude API returned an error:', data);
+                return { success: false, analysis: null, error: apiMessage };
+            }
+
             // Handle different response shapes from proxy vs direct API
             const text = data?.content?.[0]?.text      // Anthropic API format
                       || data?.text                     // Simplified proxy format
