@@ -31,8 +31,15 @@ static/public folder:
 | `favicon-32.png` | 32×32 | Tab icon (retina) |
 | `apple-touch-icon.png` | 180×180 | Safari/iOS bookmarks & Favorites |
 
-**Pitfall:** Do not point the tab `<link rel="icon">` at a huge PNG (e.g. 1024×1024).
-Safari often silently fails to render an oversized image as a tab favicon. Use the 16/32 PNGs.
+**Pitfall — oversized source:** Do not point the tab `<link rel="icon">` at a huge PNG
+(e.g. 1024×1024). Safari often silently fails to render an oversized image as a tab favicon.
+Use the 16/32 PNGs.
+
+**Pitfall — illegible detail:** A detailed illustration (intricate logo, busy scene) that
+looks great at 180px collapses into an indistinct blob — often a vague "O" — at 16/32px.
+The bookmark (apple-touch, 180px) can keep the full art, but the **tab icons should be a
+simplified, high-contrast mark**: crop to the single most recognizable element and boost
+contrast before downscaling. Two different images for two different jobs is fine and normal.
 
 ### Generating the kit
 
@@ -53,11 +60,21 @@ img.save("favicon.ico", sizes=[(16,16),(32,32),(48,48)])
 ## The `<link>` block (put in your base template `<head>`)
 
 ```html
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v=1">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png?v=1">
+<link rel="icon" href="/static/favicon.ico?v=1" sizes="any">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v=1">
 ```
+
+(Use `url_for('static', ...)` in Flask/Jinja; plain root paths in static sites.)
+
+**Two rules that matter for refreshes:**
+1. **List the PNG icons *before* the `.ico`.** Browsers often pick the first usable
+   icon; putting the crisp versioned PNGs first makes them win over a hard-cached `.ico`.
+2. **Add a `?v=N` cache-buster to every icon URL and bump `N` whenever you change an icon.**
+   Without it, Safari clings to the old image. Note Safari *also* auto-requests the bare
+   `/favicon.ico` (no query) for tabs — that copy is cached hard, so a stale tab icon may
+   still need a hard reload (Cmd+Shift+R) even after a `?v` bump.
 
 (Use `url_for('static', ...)` in Flask/Jinja; plain root paths in static sites.)
 
