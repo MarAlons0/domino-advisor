@@ -35,3 +35,147 @@ Eight tuning variants were measured this release (`mc-pass`, `no-def-close`, `de
 2. The exploitable gap appears to be AI determinism, not scoring. `rand5` shipped on that basis.
 
 The firme-strategy variant is locked in even though its self-play impact is neutral: the encoded reasoning (your three notions) is strategically correct, and self-play is the wrong yardstick for changes that target *human* play patterns.
+
+---
+
+## [1.0.5] – 2026-05-23
+
+### Added
+- **Team-Contextual Play Inference (backlog 0b).** End-choice inference now interprets each play in the context of team strategy rather than as an isolated event: playing on the partner-suit end is the expected team move and carries little information, while playing *against* the partner-suit end is surprising and updates the unchosen-end suit-probability more strongly. Drives `SmartAI.analyzePlayChoice` → `PlayerView.applyAffinitySignal`. Cuadrar plays now amplify the upward affinity for the squared value and override `signaledSuits`.
+
+## [1.0.4] – 2026-04-18
+
+### Added
+- **Smarter cerrar AI.** Cerrar (closing) decisions improved by tracking the outcome of each close attempt (`SmartAI.cerrarLog`) and feeding it back into the decision criteria. Cerrar-log dev diagnostic added for offline analysis.
+
+### Fixed
+- **Match-end modal touch bleed-through on iPad.** Modal could appear with a touch already registered, causing immediate dismissal. Now the `New Match` button locks for 2.5s after the modal appears, and an explicit button press is required to start a new game.
+- **Cerrar log missing match-ending hands.** The final hand of a match wasn't being recorded in the cerrar diagnostics.
+
+## [1.0.3] – 2026-03-03
+
+### Added
+- **Configurable AI difficulty levels.** Per-seat difficulty selector (beginner / hard / master), wired through `SmartAI.difficulties` and persisted in settings.
+
+### Fixed
+- Cerrado badge condition.
+
+## [1.0.1] – 2026-03-03
+
+### Changed
+- Skip the AI thinking delay when a player has only one tile left — the move is forced and the deliberation indicator is misleading.
+
+## [1.0.0] – 2026-03-02
+
+### Added
+- **PWA support — installable on iPhone and Android.** Added `manifest.json`, `service-worker.js` (cache-first for static assets), iOS-friendly icons (192/512/apple-touch). The site is now installable from Safari/Chrome with "Add to Home Screen": app icon, full-screen launch (no browser chrome), works offline, localStorage persists.
+
+## [0.4.6] – 2026-03-02
+
+### Changed
+- **Fixed chain position / stable tile layout.** Start tile (la salida) pinned to the horizontal center of the table at all times. Left arm folds upward above the anchor row, right arm folds downward below it; each continuation row uses the full container width. L-shaped turn connectors indicate where each arm wraps at the wall. `Chain.firstTileIndex` tracks the split point between left arm, start tile, and right arm. Pip flip logic preserves connecting-pip alignment after each wall turn.
+
+## [0.4.5] – 2026-02-17
+
+### Added
+- Opponent suit avoidance factor (`factors.oppSuitAvoidance`) — penalize moves that leave end values in opponents' signaled suits.
+- Cuadrar vs. cerrar distinction in the AI's strategic vocabulary.
+- Mexican domino terminology surfaced in the explainer and translations.
+
+## [0.4.4] – 2026-02-17
+
+### Added
+- **Affinity-weighted Monte Carlo sampling.** MC deal sampling now weights tile assignments by `PlayerView` Bayesian affinities so simulated deals respect inferred suit preferences.
+- **Firme advice from Genín** — coaching text identifies firme situations and explains spend vs preserve choices.
+- **Partner-support rework** — Priority 3 (early-game partner support) now uses the affinity-weighted view rather than raw HandTracker.
+
+## [0.4.3] – 2026-02-16
+
+### Added
+- Enriched advice detail for Genín — richer per-move explanations including factor attribution and traditional terminology.
+
+## [0.4.2] – 2026-02-12
+
+### Fixed
+- Probability engine bugs surfaced by the accuracy analyzer.
+
+### Added
+- Probability accuracy analyzer continues from v0.4.1.
+
+## [0.4.1] – 2026-02-12
+
+### Added
+- **Probability accuracy analyzer with Brier scoring.** Debug-mode tool that captures probability snapshots before each play, compares to ground truth at hand-end, and reports Brier scores per factor. Useful for diagnosing where the inference layer is over- or under-confident.
+
+## [0.4.0] – 2026-02-11
+
+### Added
+- **Per-player probability views with Bayesian play-pattern inference.** Introduced `PlayerView` so each computer player has its own perspective on the game: knows own tiles exactly, doesn't know other players' tiles, and tracks Bayesian suit affinities from observed plays (salida, end choices, cuadrar). Replaces direct `HandTracker` access in `SmartAI.scoreMove` with `activeView`-aware probability lookups.
+
+## [0.3.6] – 2026-02-11
+
+### Added
+- Pulsing pass badge on player position when they pass on a suit.
+- Debug-mode probability tables (enabled with `?debug=ai`) showing per-player suit-count estimates and Bayesian affinities.
+
+## [0.3.5] – 2026-02-11
+
+### Changed
+- Pass events now visually prominent — pass badge animation and log color updates.
+
+## [0.3.4] – 2026-02-11
+
+### Fixed
+- Suit-signal detection (`signaledSuits`) and `suitDominance` double-counting when the same tile contributed to both teams' counts.
+
+## [0.3.3] – 2026-02-11
+
+### Added
+- Team-aware suit dominance — `suitDominance` factor uses team totals instead of self-only.
+
+### Fixed
+- Pip column display in debug tables.
+
+## [0.3.2] – 2026-02-11
+
+### Added
+- **Firme protection scoring factor** introduced (`factors.firmeProtection`). Initial implementation: spend penalty / preserve bonus on current open-end firmes. Detection uses `getRemainingInSuit` (face-count); the off-by-one when V|V has been played wasn't recognized until v1.1.0.
+
+## [0.3.1] – 2026-02-10
+
+### Fixed
+- Partner-support inference — `signaledSuits` for the partner now correctly reflects their opening play.
+
+## [0.3.0] – 2026-02-09
+
+### Changed
+- **Rebrand to 7 Fichas with EN/ES language support.** Renamed from "Domino Advisor" to "7 Fichas". Full i18n system with ~250 translation keys across English and Spanish, language toggle in header, browser-language auto-detection with localStorage persistence. Traditional domino terminology preserved (tranque, cerró, dominó). All UI elements, game messages, modals translated.
+- **Genín mascot** — doodle-style illustration introduced as the coaching persona. Four poses (thinking / questioning / advising / celebrating) used in debrief, quiz, help, and match-win contexts. Introduces himself as "your domino coach" in the help modal.
+
+## [0.3] – 2026-01-31
+
+### Added
+- **Probability-based AI decision-making.** `HandTracker` with Bayesian probability calculations: `getProbability(player, tile)`, `getPassProbability(player, value)`, `getBlockingProbability(player, v1, v2)`. Priority-override system in `SmartAI`:
+  - Priority 1: winning move (domino)
+  - Priority 2: high-confidence blocking (cuadrar with P > 0.7)
+  - Priority 3: partner support in the first 8 plays
+  - Fallback: weighted scoring across factors
+- Fixes "mata la mano" failure where pip management overrode partner support.
+
+## [0.2.1] – 2026-02-01
+
+### Changed
+- **Mobile viewport improvements.** Responsive layout for phones (480px) and very small screens (360px). Smaller dominoes on chain and hand, horizontal scrolling for hand tiles, 44px-minimum touch targets, full-width modal buttons, scrollable debrief tabs, compact table layout, responsive tilesPerRow based on screen width. L-shaped turn connectors with arrows indicating chain flow direction.
+
+## [Pre-0.2.1] – January 2026
+
+The following capabilities shipped before the changelog existed (drawn from the BACKLOG's prior `Completed Features` entries; specific versions not recorded in git):
+
+### Added
+- **User manual / help modal** — in-app `?` button in the header opens a modal with game overview, how-to-play, scoring rules, feature explanations (Quiz, Attribution, Debrief), and beginner strategy tips.
+- **Player color coding & tile attribution** — four distinct player colors (You cyan, Opp 1 coral, Partner green, Opp 2 orange). Toggle to show who played each tile on the chain; subtle glow on attributed tiles; player indicator dots with initials (Y, 1, P, 2); color legend; log colors matched.
+- **Hand prediction tracking & quiz mode** — `HandTracker.js` for probability tracking; quiz modal to test prediction skills; Predictions tab in debrief showing accuracy trends; localStorage persistence for quiz history.
+
+---
+
+*Earlier history (v0.1.x and pre-rebrand "Domino Advisor" work) lives only in git commit history.*
