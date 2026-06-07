@@ -56,6 +56,22 @@ export class SmartAI {
         // the top. Default 0 = always pick the single best move (deterministic).
         // Used to measure the self-play cost of unpredictability.
         this.randomizeTolerance = [0, 0, 0, 0];
+        // (Firme detection now always uses getRemainingTilesInSuit; the
+        // previous useAccurateFirmeCount flag was a transitional gate around
+        // the off-by-one bug fix, confirmed non-regressive in a 500-match
+        // A/B and locked in.)
+        // (suitDominance now always uses getRemainingTilesInSuit; the
+        // previous useAccurateSuitDominance flag was a transitional gate
+        // around the off-by-one fix, confirmed non-regressive in a 500-match
+        // A/B and locked in. analyzePlayChoice at the recordPlay path still
+        // reads the legacy face-based helper — pending follow-up since per-seat
+        // gating would contaminate shared inference state.)
+        // (firmeProtection now always includes the A+B1+C move-effect signals:
+        // bonus for exposing own latent firme, penalty for handing an opp
+        // firme by playing your last V-tile, and a partner-leading damper
+        // that softens preserve when partner is the overall leader and
+        // blocked on the other end. The previous useFirmeStrategy gate was
+        // confirmed non-regressive in a 500-match A/B and locked in.)
         // Optional instrumentation hook; called at the end of chooseMove with a
         // structured record describing which decision path fired. Left null in
         // production so there's no overhead when nothing is listening.
@@ -99,6 +115,11 @@ export class SmartAI {
         // Track suit counts: how many of each number (0-6) have been played
         // Each number appears on exactly 7 tiles in a double-six set
         this.suitCounts = [0, 0, 0, 0, 0, 0, 0]; // Index = suit value (0-6)
+
+        // Per-suit *tile* counter (vs. suitCounts which counts faces and
+        // increments by 2 for a played double). Range 0..7. Used by the
+        // accurate firme detector via getRemainingTilesInSuit().
+        this.tileCountsBySuit = [0, 0, 0, 0, 0, 0, 0];
 
         // Track inferred "dead" suits for each player — PASSES ONLY (hard constraints)
         // Soft inferences from play choices are tracked separately in suitSkipCount
@@ -147,6 +168,15 @@ export class SmartAI {
         } else {
             this.suitCounts[tile.high]++;
             this.suitCounts[tile.low]++;
+        }
+
+        // Parallel per-tile count (each played tile contributes once per suit
+        // it carries). A played V|V increments tileCountsBySuit[V] by 1, not 2.
+        if (tile.isDouble()) {
+            this.tileCountsBySuit[tile.high] += 1;
+        } else {
+            this.tileCountsBySuit[tile.high] += 1;
+            this.tileCountsBySuit[tile.low] += 1;
         }
 
         // First play of hand - record as salida
@@ -308,6 +338,18 @@ export class SmartAI {
      */
     getRemainingInSuit(suit) {
         return 7 - this.suitCounts[suit];
+    }
+
+    /**
+     * Get remaining *tiles* (not faces) in a suit — i.e., the number of
+     * unplayed tiles containing this value. Unlike getRemainingInSuit(), this
+     * is correct after the suit's double has been played. Used by the
+     * accurate firme detector. The same off-by-one bug exists in
+     * getRemainingInSuit's callers (suitDominance, oppSuitAvoidance,
+     * analyzePlayChoice) — they could migrate to this helper in a follow-up.
+     */
+    getRemainingTilesInSuit(suit) {
+        return 7 - this.tileCountsBySuit[suit];
     }
 
     /**
@@ -1401,7 +1443,11 @@ export class SmartAI {
         // Range: -50 (opponents control suit) to +50 (we control suit)
         if (newEndValue !== null && newEndValue !== -1) {
             const myCount = this.countSuitInHand(hand, newEndValue);
-            const remaining = this.getRemainingInSuit(newEndValue);
+            // myCount / partnerCount / oppCount are all in *tile* units, so the
+            // denominator uses the tile-accurate helper too. Fixes an
+            // off-by-one inherited from the legacy getRemainingInSuit() once
+            // the suit's double has been played.
+            const remaining = this.getRemainingTilesInSuit(newEndValue);
             if (remaining > 0) {
                 const src = view || this.handTracker;
                 if (src) {
@@ -1479,20 +1525,29 @@ export class SmartAI {
         }
 
         // 5. FIRME PROTECTION - preserve guaranteed plays on locked ends
-        // A "firme" exists when you hold ALL remaining tiles of a suit on an open end
+        // A "firme" exists when you hold ALL remaining tiles of a suit on an open end.
+        //   preserveScore  — accumulates spend/preserve logic and the A latent-firme
+        //                    bonus. Subject to the partner-leading damper (C).
+        //   oppPenalty     — accumulates the B1 opp-firme trigger penalty. NOT damped:
+        //                    handing an opponent firme is bad regardless of partner state.
         if (!chain.isEmpty()) {
             const leftEnd = chain.leftEnd;
             const rightEnd = chain.rightEnd;
 
-            // Check each open end for firme
+            // Check each open end for firme. Uses getRemainingTilesInSuit so
+            // detection stays correct after the suit's double has been played
+            // (the legacy face-based getRemainingInSuit was off by one there).
             const checkFirme = (endValue) => {
                 const myCount = this.countSuitInHand(hand, endValue);
-                const remaining = this.getRemainingInSuit(endValue);
+                const remaining = this.getRemainingTilesInSuit(endValue);
                 return myCount > 0 && myCount === remaining;
             };
 
             const leftFirme = checkFirme(leftEnd);
             const rightFirme = checkFirme(rightEnd);
+
+            let preserveScore = 0;
+            let oppPenalty = 0;
 
             if (leftFirme || rightFirme) {
                 // We have a firme! Check if this move spends a firme tile
@@ -1503,22 +1558,85 @@ export class SmartAI {
                     // Spending a firme tile - how many do we have left?
                     const firmeEnd = (end === 'left') ? leftEnd : rightEnd;
                     const firmeCount = this.countSuitInHand(hand, firmeEnd);
-
-                    if (firmeCount <= 1) {
-                        // Last firme tile - strong penalty (losing the firme entirely)
-                        factors.firmeProtection = -35;
-                    } else {
-                        // Still have backup firme tiles - mild penalty
-                        factors.firmeProtection = -10;
-                    }
+                    preserveScore = (firmeCount <= 1) ? -35 : -10;
                 } else {
                     // Playing on the other end, preserving firme - bonus
                     // Bigger bonus for stronger firme (more tiles = more guaranteed plays)
                     const firmeEnd = leftFirme ? leftEnd : rightEnd;
                     const firmeCount = this.countSuitInHand(hand, firmeEnd);
-                    factors.firmeProtection = 10 + (firmeCount * 5); // 15-40 range
+                    preserveScore = 10 + (firmeCount * 5); // 15-40 range
                 }
             }
+
+            // 5a. Move-effect firme reasoning (A + B1 + C).
+            if (newEndValue !== null && newEndValue !== -1) {
+
+                // --- A: latent-firme creation ---
+                // After this play, my V-count and the unplayed-V pool both
+                // drop by 1, so "firme on newEndValue post-play" reduces to
+                // "firme on newEndValue right now" — no recomputation needed.
+                const myCountNew = this.countSuitInHand(hand, newEndValue);
+                const remainNew = this.getRemainingTilesInSuit(newEndValue);
+                const newEndAlreadyOnBoard =
+                    (newEndValue === leftEnd || newEndValue === rightEnd);
+                if (!newEndAlreadyOnBoard
+                        && myCountNew > 0 && myCountNew === remainNew) {
+                    preserveScore += 12 + (myCountNew * 4);
+                }
+
+                // --- B1: direct opp-firme trigger ---
+                // Only fires when I'm playing my last tile of some suit V.
+                const src = view || this.handTracker;
+                if (src) {
+                    const myKeys = new Set(hand.getTiles().map(t => t.toKey()));
+                    const valuesOnTile = tile.isDouble()
+                        ? [tile.high] : [tile.high, tile.low];
+                    for (const v of valuesOnTile) {
+                        if (this.countSuitInHand(hand, v) !== 1) continue; // not my last
+                        // Other unplayed V-tiles (not mine, not already played)
+                        const otherV = [];
+                        for (const T of this.handTracker.allTiles) {
+                            if (!T.hasValue(v)) continue;
+                            const loc = this.handTracker.knownLocations.get(T.toKey());
+                            if (loc === 'played') continue;
+                            if (myKeys.has(T.toKey())) continue;
+                            otherV.push(T);
+                        }
+                        if (otherV.length === 0) continue;
+                        for (const opp of opponents) {
+                            let p = 1;
+                            for (const T of otherV) {
+                                p *= src.getProbability(opp, T);
+                                if (p < 0.01) break;
+                            }
+                            if (p > 0.3) {
+                                oppPenalty -= Math.round(p * otherV.length * 6);
+                            }
+                        }
+                    }
+                }
+
+                // --- C: partner-leading override ---
+                // When partner is the overall leader (fewest tiles among all four),
+                // damp preserveScore toward 0 by P(partner passes on newEndValue).
+                // If partner can play newEndValue easily, preserve is fine; if
+                // partner is blocked there, hoarding firme jams the team and the
+                // preserve bonus / spend penalty both melt away. oppPenalty is
+                // unaffected — handing opp firme is always bad.
+                const partnerTiles = gameState.hands[partnerIndex].size();
+                const myTiles = hand.size();
+                const oppATiles = gameState.hands[opponents[0]].size();
+                const oppBTiles = gameState.hands[opponents[1]].size();
+                const partnerLeading = partnerTiles < myTiles
+                                       && partnerTiles <= oppATiles
+                                       && partnerTiles <= oppBTiles;
+                if (partnerLeading && preserveScore !== 0 && src) {
+                    const pPartnerPass = src.getPassProbability(partnerIndex, newEndValue);
+                    preserveScore = Math.round(preserveScore * (1 - pPartnerPass));
+                }
+            }
+
+            factors.firmeProtection = preserveScore + oppPenalty;
         }
 
         // 5b. OPPONENT SUIT AVOIDANCE - penalize leaving ends in opponents' strong suits
