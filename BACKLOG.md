@@ -133,6 +133,59 @@ End-choice inference cannot be done per-player in isolation. Playing on the part
 
 ---
 
+### 0c. Quantify Tile Probability Predictions at Scale
+**Priority:** Medium-High
+**Complexity:** Low–Medium
+**Depends on:** Existing `ProbabilityAnalyzer` (v0.4.1, Brier scoring); AI tournament harness (v1.1.0)
+
+The AI's tile-holding probabilities (`view.getProbability`, `getPassProbability`, MC marginals) drive most of `scoreMove`, but we currently only validate them in debug mode on individual games via `ProbabilityAnalyzer`. With the harness we can measure how accurate those probabilities are across hundreds of games **as a function of how many tiles have been played** — i.e. does inference get sharper or noisier as the hand progresses.
+
+**Goal:** Quantify probability calibration over a tournament, bucketed by tiles-played, and identify where the inference layer is over- or under-confident.
+
+**What to build:**
+- Extend the harness with a `--prob-accuracy` flag that, per match, captures probability snapshots before each play (P(player p holds tile T) for every unknown tile from every player's view) and resolves them at hand-end against ground truth.
+- Score with Brier (`(p − actual)^2`) and/or log-loss; aggregate per (tiles_played bucket × view perspective × tile type — own-suit vs cross-suit, doubles vs non-doubles).
+- Report at end of tournament:
+  - Calibration curve (predicted vs observed frequency, binned).
+  - Brier score by tiles-played decile (does accuracy improve, plateau, or degrade?).
+  - Per-layer breakdown so we can attribute accuracy gains/losses to `HandTracker` base, `PlayerView` affinity adjustments, or MC marginals.
+
+**What we'd learn:**
+- Whether inference accuracy degrades or improves with more plays (and where it bottoms out).
+- Whether the affinity-driven adjustments are net-positive or net-noise at scale.
+- Which inference signal each layer is actually contributing.
+
+**Why this matters now:**
+The v1.1.0 firme/dominance bug fixes were sanity-checked via win-rate A/Bs but inference accuracy was never measured directly. Without this telemetry, we can't tell whether future inference changes actually *improve probabilities* — only whether they shift win rate (which most don't, per the v1.1.0 experiments).
+
+---
+
+### 0d. Design of Experiments for Scoring Weights
+**Priority:** Medium
+**Complexity:** High
+**Depends on:** AI tournament harness (v1.1.0); per-seat scoring multipliers
+
+The 10 scoring factors in `SmartAI.scoreMove` (`suitDominance`, `doubleManagement`, `partnerSupport`, `ownSuitProtection`, `firmeProtection`, `oppSuitAvoidance`, `blockingPotential`, `pipManagement`, `handFlexibility`, `paceControl`) have hand-tuned, frozen weights. The v1.1.0 instrumentation showed `suitDominance` dominates 22–29% of fallback decisions while `pipManagement` dominates only ~0.5% — strong evidence some weights are mis-tuned. Singleton A/Bs (8 of them in v1.1.0) all came back as washes because they tweak one knob at a time and miss interaction effects.
+
+**Goal:** Empirically determine the win-rate-optimal weight set via Design of Experiments, and learn whether the static scorer is genuinely near-optimal or has interaction-driven improvements singleton A/Bs can't find.
+
+**What to build:**
+1. **Per-seat scoring multipliers** in `SmartAI` — `factorWeights[playerIndex]` defaulting to all 1.0, applied at the end of `scoreMove` (`factors.X *= factorWeights[p].X`).
+2. **`--doe` mode in the harness**, two phases:
+   - **Phase 1 — Screening.** Fractional factorial (Plackett-Burman or 2^(k−p) Resolution III–IV) varying 8 factor weights at ±50% with 16–32 design points. Identifies which weights actually move win rate. Each design point ≈ 300–500 matches A/B vs. baseline.
+   - **Phase 2 — Response surface.** Central composite design over the 2–4 highest-impact factors from Phase 1. Quadratic regression fit to win-rate; locate the optimum and report a recommended weight set.
+3. **Output:** ANOVA-style effects table for Phase 1, response-surface contour data + recommended weights for Phase 2.
+
+**What we'd learn:**
+- Whether the static scorer is genuinely well-calibrated (the working hypothesis from the v1.1.0 experiments) or has 1–2 weights that are notably mis-tuned.
+- Whether interactions between factors matter — DoE catches these where singleton A/Bs cannot.
+- Concrete recommended defaults for any future "Configurable AI Strategy Weights" UI (item #1 below — the user-facing sliders should be centered around the DoE-optimal values, not the hand-tuned ones).
+
+**Caveat:**
+If win rate is genuinely insensitive to weight perturbations (consistent with every singleton A/B coming back ~50%), DoE may also return "no significant effects." That's still a useful finding — it confirms scoring tuning isn't the lever and points future work at lookahead depth or anti-determinism instead.
+
+---
+
 ### 1. Configurable AI Strategy Weights
 **Priority:** Low
 **Complexity:** Medium
