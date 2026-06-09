@@ -25,7 +25,7 @@ const { PlayerView } = await import('../docs/js/ai/PlayerView.js');
 const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10'];
 
 function parseArgs(argv) {
-    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, variant: 'mc-pass', allVariant: null };
+    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, variant: 'mc-pass', allVariant: null };
     for (let i = 2; i < argv.length; i++) {
         const a = argv[i];
         if (a === '--games') opts.games = parseInt(argv[++i], 10);
@@ -35,6 +35,7 @@ function parseArgs(argv) {
         else if (a === '--variant') opts.variant = argv[++i];
         else if (a === '--all-variant') { opts.allVariant = argv[++i]; }
         else if (a === '--instrument') opts.instrument = true;
+        else if (a === '--prob-accuracy') opts.probAccuracy = true;
         else if (a === '--help' || a === '-h') {
             console.log('Usage: node tools/tournament.js [--games N] [--difficulty LEVEL] [--ab] [--variant NAME] [--instrument] [--verbose]');
             console.log('  --ab            Champion (current code) vs Challenger (a variant). Challenger');
@@ -48,6 +49,9 @@ function parseArgs(argv) {
             console.log('                    rand5/rand10  Randomize among moves within 5/10 pts of the top score.');
             console.log('  --instrument    Collect per-decision records; report priority breakdown,');
             console.log('                  factor histogram, score margins, and closing effectiveness.');
+            console.log('  --prob-accuracy Snapshot per-view tile-holding predictions before each play;');
+            console.log('                  report Brier / log-loss bucketed by tiles played and a');
+            console.log('                  10-bin calibration curve. Significantly slower (~3-5× baseline).');
             process.exit(0);
         }
     }
@@ -130,7 +134,7 @@ function initTrackersForHand(handTracker, playerViews, state) {
     }
 }
 
-function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null }) {
+function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null }) {
     const { game, ai, handTracker, playerViews } = setupMatch(difficulty, challengerSeats, variant, allVariant);
     // Track each player's most recent decision so a close can be classified as
     // deliberate (had ≥2 legal moves) vs forced (closing tile was the only move).
@@ -200,6 +204,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
         const state = game.getState();
 
         if (state.gamePhase === 'playing') {
+            if (probAcc) captureProbSnapshot(playerViews, state, probAcc);
             const t0 = process.hrtime.bigint();
             const move = ai.chooseMove(state, state.currentPlayer);
             const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
@@ -509,12 +514,132 @@ function reportClosing(closes) {
     console.log('');
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Probability prediction accuracy (backlog item 0c).
+// At each play, snapshot every PlayerView's belief about who holds every
+// not-yet-played, not-own tile. Score Brier and log-loss against ground truth
+// (the actual hands at snapshot time). Bucket by tiles-played to see whether
+// inference sharpens, plateaus, or degrades as the hand progresses; and split
+// partner-vs-opponent to see whether the AI models its own team's holdings
+// differently from the other team.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ProbAccumulator {
+    constructor() {
+        this.total = { brier: 0, ll: 0, n: 0 };
+        this.byBucket = new Map();        // bucket → { brier, ll, n }
+        this.byBucketRel = new Map();     // `${bucket}-${rel}` → { brier, ll, n }
+        this.byCalBin = new Map();        // 0..9 → { sumActual, sumPred, n }
+    }
+
+    _bumpAt(map, key, brier, ll) {
+        let e = map.get(key);
+        if (!e) { e = { brier: 0, ll: 0, n: 0 }; map.set(key, e); }
+        e.brier += brier; e.ll += ll; e.n += 1;
+    }
+
+    add(tilesPlayed, relation, predicted, actual) {
+        // tilesPlayed is in [0, 27]. Buckets of 4 give 7 bins (0-3, 4-7, …, 24-27).
+        const bucket = Math.min(6, Math.floor(tilesPlayed / 4));
+        const brier = (predicted - actual) ** 2;
+        const pC = Math.min(0.9999, Math.max(0.0001, predicted));
+        const ll = -(actual * Math.log(pC) + (1 - actual) * Math.log(1 - pC));
+
+        this.total.brier += brier; this.total.ll += ll; this.total.n += 1;
+        this._bumpAt(this.byBucket, bucket, brier, ll);
+        this._bumpAt(this.byBucketRel, `${bucket}-${relation}`, brier, ll);
+
+        const bin = Math.min(9, Math.floor(predicted * 10));
+        let c = this.byCalBin.get(bin);
+        if (!c) { c = { sumActual: 0, sumPred: 0, n: 0 }; this.byCalBin.set(bin, c); }
+        c.sumActual += actual; c.sumPred += predicted; c.n += 1;
+    }
+}
+
+function captureProbSnapshot(playerViews, state, accumulator) {
+    const tilesPlayed = state.chain.size();
+    for (let viewer = 0; viewer < 4; viewer++) {
+        const view = playerViews[viewer];
+        const partner = (viewer + 2) % 4;
+        for (const tile of view.allTiles) {
+            const key = tile.toKey();
+            const loc = view.handTracker.knownLocations.get(key);
+            if (loc === 'played') continue;
+            // Skip tiles trivially known to the viewer (own hand). Viewer 0
+            // also has full info on its own seat through ownTileKeys, so this
+            // single check covers all four perspectives.
+            if (view.ownTileKeys.has(key)) continue;
+            for (let p = 0; p < 4; p++) {
+                if (p === viewer) continue; // viewer never predicts about itself
+                const predicted = view.getProbability(p, tile);
+                const actual = state.hands[p].has(tile) ? 1 : 0;
+                const relation = (p === partner) ? 'partner' : 'opponent';
+                accumulator.add(tilesPlayed, relation, predicted, actual);
+            }
+        }
+    }
+}
+
+function reportProbAccuracy(acc) {
+    const total = acc.total;
+    if (total.n === 0) return;
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(` Probability Prediction Accuracy (${total.n.toLocaleString()} predictions)`);
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('');
+    console.log('Overall:');
+    console.log(`  Brier:    ${(total.brier / total.n).toFixed(4)}`);
+    console.log(`  Log-loss: ${(total.ll / total.n).toFixed(4)}`);
+    console.log('');
+
+    console.log('Brier by tiles played (lower = sharper predictions):');
+    console.log('  tiles    Brier      Log-loss   n');
+    const buckets = [...acc.byBucket.keys()].sort((a, b) => a - b);
+    for (const b of buckets) {
+        const r = acc.byBucket.get(b);
+        const range = `${b * 4}-${b * 4 + 3}`;
+        console.log(`  ${range.padStart(5)}    ${(r.brier / r.n).toFixed(4)}     ${(r.ll / r.n).toFixed(4)}     ${r.n.toLocaleString()}`);
+    }
+    console.log('');
+
+    console.log('Brier by tiles played, split partner vs opponent:');
+    console.log('  tiles    Partner Brier (n)        Opponent Brier (n)');
+    for (const b of buckets) {
+        const pE = acc.byBucketRel.get(`${b}-partner`);
+        const oE = acc.byBucketRel.get(`${b}-opponent`);
+        const pStr = pE ? `${(pE.brier / pE.n).toFixed(4)} (${pE.n.toLocaleString()})` : '—';
+        const oStr = oE ? `${(oE.brier / oE.n).toFixed(4)} (${oE.n.toLocaleString()})` : '—';
+        const range = `${b * 4}-${b * 4 + 3}`;
+        console.log(`  ${range.padStart(5)}    ${pStr.padStart(22)}    ${oStr.padStart(22)}`);
+    }
+    console.log('');
+
+    console.log('Calibration (well-calibrated = mean predicted ≈ observed):');
+    console.log('  Predicted bin   n         Mean predicted    Observed frequency');
+    for (let bin = 0; bin < 10; bin++) {
+        const c = acc.byCalBin.get(bin);
+        const range = `${(bin * 10).toString().padStart(2)}–${bin * 10 + 10}%`;
+        if (!c || c.n === 0) {
+            console.log(`  ${range}        —          —                 —`);
+            continue;
+        }
+        const meanP = (c.sumPred / c.n).toFixed(3);
+        const obs = (c.sumActual / c.n).toFixed(3);
+        const drift = (c.sumActual / c.n) - (c.sumPred / c.n);
+        const driftStr = (drift >= 0 ? '+' : '') + drift.toFixed(3);
+        console.log(`  ${range}    ${c.n.toLocaleString().padStart(9)}    ${meanP.padStart(13)}    ${obs.padStart(8)}   (drift ${driftStr})`);
+    }
+    console.log('');
+}
+
 const opts = parseArgs(process.argv);
-console.log(`Running ${opts.games} matches at difficulty=${opts.difficulty}${opts.ab ? ` (A/B: ${opts.variant})` : ''}${opts.allVariant ? ` (all-seats: ${opts.allVariant})` : ''}${opts.instrument ? ' (instrumented)' : ''}...`);
+console.log(`Running ${opts.games} matches at difficulty=${opts.difficulty}${opts.ab ? ` (A/B: ${opts.variant})` : ''}${opts.allVariant ? ` (all-seats: ${opts.allVariant})` : ''}${opts.instrument ? ' (instrumented)' : ''}${opts.probAccuracy ? ' (prob-accuracy)' : ''}...`);
 
 const matches = [];
 const decisions = opts.instrument ? [] : null;
 const closes = opts.instrument ? [] : null;
+const probAcc = opts.probAccuracy ? new ProbAccumulator() : null;
 const start = Date.now();
 for (let i = 0; i < opts.games; i++) {
     if (!opts.verbose && (i + 1) % Math.max(1, Math.floor(opts.games / 10)) === 0) {
@@ -529,6 +654,7 @@ for (let i = 0; i < opts.games; i++) {
         perMatchOpts = { ...opts, challengerSeats, challengerTeam, variant: opts.variant };
     }
     if (decisions) perMatchOpts = { ...perMatchOpts, decisionSink: decisions, closeSink: closes };
+    if (probAcc) perMatchOpts = { ...perMatchOpts, probAcc };
     matches.push(runMatch(perMatchOpts));
 }
 const elapsed = (Date.now() - start) / 1000;
@@ -538,3 +664,4 @@ report(aggregate(matches), opts);
 if (opts.ab) reportAB(matches, opts.variant);
 if (opts.instrument) reportInstrumentation(decisions);
 if (opts.instrument) reportClosing(closes);
+if (opts.probAccuracy) reportProbAccuracy(probAcc);

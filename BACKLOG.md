@@ -134,6 +134,7 @@ End-choice inference cannot be done per-player in isolation. Playing on the part
 ---
 
 ### 0c. Quantify Tile Probability Predictions at Scale
+**Status:** In progress — Phase 1 (instrumentation + baseline) complete; Phase 2 (layer attribution) pending.
 **Priority:** Medium-High
 **Complexity:** Low–Medium
 **Depends on:** Existing `ProbabilityAnalyzer` (v0.4.1, Brier scoring); AI tournament harness (v1.1.0)
@@ -157,6 +158,49 @@ The AI's tile-holding probabilities (`view.getProbability`, `getPassProbability`
 
 **Why this matters now:**
 The v1.1.0 firme/dominance bug fixes were sanity-checked via win-rate A/Bs but inference accuracy was never measured directly. Without this telemetry, we can't tell whether future inference changes actually *improve probabilities* — only whether they shift win rate (which most don't, per the v1.1.0 experiments).
+
+**Phase 1 results (300 matches, 7.44M predictions, May 2026):**
+- Overall Brier 0.207 vs ~0.222 uniform baseline — meaningfully better than no information, modestly worse than ideal.
+- Brier sharpens monotonically with tiles played: 0.220 (0–3 plays) → 0.155 (20+ plays), a ~30% reduction. Inference *does* improve with information.
+- Partner and opponent predictions are statistically indistinguishable at scale (the 3-match smoke-test partner advantage was variance).
+- Calibration curve shows a structural under-confidence in the 50–90% range: across four consecutive bins, the AI's predictions are ~+0.02 lower than reality (predicts 70%, actual 76%). Drift direction is consistent and the magnitude is well above SE at N=438K predictions across that range. The 0–30% bins show small over-confidence (~−0.01).
+- 57% of all predictions land in the 30–40% bin — the "weak evidence" zone. Pushing predictions *out* of this bin (sharper inference signals) is where future Brier gains live.
+
+**Phase 2 — Layer attribution (pending):**
+Decompose the Brier and calibration drift across the three inference layers to attribute the source:
+1. `HandTracker` raw N/M (no normalization, no affinity, constraint-propagation only)
+2. `PlayerView._heuristicProbability` (affinity-adjusted, per-tile normalized, no MC)
+3. `PlayerView` MC marginals (500-sample averaged)
+
+Implementation: extend `captureProbSnapshot` in the harness to call each layer separately and accumulate Brier per layer. Knowing whether the +0.02 drift comes from affinity over-pulling toward the mean, MC sampling noise, or constraint propagation tells us whether to recalibrate post-hoc (cheap, no architectural change) or fix the layer (more principled).
+
+**Phase 3 — Refinements (later):**
+- Per-tile-type splits (doubles vs non-doubles).
+- Per-viewer-side splits (seat 0 has full info on own hand; seats 1–3 are symmetric — measure whether seat 0 is meaningfully sharper or not).
+- Trivial baselines computed in the harness (uniform 1/3, tile-count proportional) for direct comparison.
+
+---
+
+### 0e. Calibration Recalibration for Tile Probabilities
+**Priority:** Medium
+**Complexity:** Low
+**Depends on:** 0c Phase 1 (the calibration data)
+
+The Phase 1 measurement (item 0c) found that `PlayerView.getProbability` has a structurally under-confident calibration curve in the 50–90% probability range (~+0.02 drift across four bins). The fix is textbook: fit a one-parameter logit-space recalibration (Platt scaling: `P_cal = σ(a · logit(P_raw) + b)`) to the measured calibration curve and apply it as a thin post-hoc layer at the end of `getProbability`.
+
+**Fitted parameters (from the May 2026 data):** approximately `a ≈ 1.10, b ≈ 0.04`. This stretches predictions slightly away from the 30–40% baseline zone — lowers the over-confident low bins and raises the under-confident mid-high bins to match observed frequencies.
+
+**What to build:**
+1. Add `PlayerView.useCalibratedProbs` per-seat flag; when on, apply `_calibrate(p)` at the end of `getProbability`.
+2. Add `calibrate` variant to the harness (`tools/tournament.js`).
+3. Verification: run `--all-variant calibrate --prob-accuracy` over ~200 matches and check that the recalibrated calibration table shows ~zero drift across bins (validates the fit).
+4. Impact: run `--ab --variant calibrate` over 500 matches.
+
+**Expected effect:**
+Most affected: `blockingPotential` (soft-evidence blocking signal in the 40–70% range), `_estimateTeamPips` / `_estimateSuitCount`, and the `suitDominance` factor (dominant 22–29% of fallback decisions). Priority 2 high-confidence blocks already fire at mean blockProb 0.94, well above the recalibrated zone, so P2 decisions should be largely unaffected.
+
+**Caveat:**
+A calibration A/B that *washes* would be informative — it would mean the AI's decisions are insensitive to a ~2pp probability shift, and we save the complexity. If it *helps*, lock in. Either way the recalibration improves the Brier and log-loss metrics from 0c regardless of win-rate impact, so it's a quality-of-inference fix even when the win-rate doesn't move.
 
 ---
 
