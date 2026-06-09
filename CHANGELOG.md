@@ -3,6 +3,19 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.1.1] – 2026-06-09
+
+### Fixed
+- **Tile-probability calibration drift.** Measurement under backlog item 0c (300 matches, 7.44M predictions) showed `PlayerView.getProbability` was systematically under-confident across the 50–90% range (+0.02 drift per bin, monotone, well above sampling noise) and slightly over-confident in the 10–30% range. Fit a Platt-scaling recalibration in logit space — `P_cal = σ(1.10·logit(P_raw) + 0.04)` — and applied it as a thin post-hoc layer at the end of `PlayerView.getProbability`. Verification with `--all-variant calibrate --prob-accuracy` over 200 matches: max bin drift dropped from +0.023 to +0.008, and the 50–90% range mean drift went from +0.022 to −0.002. Win-rate A/B over 500 matches was neutral (49.2% ± 4.4%, CI 44.8–53.6%) — locked in on the same correctness-fix precedent as v1.1.0's accurate-firme and accurate-dominance. Constants a, b should be re-fit if `HandTracker`, `PlayerView` affinities, or MC sampling change meaningfully (use `tools/tournament.js --all-variant ... --prob-accuracy`).
+
+### Added
+- **`--prob-accuracy` mode in the AI tournament harness** (backlog item 0c, phase 1). Snapshots every `PlayerView`'s belief about who holds each unplayed, not-own tile before each `chooseMove`. Scores Brier and log-loss against ground truth from `state.hands`, bucketed by tiles-played (0–3, 4–7, …, 24–27) and partner-vs-opponent, plus a 10-bin calibration curve. Used to validate v1.1.1 calibration; will drive future inference work (item 0c phases 2–3 + item 0d).
+
+### Notes on 0c phase 1
+- Overall Brier 0.207; sharpens monotonically from 0.220 (early game) to 0.155 (very late) — a ~30% reduction across the hand. Inference *does* improve with information, primarily in the mid-late game (tiles 12+).
+- Partner and opponent predictions are statistically indistinguishable at scale.
+- 57% of all predictions land in the 30–40% "weak evidence" bin (3 candidates, near 1/3 base rate). Sharper inference signals would push more predictions out of this bin — that's where future Brier gains live.
+
 ## [1.1.0] – 2026-05-28
 
 ### Added

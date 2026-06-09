@@ -49,6 +49,10 @@ export class PlayerView {
         // holdings) instead of the binomial approximation. Off by default so
         // existing behavior is unchanged.
         this.useMcDerivedPassProb = false;
+
+        // (Platt-scaling recalibration on getProbability is now always on.
+        // The useCalibratedProbs flag was a transitional gate; confirmed
+        // non-regressive in a 500-match A/B and locked in for v1.1.1.)
     }
 
     // ==================== Lifecycle ====================
@@ -210,11 +214,33 @@ export class PlayerView {
         // Try MC marginals first
         this._computeMCMarginals();
         if (this._mcMarginals && this._mcMarginals.has(key)) {
-            return this._mcMarginals.get(key).get(player) || 0;
+            return this._calibrate(this._mcMarginals.get(key).get(player) || 0);
         }
 
         // Fallback: original heuristic (if MC sampling failed)
-        return this._heuristicProbability(player, key, tileObj, holders);
+        return this._calibrate(this._heuristicProbability(player, key, tileObj, holders));
+    }
+
+    /**
+     * Platt-scaling recalibration of a probability. Fitted to the calibration
+     * curve measured in BACKLOG item 0c (300 matches, May 2026):
+     *   logit(P_cal) = a · logit(P_raw) + b,  with a ≈ 1.10, b ≈ 0.04.
+     * Stretches mid-high predictions slightly upward and compresses low ones
+     * to match observed frequencies. Trivial values (0, 1) pass through.
+     *
+     * NOTE: re-fit if the underlying inference layers (HandTracker constraint
+     * propagation, PlayerView affinity Bayesian updates, or MC sampling
+     * weights) change in a way that meaningfully shifts the calibration curve.
+     * Use `tools/tournament.js --all-variant ... --prob-accuracy` to measure.
+     * @private
+     */
+    _calibrate(p) {
+        if (p <= 0 || p >= 1) return p;
+        const a = 1.10;
+        const b = 0.04;
+        const logit = Math.log(p / (1 - p));
+        const calLogit = a * logit + b;
+        return 1 / (1 + Math.exp(-calLogit));
     }
 
     /**

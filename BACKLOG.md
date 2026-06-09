@@ -182,6 +182,7 @@ Implementation: extend `captureProbSnapshot` in the harness to call each layer s
 ---
 
 ### 0e. Calibration Recalibration for Tile Probabilities
+**Status:** Done — shipped in v1.1.1. See CHANGELOG for details.
 **Priority:** Medium
 **Complexity:** Low
 **Depends on:** 0c Phase 1 (the calibration data)
