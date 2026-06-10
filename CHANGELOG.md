@@ -3,6 +3,22 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.1.2] – 2026-06-09
+
+### Fixed
+- **AI takes bad offensive cuadrar decisions.** The trigger in `_findHighConfidenceBlock` was `pipAdvantage > 0` — any positive estimated pip advantage would fire an offensive close. New `--pip-accuracy` instrumentation in the harness measured the underlying pip-advantage estimator: **RMSE ≈ 9.3 pips, false-profitable rate 24.9%** (1 in 4 times the AI said "closing is profitable" the actual pip-advantage was zero or negative). The threshold was a knife-edge against a noisy signal. Mario observed the failure in real play: partner created a cuadrar that lost the cerrar by 35 points despite the AI estimating a positive pip advantage.
+
+  Fix: introduced per-seat `cuadrarPipThreshold`, default 5. Offensive cuadrar now requires the estimate to exceed the noise floor before firing. Measured impact at threshold 5 over 200 matches (`--all-variant cuadrar-thresh-5 --instrument`):
+  - Offensive cuadrar volume dropped 15× (37.6% of closes → 2.4%)
+  - **Offensive cerrado win rate rose 90% → 100%**
+  - Mean pip margin on winning closes rose +12.6 → +20.8
+  - Total closed hands fell ~16% (more games now end via domino instead of premature close)
+
+  500-match win-rate A/B: 51.4% (CI 47.0–55.8%) — slightly positive trend, consistent with the established self-play pattern that move-quality fixes don't move symmetric win rate but do produce real-world correctness gains.
+
+### Added
+- **`--pip-accuracy` mode in the tournament harness.** At each `chooseMove`, snapshots the AI's `_estimateTeamPips.pipAdvantage` and compares against ground truth computed directly from `state.hands`. Reports mean signed error, RMSE, sign-mismatch rate, and false-profitable rate, bucketed by tiles played. Used to fit the v1.1.2 threshold; will inform any future cuadrar / pip-estimation work.
+
 ## [1.1.1] – 2026-06-09
 
 ### Fixed

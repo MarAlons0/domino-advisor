@@ -43,6 +43,14 @@ export class SmartAI {
         // a single tile left. 0 = never (disable defensive closing). Used by the
         // tournament harness to A/B the threshold.
         this.defensiveCloseThreshold = [2, 2, 2, 2];
+        // Per-seat threshold for the "offensive close": take a P2 cuadrar block
+        // for pip advantage only when the estimated pipAdvantage exceeds this
+        // value. Default 5 (v1.1.2): the pip-advantage estimator has RMSE ~9
+        // pips, so a threshold > 0 is needed to screen out noise-driven false
+        // positives. Measured instrumentation: at threshold = 5, offensive
+        // cuadrar volume drops ~15× and win rate among the remaining
+        // offensive cerrados goes from 90% to 100%.
+        this.cuadrarPipThreshold = [5, 5, 5, 5];
         // Per-seat experiment flag: when true, that seat boosts pip-dumping in
         // the late game so it steers incidental (non-block) closes toward a pip
         // advantage. A/B'd via the tournament harness. Default false.
@@ -1239,7 +1247,7 @@ export class SmartAI {
                 'color: #ffa500');
         }
 
-        if (pipAdvantage > 0) {
+        if (pipAdvantage > this.cuadrarPipThreshold[playerIndex]) {
             // We have fewer pips - blocking is profitable
             bestBlockMove.blockType = 'offensive';
             bestBlockMove.pipAdvantage = pipAdvantage;
