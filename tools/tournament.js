@@ -25,7 +25,7 @@ const { PlayerView } = await import('../docs/js/ai/PlayerView.js');
 const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10'];
 
 function parseArgs(argv) {
-    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, variant: 'mc-pass', allVariant: null };
+    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, variant: 'mc-pass', allVariant: null };
     for (let i = 2; i < argv.length; i++) {
         const a = argv[i];
         if (a === '--games') opts.games = parseInt(argv[++i], 10);
@@ -36,6 +36,7 @@ function parseArgs(argv) {
         else if (a === '--all-variant') { opts.allVariant = argv[++i]; }
         else if (a === '--instrument') opts.instrument = true;
         else if (a === '--prob-accuracy') opts.probAccuracy = true;
+        else if (a === '--pip-accuracy') opts.pipAccuracy = true;
         else if (a === '--help' || a === '-h') {
             console.log('Usage: node tools/tournament.js [--games N] [--difficulty LEVEL] [--ab] [--variant NAME] [--instrument] [--verbose]');
             console.log('  --ab            Champion (current code) vs Challenger (a variant). Challenger');
@@ -52,6 +53,9 @@ function parseArgs(argv) {
             console.log('  --prob-accuracy Snapshot per-view tile-holding predictions before each play;');
             console.log('                  report Brier / log-loss bucketed by tiles played and a');
             console.log('                  10-bin calibration curve. Significantly slower (~3-5× baseline).');
+            console.log('  --pip-accuracy  Snapshot AI pip-advantage estimate vs ground truth from');
+            console.log('                  state.hands at each chooseMove; report mean signed error,');
+            console.log('                  RMSE, and sign-mismatch rate (= false cuadrar trigger rate).');
             process.exit(0);
         }
     }
@@ -134,7 +138,7 @@ function initTrackersForHand(handTracker, playerViews, state) {
     }
 }
 
-function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null }) {
+function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, pipAcc = null }) {
     const { game, ai, handTracker, playerViews } = setupMatch(difficulty, challengerSeats, variant, allVariant);
     // Track each player's most recent decision so a close can be classified as
     // deliberate (had ≥2 legal moves) vs forced (closing tile was the only move).
@@ -205,6 +209,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
 
         if (state.gamePhase === 'playing') {
             if (probAcc) captureProbSnapshot(playerViews, state, probAcc);
+            if (pipAcc) capturePipSnapshot(ai, playerViews, state, pipAcc);
             const t0 = process.hrtime.bigint();
             const move = ai.chooseMove(state, state.currentPlayer);
             const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
@@ -633,13 +638,109 @@ function reportProbAccuracy(acc) {
     console.log('');
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Pip-advantage estimation accuracy.
+// At each chooseMove, compare the AI's estimated pip advantage (from
+// _estimateTeamPips) against the actual pip advantage derived directly from
+// state.hands. The estimate drives offensive cuadrar decisions in
+// _findHighConfidenceBlock — when the sign of the estimate is wrong, the AI
+// closes when it shouldn't (or vice versa). Triggered when investigating real
+// hands where an offensive cuadrar backfired.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class PipAccumulator {
+    constructor() {
+        this.total = { sumErr: 0, sumSqErr: 0, n: 0, signMismatch: 0, falseProfitable: 0, profitableClaims: 0 };
+        this.byBucket = new Map(); // bucket → same shape as total
+    }
+
+    _bump(map, key, errSigned, signMismatch, falseProfitable, claimedProfitable) {
+        let e = map.get(key);
+        if (!e) { e = { sumErr: 0, sumSqErr: 0, n: 0, signMismatch: 0, falseProfitable: 0, profitableClaims: 0 }; map.set(key, e); }
+        e.sumErr += errSigned;
+        e.sumSqErr += errSigned * errSigned;
+        e.n += 1;
+        e.signMismatch += signMismatch;
+        e.falseProfitable += falseProfitable;
+        e.profitableClaims += claimedProfitable;
+    }
+
+    add(tilesPlayed, estimated, actual) {
+        const errSigned = estimated - actual;       // positive = estimate too optimistic for our team
+        // "Sign mismatch": one side says cuadrar would help, the other says it would hurt.
+        // Skip when actual is exactly 0 (a tie — closer wins by rule, no false signal).
+        const signMismatch = (estimated > 0) !== (actual > 0) && actual !== 0 ? 1 : 0;
+        // "False profitable": the failure mode in Mario's hand — AI says close is profitable
+        // (estimated > 0) but reality says it isn't (actual <= 0).
+        const claimedProfitable = estimated > 0 ? 1 : 0;
+        const falseProfitable = estimated > 0 && actual <= 0 ? 1 : 0;
+
+        this.total.sumErr += errSigned;
+        this.total.sumSqErr += errSigned * errSigned;
+        this.total.n += 1;
+        this.total.signMismatch += signMismatch;
+        this.total.profitableClaims += claimedProfitable;
+        this.total.falseProfitable += falseProfitable;
+
+        const bucket = Math.min(6, Math.floor(tilesPlayed / 4));
+        this._bump(this.byBucket, bucket, errSigned, signMismatch, falseProfitable, claimedProfitable);
+    }
+}
+
+function capturePipSnapshot(ai, playerViews, state, accumulator) {
+    const currentPlayer = state.currentPlayer;
+    const view = playerViews[currentPlayer];
+    const estimate = ai._estimateTeamPips(state, currentPlayer, view);
+    const partner = (currentPlayer + 2) % 4;
+    const opps = [(currentPlayer + 1) % 4, (currentPlayer + 3) % 4];
+    const actualMyTeamPips = state.hands[currentPlayer].pipCount() + state.hands[partner].pipCount();
+    const actualOppPips = state.hands[opps[0]].pipCount() + state.hands[opps[1]].pipCount();
+    const actualAdv = actualOppPips - actualMyTeamPips;
+    accumulator.add(state.chain.size(), estimate.pipAdvantage, actualAdv);
+}
+
+function reportPipAccuracy(acc) {
+    const t = acc.total;
+    if (t.n === 0) return;
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(` Pip-Advantage Estimation Accuracy (${t.n.toLocaleString()} snapshots)`);
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('');
+    const meanErr = t.sumErr / t.n;
+    const rmse = Math.sqrt(t.sumSqErr / t.n);
+    const signMismatchRate = t.signMismatch / t.n;
+    const falseProfitRate = t.profitableClaims > 0 ? t.falseProfitable / t.profitableClaims : 0;
+    console.log('Overall:');
+    console.log(`  Mean signed error (est − actual): ${meanErr >= 0 ? '+' : ''}${meanErr.toFixed(2)} pips  ${meanErr > 0 ? '(AI over-optimistic about own team)' : meanErr < 0 ? '(AI over-pessimistic about own team)' : ''}`);
+    console.log(`  RMSE:                              ${rmse.toFixed(2)} pips`);
+    console.log(`  Sign mismatch rate:                ${(signMismatchRate * 100).toFixed(1)}%  (= AI thinks cuadrar profitable but actually it isn't, or vice versa)`);
+    console.log(`  False "profitable" rate:           ${(falseProfitRate * 100).toFixed(1)}%  (of ${t.profitableClaims.toLocaleString()} cases where AI said pipAdv > 0, this fraction actually had pipAdv ≤ 0)`);
+    console.log('');
+    console.log('By tiles played:');
+    console.log('  tiles    mean err    RMSE     sign-mismatch    false-profitable    n');
+    const buckets = [...acc.byBucket.keys()].sort((a, b) => a - b);
+    for (const b of buckets) {
+        const e = acc.byBucket.get(b);
+        const me = (e.sumErr / e.n);
+        const r = Math.sqrt(e.sumSqErr / e.n);
+        const sm = (e.signMismatch / e.n) * 100;
+        const fp = e.profitableClaims > 0 ? (e.falseProfitable / e.profitableClaims) * 100 : 0;
+        const range = `${b * 4}-${b * 4 + 3}`;
+        const meStr = (me >= 0 ? '+' : '') + me.toFixed(2);
+        console.log(`  ${range.padStart(5)}    ${meStr.padStart(7)}     ${r.toFixed(2).padStart(5)}    ${sm.toFixed(1).padStart(7)}%        ${fp.toFixed(1).padStart(6)}%       ${e.n.toLocaleString()}`);
+    }
+    console.log('');
+}
+
 const opts = parseArgs(process.argv);
-console.log(`Running ${opts.games} matches at difficulty=${opts.difficulty}${opts.ab ? ` (A/B: ${opts.variant})` : ''}${opts.allVariant ? ` (all-seats: ${opts.allVariant})` : ''}${opts.instrument ? ' (instrumented)' : ''}${opts.probAccuracy ? ' (prob-accuracy)' : ''}...`);
+console.log(`Running ${opts.games} matches at difficulty=${opts.difficulty}${opts.ab ? ` (A/B: ${opts.variant})` : ''}${opts.allVariant ? ` (all-seats: ${opts.allVariant})` : ''}${opts.instrument ? ' (instrumented)' : ''}${opts.probAccuracy ? ' (prob-accuracy)' : ''}${opts.pipAccuracy ? ' (pip-accuracy)' : ''}...`);
 
 const matches = [];
 const decisions = opts.instrument ? [] : null;
 const closes = opts.instrument ? [] : null;
 const probAcc = opts.probAccuracy ? new ProbAccumulator() : null;
+const pipAcc = opts.pipAccuracy ? new PipAccumulator() : null;
 const start = Date.now();
 for (let i = 0; i < opts.games; i++) {
     if (!opts.verbose && (i + 1) % Math.max(1, Math.floor(opts.games / 10)) === 0) {
@@ -655,6 +756,7 @@ for (let i = 0; i < opts.games; i++) {
     }
     if (decisions) perMatchOpts = { ...perMatchOpts, decisionSink: decisions, closeSink: closes };
     if (probAcc) perMatchOpts = { ...perMatchOpts, probAcc };
+    if (pipAcc) perMatchOpts = { ...perMatchOpts, pipAcc };
     matches.push(runMatch(perMatchOpts));
 }
 const elapsed = (Date.now() - start) / 1000;
@@ -665,3 +767,4 @@ if (opts.ab) reportAB(matches, opts.variant);
 if (opts.instrument) reportInstrumentation(decisions);
 if (opts.instrument) reportClosing(closes);
 if (opts.probAccuracy) reportProbAccuracy(probAcc);
+if (opts.pipAccuracy) reportPipAccuracy(pipAcc);
