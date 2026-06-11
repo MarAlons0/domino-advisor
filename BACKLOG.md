@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-06-09_
+_Last updated: 2026-06-10_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -30,6 +30,7 @@ _Last updated: 2026-06-09_
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Cuadrar pip-advantage threshold** — v1.1.2
 - [x] **Calibration recalibration for tile probabilities (0e)** — v1.1.1
 - [x] **Fixed chain position (stable tile layout, UX-X)** — v0.4.6
 - [x] **AI tournament harness & A/B testing framework**
