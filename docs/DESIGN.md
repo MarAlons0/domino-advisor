@@ -237,6 +237,104 @@ If win rate is genuinely insensitive to weight perturbations (consistent with ev
 
 ---
 
+### 0f. Information Set Monte Carlo Tree Search (ISMCTS)
+**Priority:** Low / Nice-to-have
+**Complexity:** High
+**Depends on:** AI tournament harness (v1.1.0); `PlayerView._sampleValidDeals()` (already exists)
+
+The existing `MonteCarloEvaluator` does flat sampling: draw ~50–100 determinizations, evaluate the move on each, average the result. This is sound but information-poor — each sample is evaluated independently, no statistics are shared across the distribution of hidden states. The v1.1.0 lookahead2 variant did one ply of opponent reasoning on a single most-likely deal — better but limited.
+
+ISMCTS is the textbook approach for hidden-information games: build *one* search tree, pool statistics across thousands of sampled determinizations, use UCB1 to guide search toward branches that look strong *in expectation* across the distribution. It's the algorithm AlphaGo-style approaches would adopt for an imperfect-information game.
+
+**Goal:** Evaluate whether replacing the flat MC evaluator with a proper ISMCTS search materially improves AI play, and what it costs to integrate.
+
+**Background — algorithm in one paragraph:**
+Each ISMCTS iteration: (1) *determinize* — sample one possible full hand state consistent with what the observer knows; (2) *select* — walk the tree from root using UCB1 (`wins/visits + c·√(log(avails)/visits)`); (3) *expand* — add one new child for an untried move; (4) *simulate* — random rollout to terminal; (5) *backpropagate* — increment visits and accumulate wins up the path. The move with the highest visit count at the root is returned. The "information set" prefix means moves are looked up by their game-tree position from the observer's POV, not by the true underlying state.
+
+**Reference: [Cowling, Powley, Whitehouse — *Information Set Monte Carlo Tree Search* (IEEE TCIAIG, 2012)](https://ieeexplore.ieee.org/document/6203567).** A copy of the paper, the canonical Python reference implementation, and a 4-person-dominoes adaptation are cloned at `~/Documents/Claude-code-projects/ISMCTS-Dominoes/` (with `Papers/CowlingPowleyWhitehouse2012.pdf`, `president/framework.py`, and `framework.py` respectively). The algorithm core is ~100 lines.
+
+**State-interface mapping (our types → ISMCTS interface):**
+
+| ISMCTS requires | We have | Notes |
+|---|---|---|
+| `clone()` deep state copy | `Chain.clone()`, `Hand.clone()` | Need a top-level `state.clone()` wrapper |
+| `clone_and_randomize(observer)` | `PlayerView._sampleValidDeals()` | The hard part of ISMCTS — and we already wrote it. See caveat under *Determinization*. |
+| `do_move(move)` | `chain.play()` + state advance | Wrap as `ismctsState.doMove({tile, end})` |
+| `get_moves()` | `Rules.getValidMoves(hand, chain)` | Returns array of `{tile, end}` |
+| `get_result(player)` | `Rules.checkHandOver(...)` + pip counting | Map to `[0, 1]` for visits/wins accounting |
+
+**Determinization strategy:**
+
+`_sampleValidDeals()` currently uses *affinity-weighted* sampling — it biases the sampled deals using Bayesian suit affinities. ISMCTS theory assumes uniform sampling within the observer's information set. Using weighted sampling means ISMCTS will search the *weighted* distribution, which may or may not be what we want:
+- **For**: the weights encode genuine evidence from observed plays; ISMCTS searching the weighted distribution should focus effort on plausible deals
+- **Against**: the weights aren't perfectly calibrated; biased sampling can systematically push the search away from the true optimum
+
+**Proposed**: support both. A per-seat or per-experiment flag chooses uniform vs. affinity-weighted determinization. A/B the two during validation. Default to affinity-weighted (matches existing AI's beliefs).
+
+**Rollout policy:**
+
+Vanilla ISMCTS uses uniform-random rollouts. This works but converges slowly. A common improvement: use a lightweight policy during simulation (e.g. a stripped-down version of our scorer, or the existing `_chooseMoveSimple` from beginner difficulty). The Cowling paper documents this trade-off.
+
+**Proposed**: start with random rollouts (matches the canonical algorithm); add an optional scored-rollout variant if random underperforms.
+
+**Integration mode:**
+
+Three paths, in increasing scope:
+1. **(A) Drop-in replacement of `MonteCarloEvaluator`.** Cleanest. The fallback path in `SmartAI.chooseMove` calls `monteCarloEvaluator.evaluateMove(move, ...)` for each candidate — replace with `ismctsEvaluator.bestMove(state)` and skip the static scorer's blend logic. P1/P2/P3 priorities (winning move, cuadrar block, partner support) stay unchanged.
+2. **(B) ISMCTS as a per-seat variant** (flag `useISMCTS[]`, default false). Add as a harness variant alongside `lookahead2` / `rand5`. A/B against current code. Same pattern as every other v1.1.x experiment.
+3. **(C) ISMCTS as the entire AI**, bypassing priorities and the 10-factor scorer entirely. Largest behavior shift, hardest to validate, most pure search-based approach.
+
+**Recommended: (B) first.** Per-seat variant, A/B at 500 matches. If it wins or ties (even marginally), promote to (A) — that's the natural full deployment. (C) only after (A) is locked in and we understand its limits.
+
+**Implementation plan:**
+
+Estimate ~350 lines of new JS code in three modules:
+1. **`docs/js/ai/ISMCTSEvaluator.js`** (~150 lines): the algorithm — `Node` class with UCB1, the `ismcts(rootstate, itermax)` main loop, tree statistics output.
+2. **`docs/js/ai/ISMCTSGameState.js`** (~150 lines): adapter wrapping `GameState`/`Chain`/`Hand` with the ISMCTS interface (`clone`, `cloneAndRandomize`, `doMove`, `getMoves`, `getResult`).
+3. **Integration glue** (~50 lines): `SmartAI.useISMCTS[]` flag, harness `ismcts` variant, optional config (iterations, exploration constant).
+
+**Validation plan:**
+
+1. **Smoke test**: 5-match run, confirm code executes end-to-end and AI moves complete in reasonable wall time.
+2. **Determinization quality check**: instrument the rate at which `cloneAndRandomize` produces valid deals. If failure rate is high, sampling tuning is needed before A/B.
+3. **A/B 500 matches** vs. current code. Watch the seat-balance sanity check.
+4. **If borderline (CI straddles 50% but trends positive)**: extend to 1000–1500 matches per the def-close-1 false-positive lesson.
+5. **Instrumentation overlap**: run `--all-variant ismcts --instrument` to see how decision-priority and factor distributions shift.
+
+**Compute budget:**
+
+Rough estimate per move:
+- 1000 ISMCTS iterations × ~50–100 µs per iteration ≈ **50–100 ms per move decision**.
+- For comparison: current AI is 1.94 ms mean (most decisions don't trigger MC); MC blend when it runs is ~10–30 ms per move.
+
+In the harness: a 500-match A/B currently takes ~3 minutes. ISMCTS could push this to **15–30 minutes**. Still tractable. For production play: 50–100 ms is invisible to a human (we already gate AI moves behind a thinking delay).
+
+**Tunables to surface:**
+- `itermax` (iterations per decision) — primary speed/quality lever
+- Exploration constant `c` (default √2/2 = 0.707 per Cowling)
+- Rollout depth limit (if not running to terminal)
+- Determinization strategy (uniform / affinity-weighted)
+- Rollout policy (random / scored)
+
+**Risks & open questions:**
+
+- **Determinization quality is the biggest risk.** Bad sampling → searching the wrong distribution → garbage results. Need to validate that `_sampleValidDeals()` produces well-distributed samples across the observer's information set, not just the high-affinity corner of it.
+- **JS deep-cloning cost.** ISMCTS does thousands of clones per move. `Chain.clone()` and `Hand.clone()` exist but weren't optimized for this volume. May need a lighter alternative (incremental state with undo) if profiling shows clones dominate.
+- **Move-equality semantics.** ISMCTS looks up tree nodes by move equality (`child.move === legal_move`). Our `{tile, end}` move objects need a stable equality definition; a hash-string form (`"4-2/left"`) is the easy answer.
+- **Could underperform our specialized priority logic.** P1/P2/P3 encode strategic knowledge (winning move, cuadrar trap, partner support) that ISMCTS would have to rediscover from rollouts. In integration mode (A) or (B), priorities are preserved; mode (C) would be where this risk fully bites.
+
+**References:**
+- Cowling, Powley, Whitehouse — *Information Set Monte Carlo Tree Search* (IEEE TCIAIG, 2012). PDF in `~/Documents/Claude-code-projects/ISMCTS-Dominoes/Papers/`.
+- Cruz — domino-specific MCTS variant (2013, also in `Papers/`).
+- DominAI Stanford CS221 writeup (also in `Papers/`), and the [angeris/DominAI](https://github.com/angeris/DominAI) PIMC/IMS implementation.
+- The 4-person partnership dominoes adaptation: [isaacbuckman/Dominoes](https://github.com/isaacbuckman/Dominoes).
+- Canonical Python reference (Cowling et al.): `~/Documents/Claude-code-projects/ISMCTS-Dominoes/president/framework.py` (~200 lines including comments).
+
+**Decision after this design doc:**
+Either (a) commit to the ~350-line build behind a harness variant, or (b) defer pending the outcome of other items (DoE, multi-human, DNN). The implementation surface is well-bounded; the open question is whether the gain justifies it before other lower-cost items are explored.
+
+---
+
 ### 1. Configurable AI Strategy Weights
 **Priority:** Low
 **Complexity:** Medium
