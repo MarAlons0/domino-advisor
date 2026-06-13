@@ -3,6 +3,24 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.2.0] – 2026-06-12
+
+### Added
+- **ISMCTS-powered Master difficulty (backlog item 0f).** At Master, the AI's fallback decision path is now an Information Set Monte Carlo Tree Search (Cowling, Powley, Whitehouse — IEEE TCIAIG 2012) at 1000 iterations per move, replacing the previous static-score + Monte Carlo blend. New modules: `docs/js/ai/ISMCTSEvaluator.js` (algorithm core, near line-for-line port of the canonical Cowling et al. Python reference) and `docs/js/ai/ISMCTSGameState.js` (adapter wrapping `GameState`/`Chain`/`Hand` with the ISMCTS interface; determinization delegates to `PlayerView._sampleValidDeals(1)`).
+  - 500-match A/B vs. the prior Master configuration: **63.4% ± 4.2% (CI 59.2–67.6%)** at 1000 iterations, with healthy seat balance (64.4 / 62.4). Equivalent results at 5000 iterations (65.6% in the parallel 500-match run); 1000 chosen for ~3.5× lower latency. Mean wall time per AI move ~4 ms; max ~75 ms — imperceptible behind the UI's existing AI thinking delay.
+  - Algorithm summary: each iteration *determinizes* (samples one possible hidden-state consistent with everything the observer has seen), descends the tree with UCB1, expands one new child, plays a random rollout to terminal, backpropagates wins/visits. The most-visited move at the root is chosen.
+
+### Changed
+- **Difficulty ladder rewired.** **Master** now uses ISMCTS in the fallback (above). **Experienced** now uses the *default* adaptive Monte Carlo blend (depth 1–6, samples 30–100) — i.e. the configuration that was Master in v1.1.x. The previous "experienced → light MC" override (`maxDepth: 3, maxSamples: 50`) was dropped: Experienced is now the strongest *rule-based* configuration the project has shipped.
+- **Beginner** unchanged.
+- **`SmartAI.useISMCTS[]` per-seat flag removed** — Master enables ISMCTS unconditionally based on `difficulties[playerIndex] === 'master'`.
+- **At Master, the existing `randomizeTolerance = 5` becomes a no-op** because ISMCTS sets `finalScore = Infinity` on its chosen move, collapsing the "within 5 of top" set to that single move. ISMCTS already has stochasticity from random rollouts and determinization, and the most-visited-root pick is itself an ensemble across thousands of sampled hidden states — so the AI doesn't become brittlely deterministic. Adding randomness among ISMCTS top-N picks is queued as a possible follow-up if needed.
+
+### Documentation
+- **README.md** rewritten for v1.2.0: file tree adds `ISMCTSEvaluator.js` / `ISMCTSGameState.js`; the difficulty ladder table contrasts MC-blend (Experienced) vs ISMCTS (Master) fallbacks; AI Decision Flow diagram updated; the long-standing 9-vs-10 scoring-table inconsistency fixed (Opponent Suit Avoidance row added); new "Information Set Monte Carlo Tree Search (Master Fallback)" section with full attribution to Cowling/Powley/Whitehouse (DOI link, paper citation), pointers to the canonical Python reference (`~/Documents/Claude-code-projects/ISMCTS-Dominoes/president/framework.py`), and acknowledgment of [isaacbuckman/Dominoes](https://github.com/isaacbuckman/Dominoes) (4-person partnership ISMCTS adaptation) and [angeris/DominAI](https://github.com/angeris/DominAI) (Negamax + PIMC/IMS alternative we considered).
+- **BACKLOG item 0f** moved to `## ✅ Shipped` (v1.2.0).
+- **`docs/DESIGN.md`** — the v1.1.2 design doc for item 0f remains as-is; it accurately documents the implementation approach that shipped.
+
 ## [1.1.2] – 2026-06-09
 
 ### Fixed

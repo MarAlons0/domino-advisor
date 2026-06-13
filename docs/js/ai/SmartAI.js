@@ -3,6 +3,8 @@ import { GameState } from '../models/GameState.js';
 import { StrategicExplainer } from './StrategicExplainer.js';
 import { MonteCarloEvaluator } from './MonteCarloEvaluator.js';
 import { Hand } from '../models/Hand.js';
+import { ismcts } from './ISMCTSEvaluator.js';
+import { ISMCTSGameState } from './ISMCTSGameState.js';
 
 // Check for debug mode via URL parameter (?debug=ai)
 const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'ai';
@@ -59,6 +61,11 @@ export class SmartAI {
         // with a 2-ply lookahead (my move + next opponent's adversarial reply on
         // the most-likely deal) instead of the Monte Carlo blend. Default false.
         this.useLookahead2 = [false, false, false, false];
+        // (v1.2.0) ISMCTS is now the master-level fallback unconditionally;
+        // the previous useISMCTS[] per-seat flag was a transitional gate around
+        // the BACKLOG 0f development and has been removed. The fallback now
+        // dispatches on this.difficulties[playerIndex] in chooseMove().
+        this.ismctsIterations = 1000;
         // Per-seat tolerance for move randomization: in the fallback path, pick
         // uniformly among moves whose finalScore is within this many points of
         // the top. Default 0 = always pick the single best move (deterministic).
@@ -545,7 +552,30 @@ export class SmartAI {
 
         // Apply Monte Carlo evaluation if available
         let certainty = 0;
-        if (this.useLookahead2[playerIndex] && this.monteCarloEvaluator) {
+        if (this.difficulties[playerIndex] === 'master' && this.playerViews && this.handTracker) {
+            // Master (v1.2.0+): run Information Set MCTS in the fallback path
+            // and override the highest-scoring move with whatever ISMCTS picks.
+            // Static scoring still runs above so decision instrumentation
+            // (factor breakdowns, top-factor records) stays populated; only
+            // the *selection* of the chosen move shifts from "highest static
+            // score" to "most-visited at the ISMCTS root".
+            const root = new ISMCTSGameState({
+                realState: gameState,
+                observerIndex: playerIndex,
+                view: this.playerViews[playerIndex],
+                handTracker: this.handTracker,
+            });
+            const bestMoveKey = ismcts(root, this.ismctsIterations);
+            if (bestMoveKey && bestMoveKey !== 'pass') {
+                for (const move of scoredMoves) {
+                    if (`${move.tile.toKey()}|${move.end}` === bestMoveKey) {
+                        move.finalScore = Infinity;
+                        move.reasoning = `ISMCTS (${this.ismctsIterations} iter)`;
+                        break;
+                    }
+                }
+            }
+        } else if (this.useLookahead2[playerIndex] && this.monteCarloEvaluator) {
             // 2-ply lookahead variant: re-score against the most-likely deal,
             // accounting for the next opponent's adversarial best reply.
             const mostLikely = this._mostLikelyHands(gameState, playerIndex, activeView);
@@ -555,12 +585,15 @@ export class SmartAI {
                 move.finalScore = move.staticTotal + laValue;
             }
         } else if (this.monteCarloEvaluator && this.handTracker) {
+            // Experienced (and the safety fallback for Master when playerViews
+            // is somehow not set): blend static score with the adaptive Monte
+            // Carlo evaluator. v1.1.x had a separate "light MC" override here
+            // for experienced; that's been dropped — experienced now uses the
+            // same default MC options that v1.1.x Master used.
             certainty = this.monteCarloEvaluator.calculateCertainty(gameState, gameState.chain, activeView);
 
             for (const move of scoredMoves) {
-                const mcOptions = this.difficulties[playerIndex] === 'experienced'
-                    ? { maxDepth: 3, maxSamples: 50 } : {};
-                const mcResult = this.monteCarloEvaluator.evaluateMove(move, gameState, playerIndex, activeView, mcOptions);
+                const mcResult = this.monteCarloEvaluator.evaluateMove(move, gameState, playerIndex, activeView, {});
                 move.mcResult = mcResult;
 
                 // Blend static and MC scores based on certainty

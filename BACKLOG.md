@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-06-12_
+_Last updated: 2026-06-12 (v1.2.0 release)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -26,8 +26,6 @@ _Last updated: 2026-06-12_
 - [ ] **Explore DNN-driven AI** — investigate a neural net to replace/augment the rule-based scorer once the rule system's ceiling is in sight. `[idea]`
   - Key challenge: corpus of quality play-by-play training data. Harness produces AI-vs-AI cheaply; strong human play is harder to source.
   - Precedent: [HowardDunn/Jamaican-Style-Dominoes-AI-Neural-Network](https://github.com/HowardDunn/Jamaican-Style-Dominoes-AI-Neural-Network) — 4-layer MLP + RL self-play, partnership variant. Cautionary: their metrics files show win rates 13–24% in 4-player games (random = 25%); the NN never clearly outperformed naive play. Useful as architecture reference, not as a result to match.
-- [ ] **Explore Information Set MCTS (0f)** — a principled hidden-info search sitting between our current MC evaluator and a full DNN. See [docs/DESIGN.md](docs/DESIGN.md). `[idea]`
-  - Precedent: [angeris/DominAI](https://github.com/angeris/DominAI) (PIMC/IMS + Negamax) and [isaacbuckman/Dominoes](https://github.com/isaacbuckman/Dominoes) (ISMCTS for 4-person partnership). Reference implementations + Cowling 2012 paper cloned at `~/Documents/Claude-code-projects/ISMCTS-Dominoes/`.
 - [ ] **Configurable AI strategy weights (1)** — expose strategy weights as settings. `[feature]`
 - [ ] **Game save / replay (4)** — persist and replay past games. `[feature]`
 - [ ] **"Why did I lose?" analysis (7)** — post-game explanation of the loss. `[feature]`
@@ -37,6 +35,7 @@ _Last updated: 2026-06-12_
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Information Set MCTS at Master level (0f)** — v1.2.0
 - [x] **Cuadrar pip-advantage threshold** — v1.1.2
 - [x] **Calibration recalibration for tile probabilities (0e)** — v1.1.1
 - [x] **Fixed chain position (stable tile layout, UX-X)** — v0.4.6

@@ -1,6 +1,6 @@
 # 7 Fichas - Partnership Dominoes vs. AI
 
-**v1.0.2** — A web-based domino game that simulates 4-player partnership dominoes (Cuban/Puerto Rican style) with an intelligent AI opponent. Built as a training tool to help players improve their strategic thinking.
+**v1.2.0** — A web-based domino game that simulates 4-player partnership dominoes (Cuban/Puerto Rican style) with an intelligent AI opponent. Built as a training tool to help players improve their strategic thinking.
 
 **Live Demo:** [https://maralons0.github.io/domino-advisor/](https://maralons0.github.io/domino-advisor/)
 
@@ -32,7 +32,9 @@ docs/js/
 ├── main.js                 # Application entry point, UI controller
 ├── ai/
 │   ├── SmartAI.js          # Strategic AI decision engine
-│   ├── MonteCarloEvaluator.js # Probability-weighted look-ahead simulation
+│   ├── MonteCarloEvaluator.js # Probability-weighted look-ahead simulation (Experienced)
+│   ├── ISMCTSEvaluator.js  # Information Set MCTS algorithm core (Master)
+│   ├── ISMCTSGameState.js  # Adapter wrapping Chain/Hand for the ISMCTS interface
 │   ├── HandTracker.js      # Tile probability tracking with constraint propagation
 │   ├── PlayerView.js       # Per-player probability view with Bayesian inference
 │   ├── ProbabilityAnalyzer.js # Debug: Brier score accuracy measurement
@@ -75,16 +77,18 @@ Each AI player (Opp 1, Partner, Opp 2) can be set independently via the Settings
 | Layer | Beginner | Experienced | Master |
 |---|---|---|---|
 | Priority system (winning / blocking / partner support) | ✗ | ✓ | ✓ |
-| 9-factor heuristic scoring | ✗ (simplified) | ✓ | ✓ |
+| 10-factor heuristic scoring | ✗ (simplified) | ✓ | ✓ |
 | Bayesian inference (suit affinities, PlayerView) | ✗ | ✓ | ✓ |
 | HandTracker pass constraints | ✗ | ✓ | ✓ |
-| Monte Carlo look-ahead | ✗ | capped (depth 3, samples 50) | full adaptive |
+| Probability calibration (Platt-scaled `getProbability`) | ✗ | ✓ | ✓ |
+| Firme strategy + cuadrar pip-advantage threshold | ✗ | ✓ | ✓ |
+| Fallback evaluation | — | **Monte Carlo blend** (probability-weighted lookahead) | **ISMCTS** (Information Set Monte Carlo Tree Search) |
 
 **Beginner** uses `_chooseMoveSimple()`: reads only its own hand and the chain. For each valid move it counts how many remaining hand tiles connect to the new open end (staying in a strong suit), with high-pip count as a tie-breaker. No inference about what other players hold.
 
-**Experienced** runs the full priority and scoring system but caps Monte Carlo look-ahead at depth 3 and 50 samples, making it slightly less optimal in late-game reads.
+**Experienced** runs the complete rule-based engine — priorities, 10-factor heuristic scoring, Bayesian suit-affinity inference, firme reasoning, the cuadrar pip-advantage threshold, calibrated probabilities — and blends static scoring with Monte Carlo lookahead (adaptive depth 1-6, 30-100 samples driven by certainty). This is the strongest rule-based configuration the project has shipped (it was the Master level through v1.1.x).
 
-**Master** uses the complete engine with adaptive depth (2–6) and samples (30–100) driven by certainty.
+**Master (v1.2.0+)** runs the same priorities and scoring as Experienced, but in the fallback step it replaces the Monte Carlo blend with **Information Set Monte Carlo Tree Search (ISMCTS)** — a proper tree search that builds one unified search tree across thousands of sampled determinizations and selects the most-visited root move. In 500-match self-play A/B against the Experienced configuration, Master wins ~66% of matches (CI 61–70%). See the ISMCTS section below for details, attribution, and references.
 
 ---
 
@@ -122,8 +126,12 @@ The SmartAI implements a **priority-based decision system** with **weighted scor
 │                    │                                        │
 │                   No                                        │
 │                    ▼                                        │
-│  7. FALLBACK: Score all moves, pick highest                 │
-│     (MC capped at depth 3 / 50 samples if Experienced)     │
+│  7. FALLBACK (Experienced): Score moves with 10-factor      │
+│     heuristic + Monte Carlo blend, pick highest             │
+│                                                             │
+│  7. FALLBACK (Master): Score moves statically, then run     │
+│     ISMCTS (1000 iterations) and pick the most-visited      │
+│     root move                                               │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -172,7 +180,7 @@ During the first 8 plays of a hand, the AI prioritizes supporting partner's sign
 
 ## Scoring System (Fallback)
 
-When no priority triggers, the AI scores every valid move using 9 strategic factors:
+When no priority triggers, the AI scores every valid move using 10 strategic factors:
 
 | Factor | Weight Range | Description |
 |--------|-------------|-------------|
@@ -180,7 +188,8 @@ When no priority triggers, the AI scores every valid move using 9 strategic fact
 | **Double Management** | -15 to +25 | +25 if double has cover (other tiles in suit), -15 if exposed, +10 if suit nearly dead |
 | **Partner Support** | -37 to +30 | +20 if partner's suit stays open after the move, -25 if the move kills partner's open suit. ×1.5 when partner leads (fewer tiles), ×0.5 when I lead. |
 | **Own Suit Protection** | -25 to +20 | +20 for keeping own salida open, -25 for killing it. ×0.5 when partner leads (defer to them). |
-| **Firme Protection** | -35 to +40 | A "firme" = you hold ALL remaining tiles of a suit on an open end. -35 for spending last firme tile, +10 to +40 for preserving it (scaled by count). |
+| **Firme Protection** | -35 to +40 | A "firme" = you hold ALL remaining tiles of a suit on an open end. -35 for spending last firme tile, +10 to +40 for preserving it (scaled by count). Includes A+B1+C move-effect logic (v1.1.0): bonus for newly exposing a latent firme, penalty for handing an opponent firme, partner-leading damper. |
+| **Opponent Suit Avoidance** | -40 to 0 | −20 per opponent whose signaled suit ends up on an open end after the move. Penalizes leaving the chain in a suit the opponent dominates. |
 | **Blocking Potential** | 0-70+ | +20 per opponent who passed on the new end value, +15 per inferred dead suit (×2 opponents) |
 | **Pip Management** | 0-18 | `pips × 1.5` early game (plays < 10), `pips × 0.5` late game. Unload high tiles early. |
 | **Hand Flexibility** | 0-21 | `distinct_playable_values × 3`. More unique values after play = harder to block. |
@@ -209,6 +218,7 @@ Move: `[5|3]` on left end, leaving 5 open (3 of 5 remaining fives in hand)
 | Partner Support | Partner signaled 5s | +15 |
 | Own Suit Protection | Own suit (3s) still open | +20 |
 | Firme Protection | No firme on either end | 0 |
+| Opponent Suit Avoidance | No opponent signaled 5s | 0 |
 | Blocking Potential | Opp 1 passed on 5 | +20 |
 | Pip Management | 8 pips × 1.5 (early) | +12 |
 | Hand Flexibility | 5 distinct values × 3 | +15 |
@@ -409,9 +419,11 @@ At match end, a cross-hand summary shows trends and salida suit correlation data
 
 ---
 
-# Monte Carlo Look-Ahead Simulation
+# Monte Carlo Look-Ahead Simulation (Experienced Fallback)
 
-The AI uses Monte Carlo simulation with **probability-weighted sampling** to evaluate moves. Unlike traditional approaches that use fixed depth based on game stage, our implementation adapts based on **actual certainty** from probability distributions.
+At the **Experienced** difficulty, the fallback path blends static scoring with Monte Carlo simulation that uses **probability-weighted sampling** to evaluate moves. Unlike traditional approaches that use fixed depth based on game stage, our implementation adapts based on **actual certainty** from probability distributions.
+
+At **Master**, the fallback is replaced by ISMCTS (see the section below) — flat MC sampling is superseded by a proper tree search.
 
 ## Key Insight: Certainty-Driven Depth
 
@@ -488,11 +500,62 @@ This means simulations reflect **behavioral signals** (salida choice, suit intro
 
 ---
 
+# Information Set Monte Carlo Tree Search (Master Fallback)
+
+At the **Master** difficulty, the fallback path is replaced with a proper hidden-information tree search. Where the Monte Carlo blend above samples ~30–100 determinizations and evaluates each move independently on each, **ISMCTS builds one unified search tree across thousands of determinizations, pooling statistics with UCB1 to focus search on moves that look strong *in expectation* across the distribution of possible hidden states.**
+
+## Why ISMCTS and not regular MCTS
+
+Standard MCTS assumes perfect information. Dominoes is a hidden-information game — each player knows their own tiles, observed plays, and observed passes, but the other three hands are uncertain. ISMCTS handles this by *determinizing* on each iteration: it samples one consistent possible full-state from the observer's information set, walks the tree once on that determinization, and pools the result with previous iterations. After thousands of iterations, the tree's visit counts reflect "moves that tend to do well across many possible hidden states" — exactly what we want from an AI making an uncertain decision.
+
+## How it integrates
+
+The first three priorities are unchanged at Master:
+1. Winning move (domino) — return immediately
+2. High-confidence cuadrar block at pip advantage > 5
+3. Partner support in early game
+
+If none triggers, instead of the static-score + Monte Carlo blend, the Master AI:
+1. Constructs an `ISMCTSGameState` wrapping the current `GameState`, `Chain`, and player `Hand`s
+2. Calls `ismcts(rootstate, 1000)` from `ISMCTSEvaluator.js`
+3. Receives the most-visited root move and plays it
+
+The static 10-factor scoring still runs, so decision instrumentation (factor breakdowns, top-factor records) stays populated for the debrief and debug logs — only the *selection* of the chosen move shifts from "highest scored" to "most-visited in the ISMCTS tree."
+
+## Iteration count
+
+The default is **1000 iterations per decision**. Mean wall time per AI move at this setting is **~4 ms**, with a long tail up to **~75 ms** in late-game positions where the tree gets deeper. Both are imperceptible behind the UI's existing AI "thinking" delay.
+
+This number was chosen empirically by running A/Bs at 200, 1000, 2000, 5000, and 10000 iterations against the Experienced fallback. At 200 iterations the search was too thin (~50% win rate, indistinguishable from Experienced). From 1000 iterations onward the result becomes a clear win and the marginal benefit of more iterations flattens — at 500 matches the win rate at 1000 and 5000 iterations is statistically indistinguishable (65.6% vs 63.4%), while 1000 is ~3.5× faster. At 10000 iterations the result *regressed* due to garbage-collection pauses on a very large tree, with worst-case decision latencies up to ~25 seconds. **1000 iterations is the sweet spot of strength vs. latency.**
+
+## Determinization
+
+Each iteration calls `ISMCTSGameState.cloneAndRandomize(observer)`, which delegates to `PlayerView._sampleValidDeals(1)` — the same affinity-weighted hand sampler the Monte Carlo blend already uses. This means our ISMCTS determinization respects everything the AI has observed (played tiles, passes, dead-suit inferences, suit-affinity signals) by construction. Pure uniform sampling within the information set may be A/B'd as a future variant; the current default uses affinity-weighted sampling.
+
+## Attribution
+
+The ISMCTS algorithm was introduced by:
+
+> **Peter I. Cowling, Edward J. Powley, Daniel Whitehouse.**
+> *"Information Set Monte Carlo Tree Search."*
+> IEEE Transactions on Computational Intelligence and AI in Games, vol. 4, no. 2, pp. 120–143, June 2012.
+> [doi:10.1109/TCIAIG.2012.2200894](https://doi.org/10.1109/TCIAIG.2012.2200894)
+
+The authors (at the University of York, UK) also released a **canonical Python reference implementation** alongside the paper, distributed under a permissive use-and-distribute license. Our JavaScript port in [`docs/js/ai/ISMCTSEvaluator.js`](docs/js/ai/ISMCTSEvaluator.js) is a near line-for-line translation of that reference — the `Node` class, the UCB1 selection formula (`wins/visits + c·√(log(avails)/visits)` with `c ≈ √2/2`), and the determinize/select/expand/simulate/backpropagate iteration loop. The original Python remains the simplest and clearest exposition of the algorithm. A copy is preserved at `~/Documents/Claude-code-projects/ISMCTS-Dominoes/president/framework.py`.
+
+Two further references that informed the integration design:
+
+- **[isaacbuckman/Dominoes](https://github.com/isaacbuckman/Dominoes)** — an ISMCTS implementation for 4-person partnership dominoes (sibling variant to our Cuban/Puerto Rican rules). Useful for understanding how the ISMCTS state interface (`getMoves`, `doMove`, `cloneAndRandomize`, `getResult`) maps onto a partnership-dominoes game state.
+- **[angeris/DominAI](https://github.com/angeris/DominAI)** — Stanford CS221 final project exploring Negamax + PIMC/IMS search for dominoes. A sound technical alternative; we chose ISMCTS over PIMC for its simpler implementation and stronger theoretical guarantees in hidden-information settings.
+
+---
+
 # Features
 
 - **Partnership Dominoes**: 4-player teams (You + Partner vs. Opponents)
 - **Configurable AI Difficulty**: Set each AI player (Opp 1, Partner, Opp 2) independently to Beginner, Experienced, or Master. Settings persist in localStorage.
-- **Smart AI**: Priority-based decisions with weighted scoring and Monte Carlo look-ahead
+- **ISMCTS-Powered Master**: At Master difficulty, the fallback path runs Information Set Monte Carlo Tree Search (Cowling, Powley, Whitehouse 2012) — a proper hidden-information tree search that wins ~66% head-to-head against the prior best (Experienced fallback) in 500-match self-play A/B.
+- **Smart AI**: Priority-based decisions with calibrated probabilities, firme reasoning, cuadrar pip-advantage threshold, weighted 10-factor scoring, and Monte Carlo look-ahead (Experienced) or ISMCTS (Master)
 - **Genín Coach**: Ask Genín for move advice with strategic explanations — firme detection, cuadrar/cerrar analysis, opponent reads, and partner support guidance
 - **Bayesian Inference**: AI tracks suit affinities from play patterns (salida, suit introduction, end avoidance) to sharpen probability estimates
 - **Quiz Mode**: Test your ability to predict opponent hands
