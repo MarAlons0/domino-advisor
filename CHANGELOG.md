@@ -3,6 +3,21 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.2.3] – 2026-06-12
+
+### Changed
+- **Post-match Claude analysis prompt rewritten.** The prompt sent to Claude for the play-style analysis had been unchanged since v1.0.x — it described the AI as a 10-factor heuristic scorer with no awareness of priorities, calibration, firme strategy, the cuadrar pip-advantage threshold, or ISMCTS. Rewrite:
+  - **AI-context section** at the top explains the master decision pipeline (P1/P2/P3 priorities, the cuadrar threshold of +5 with its noise-floor rationale, the 10-factor scorer with v1.1.0 firme A+B1+C logic, Platt-calibrated probabilities, ISMCTS @ 1000 iterations in the fallback). When the AI's recommendation looks counter-intuitive at the single-play level, Claude now has the context to explain *why* (tree-search saw a distribution outcome the static principles can't see).
+  - **Balanced highlights**: the prompt now surfaces up to 3 *optimal/good* plays alongside the mistakes, so the analysis can call out strengths concretely instead of reading as a critique. New `MatchHistory.getHighlightMoments(limit)` API.
+  - **Cross-hand pattern directive**: the task instructions explicitly ask for recurring patterns across hands rather than one-off mistakes ("if a mistake only happened once, it's noise, not a pattern").
+  - **JSON guidance**: the full match-data JSON is still included as reference but the prompt now directs Claude to *focus on the Strengths and Weaknesses sections* and treat the JSON only as quotable evidence, not as something to summarize.
+  - **Conversational tone**: replaces the rigid "Provide a 2-3 paragraph analysis" with three short conversational paragraphs (strengths / cross-hand patterns / one concrete next-match improvement), styled as a coach speaking to a student.
+
+- **Worker model upgraded to Claude Sonnet 4.6** (was Haiku 4.5). The longitudinal-pattern analysis the new prompt asks for benefits noticeably from Sonnet's reasoning depth. Cost per analysis is small either way (cents per match). Requires redeploy of the `domino-api` Worker (`npm run deploy` from `~/Documents/Claude-code-projects/domino-api`).
+
+### Notes
+- A "structured output + per-hand drill-down" follow-up is queued in BACKLOG (Medium) — that's the deeper polish on top of v1.2.3's prompt rework.
+
 ## [1.2.2] – 2026-06-12
 
 ### Fixed

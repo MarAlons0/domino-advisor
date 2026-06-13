@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-06-12 (v1.2.2 — Genín uses master pipeline)_
+_Last updated: 2026-06-12 (v1.2.3 — Claude analysis prompt + Sonnet 4.6)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -16,6 +16,7 @@ _Last updated: 2026-06-12 (v1.2.2 — Genín uses master pipeline)_
 - [ ] **AI enhancements (0)** — validate any weight/strategy change with the A/B tournament harness. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Team-contextual play inference (0b)** — infer partner/opponent hands from play to sharpen advice. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Design of experiments for scoring weights (0d)** — structured tuning of AI scoring weights. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
+- [ ] **Structured Claude analysis with per-hand drill-down** — output structured sections (Strengths / Weaknesses / Action items), per-hand summaries instead of raw JSON dump, factor-vocabulary glossary inline. Polishes the v1.2.3 prompt rework. `[feature]`
 - [ ] **Position analyzer (3)** — analyze a board position for the best plays. `[feature]`
 - [ ] **Pass indicators on UI (5)** — show when a player passed. `[feature]`
 - [ ] **Named AI players (UX-B)** — give the AI opponents names. `[feature]`
@@ -36,6 +37,7 @@ _Last updated: 2026-06-12 (v1.2.2 — Genín uses master pipeline)_
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Claude analysis prompt rework + Sonnet 4.6** — v1.2.3
 - [x] **Genín advice uses the master pipeline (priorities + ISMCTS)** — v1.2.2
 - [x] **Fix Master freeze when ISMCTS bump meets rand5** — v1.2.1
 - [x] **Information Set MCTS at Master level (0f)** — v1.2.0

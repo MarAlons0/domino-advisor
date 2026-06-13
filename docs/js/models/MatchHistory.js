@@ -226,6 +226,36 @@ export class MatchHistory {
     }
 
     /**
+     * Get highlight plays (human plays graded optimal/good). Used by the
+     * post-match Claude analysis to balance the mistakes view with the
+     * player's actual strengths. Returns at most `limit` entries to keep
+     * the prompt focused.
+     * @param {number} [limit=3]
+     * @returns {Array} Array of { handNumber, playIndex, play }
+     */
+    getHighlightMoments(limit = 3) {
+        const moments = [];
+        for (const hand of this.hands) {
+            for (let i = 0; i < hand.plays.length; i++) {
+                const play = hand.plays[i];
+                if (play.isHuman && (play.evaluation === 'optimal' || play.evaluation === 'good')) {
+                    moments.push({
+                        handNumber: hand.handNumber,
+                        playIndex: i,
+                        play: play,
+                    });
+                }
+            }
+        }
+        // Optimal first, then good; preserve play order within each tier.
+        moments.sort((a, b) => {
+            if (a.play.evaluation === b.play.evaluation) return 0;
+            return a.play.evaluation === 'optimal' ? -1 : 1;
+        });
+        return moments.slice(0, limit);
+    }
+
+    /**
      * Get all human plays with their evaluations
      * @returns {Array}
      */
