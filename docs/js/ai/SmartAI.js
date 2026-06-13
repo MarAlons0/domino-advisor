@@ -569,7 +569,14 @@ export class SmartAI {
             if (bestMoveKey && bestMoveKey !== 'pass') {
                 for (const move of scoredMoves) {
                     if (`${move.tile.toKey()}|${move.end}` === bestMoveKey) {
-                        move.finalScore = Infinity;
+                        // Large finite bump rather than Infinity so the
+                        // downstream randomization filter (which computes
+                        // `topScore - finalScore <= tol`) stays well-defined.
+                        // Infinity - Infinity = NaN, and `NaN <= 5` is false,
+                        // which would exclude this move from its own
+                        // randomization band, leaving band empty and
+                        // bestMove = undefined. v1.2.1 hotfix.
+                        move.finalScore = 1e6;
                         move.reasoning = `ISMCTS (${this.ismctsIterations} iter)`;
                         break;
                     }

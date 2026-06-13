@@ -3,6 +3,15 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.2.1] – 2026-06-12
+
+### Fixed
+- **Master-level freeze on the first non-forced turn.** In v1.2.0, the ISMCTS branch bumped its chosen move's `finalScore` to `Infinity` so the subsequent sort would put it first. Production main.js then sets `randomizeTolerance = 5` for master, which feeds into a filter `topScore − finalScore <= tol`. For the ISMCTS pick that's `Infinity − Infinity = NaN`, and `NaN <= 5` is **false** — the chosen move gets excluded from its own randomization band, the band becomes empty, `band[Math.floor(Math.random() * 0)]` returns `undefined`, and `bestMove.score` throws `TypeError: undefined is not an object`.
+
+  The harness self-play tests didn't catch this because `setupMatch` leaves `randomizeTolerance = 0`, which short-circuits the randomization branch entirely.
+
+  Fix: bump the ISMCTS-picked move to `1e6` (a large finite value safely above any realistic static score, which is in the ±200 range) instead of `Infinity`. The arithmetic `1e6 − 1e6 = 0` is well-defined, the chosen move makes it into the band, randomization picks it deterministically (the band collapses to one move), and the rest of the fallback path completes normally. Verified with a master-difficulty + `randomizeTolerance = 5` integration script that mirrors the production main.js setup.
+
 ## [1.2.0] – 2026-06-12
 
 ### Added

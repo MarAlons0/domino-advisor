@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-06-12 (v1.2.0 release)_
+_Last updated: 2026-06-12 (v1.2.1 hotfix)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -23,6 +23,7 @@ _Last updated: 2026-06-12 (v1.2.0 release)_
 - [ ] **AI thinking indicator (UX-D)** — show the AI "thinking" before it plays. `[feature]`
 
 ## 🟢 Low / Nice to have
+- [ ] **Harness/production parity for master settings** — make `setupMatch` apply the same per-difficulty configuration that main.js does in real play (currently master gets `randomizeTolerance = 5` in production but 0 in the harness). The v1.2.0 → v1.2.1 freeze bug would have been caught by self-play if this parity existed. `[chore]`
 - [ ] **Explore DNN-driven AI** — investigate a neural net to replace/augment the rule-based scorer once the rule system's ceiling is in sight. `[idea]`
   - Key challenge: corpus of quality play-by-play training data. Harness produces AI-vs-AI cheaply; strong human play is harder to source.
   - Precedent: [HowardDunn/Jamaican-Style-Dominoes-AI-Neural-Network](https://github.com/HowardDunn/Jamaican-Style-Dominoes-AI-Neural-Network) — 4-layer MLP + RL self-play, partnership variant. Cautionary: their metrics files show win rates 13–24% in 4-player games (random = 25%); the NN never clearly outperformed naive play. Useful as architecture reference, not as a result to match.
@@ -35,6 +36,7 @@ _Last updated: 2026-06-12 (v1.2.0 release)_
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Fix Master freeze when ISMCTS bump meets rand5** — v1.2.1
 - [x] **Information Set MCTS at Master level (0f)** — v1.2.0
 - [x] **Cuadrar pip-advantage threshold** — v1.1.2
 - [x] **Calibration recalibration for tile probabilities (0e)** — v1.1.1
