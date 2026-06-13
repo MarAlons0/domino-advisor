@@ -1395,56 +1395,36 @@ export class SmartAI {
     }
 
     /**
-     * Get AI recommendation for a player's move (used for evaluating human moves).
+     * Get AI recommendation for a player's move (used by Genín advice and the
+     * post-move debrief evaluation).
+     *
+     * As of v1.2.2 this delegates to chooseMove() so Genín benefits from the
+     * full master pipeline — priorities (P1 winning, P2 cuadrar, P3 partner
+     * support), the 10-factor scoring with calibrated probabilities, firme
+     * strategy, cuadrar pip-advantage threshold, and ISMCTS tree search at
+     * master difficulty. Previously this returned the highest static-scored
+     * move only, which Mario observed as "very focused on single plays
+     * rather than the longitudinal game" — accurate, because no lookahead or
+     * priorities ran.
+     *
+     * Player 0 (the human) defaults to master in the SmartAI constructor and
+     * main.js does not override it, so this call uses the master decision
+     * path (ISMCTS in the fallback). The static scoreMove() result on the
+     * chosen move is still computed for the explainer's factor breakdown.
+     *
      * @param {GameState} gameState - The current game state
      * @param {number} playerIndex - Which player to evaluate for
      * @returns {{tile: Tile, end: string, reasoning: string, score: number}|null}
      */
     getRecommendation(gameState, playerIndex) {
-        const hand = gameState.hands[playerIndex];
-        const chain = gameState.chain;
-        const mustPlayDoubleSix = gameState.isFirstHand && chain.isEmpty();
-
-        const validMoves = Rules.getValidMoves(hand, chain, mustPlayDoubleSix);
-
-        if (validMoves.length === 0) {
-            return null; // Must pass
-        }
-
-        if (validMoves.length === 1) {
-            const move = validMoves[0];
-            const score = this.scoreMove(move, gameState, playerIndex);
-            return {
-                ...move,
-                reasoning: 'Only valid move',
-                score: score.total
-            };
-        }
-
-        // Score each move and pick the best
-        const scoredMoves = validMoves.map(move => ({
-            ...move,
-            score: this.scoreMove(move, gameState, playerIndex)
-        }));
-
-        // Sort by score descending
-        scoredMoves.sort((a, b) => b.score.total - a.score.total);
-
-        const bestMove = scoredMoves[0];
-        // Use strategic explainer for rich reasoning
-        const reasoning = this.explainer.explain(
-            bestMove,
-            bestMove.score,
-            gameState,
-            playerIndex,
-            this
-        );
-
+        const move = this.chooseMove(gameState, playerIndex);
+        if (move === null) return null; // Must pass
+        const score = this.scoreMove(move, gameState, playerIndex);
         return {
-            tile: bestMove.tile,
-            end: bestMove.end,
-            reasoning: reasoning,
-            score: bestMove.score.total
+            tile: move.tile,
+            end: move.end,
+            reasoning: move.reasoning || 'Best move',
+            score: score.total,
         };
     }
 

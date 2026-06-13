@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-06-12 (v1.2.1 hotfix)_
+_Last updated: 2026-06-12 (v1.2.2 — Genín uses master pipeline)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -36,6 +36,7 @@ _Last updated: 2026-06-12 (v1.2.1 hotfix)_
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Genín advice uses the master pipeline (priorities + ISMCTS)** — v1.2.2
 - [x] **Fix Master freeze when ISMCTS bump meets rand5** — v1.2.1
 - [x] **Information Set MCTS at Master level (0f)** — v1.2.0
 - [x] **Cuadrar pip-advantage threshold** — v1.1.2

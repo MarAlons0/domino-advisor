@@ -3,6 +3,20 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.2.2] – 2026-06-12
+
+### Fixed
+- **Genín advice now reflects the latest AI logic.** `SmartAI.getRecommendation()` (called by Genín and by the post-move debrief evaluation) had been a parallel, simpler code path that only ran the 10-factor static `scoreMove()` — no priorities, no Monte Carlo lookahead, no ISMCTS. Mario observed this as Genín being "very focused on single plays rather than the longitudinal game", which was accurate by construction: no lookahead or priorities were running.
+
+  As of v1.2.2, `getRecommendation` delegates to `chooseMove`, so Genín now benefits from the full master pipeline: priorities (P1 winning, P2 high-confidence cuadrar, P3 partner support), the calibrated 10-factor scoring with firme strategy and `cuadrarPipThreshold = 5`, and ISMCTS tree search at 1000 iterations in the fallback path. Player 0 defaults to master in the `SmartAI` constructor and `main.js` does not override it, so the human's own advice has always been "what would master do" — that's now actually master-quality.
+
+  Two side effects worth knowing:
+  - Genín may return slightly different recommendations on repeated clicks at the same position (ISMCTS has rollout / determinization variance). The moves are comparable in strength; not the same.
+  - Post-match debrief grading shifts: the "AI recommendation" column now benchmarks against the master ISMCTS pick instead of the static-score top. Historical matches are unaffected (their snapshots are stored at play time), but new matches will grade against the stronger benchmark.
+
+### Documentation
+- **README** Genín section now explicitly documents that as of v1.2.2 advice goes through the master decision pipeline (priorities + scoring + ISMCTS).
+
 ## [1.2.1] – 2026-06-12
 
 ### Fixed

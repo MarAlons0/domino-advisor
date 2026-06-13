@@ -571,7 +571,9 @@ Two further references that informed the integration design:
 
 # Genín Coach — Advice System
 
-During your turn, click **"Ask Genín"** to get a move recommendation with a strategic explanation. Genín shows:
+During your turn, click **"Ask Genín"** to get a move recommendation with a strategic explanation. **As of v1.2.2** Genín's recommendation goes through the full **Master** decision pipeline — priorities (winning move, high-confidence cuadrar, partner support), the calibrated 10-factor scoring with firme strategy and cuadrar pip-advantage threshold, and ISMCTS tree search at 1000 iterations in the fallback path. The static factor breakdown is computed on top of the chosen move so the explanation below still describes *why* the move is strong in factor terms. (Previously Genín used only single-ply static scoring, which Mario observed as "very focused on single plays rather than the longitudinal game" — accurate, because no priorities or lookahead ran.)
+
+Genín shows:
 
 1. **The recommended tile** rendered as a domino, with play direction (left/right)
 2. **A brief reason** — the dominant strategic factor (e.g., "support partner", "unload double with cover")
