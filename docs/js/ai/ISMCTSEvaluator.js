@@ -59,16 +59,31 @@ class Node {
 }
 
 /**
- * Run ISMCTS for `itermax` iterations and return the most-visited move at the root.
+ * Run ISMCTS for `itermax` iterations and return the most-visited move at the
+ * root, along with the visit/win statistics of every root child so callers
+ * (especially debug logging) can see how confident the search was.
+ *
  * @param {object} rootstate   - state implementing the required interface
  * @param {number} itermax     - number of search iterations (200-1000 typical)
- * @returns {string|null}      - chosen move key, or null if no legal moves
+ * @returns {{ bestMove: string|null, rootStats: Array<{move:string, visits:number, wins:number, winRate:number}> }}
+ *          - bestMove: most-visited root child's move key (null if no legal moves)
+ *          - rootStats: per-root-child stats, sorted by visits descending. For the
+ *            no-moves and forced-single-move cases this is empty / a single entry
+ *            with zero visits respectively, since no real search ran.
  */
 export function ismcts(rootstate, itermax) {
     const root = new Node();
     const rootMoves = rootstate.getMoves();
-    if (rootMoves.length === 0) return null;
-    if (rootMoves.length === 1) return rootMoves[0]; // forced move; skip the search
+    if (rootMoves.length === 0) {
+        return { bestMove: null, rootStats: [] };
+    }
+    if (rootMoves.length === 1) {
+        // Forced move; no search ran. Return the move with empty stats.
+        return {
+            bestMove: rootMoves[0],
+            rootStats: [{ move: rootMoves[0], visits: 0, wins: 0, winRate: 0 }],
+        };
+    }
 
     for (let i = 0; i < itermax; i++) {
         let node = root;
@@ -108,10 +123,19 @@ export function ismcts(rootstate, itermax) {
         }
     }
 
-    // Return the most-visited child of the root.
+    // Return the most-visited child of the root, with the full root visit
+    // distribution so callers can show how decisive the search was.
     let best = root.children[0];
     for (const c of root.children) {
         if (c.visits > best.visits) best = c;
     }
-    return best ? best.move : null;
+    const rootStats = root.children
+        .map(c => ({
+            move: c.move,
+            visits: c.visits,
+            wins: c.wins,
+            winRate: c.visits > 0 ? c.wins / c.visits : 0,
+        }))
+        .sort((a, b) => b.visits - a.visits);
+    return { bestMove: best ? best.move : null, rootStats };
 }

@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-06-14 (v1.2.4 — structured Claude analysis)_
+_Last updated: 2026-06-14 (v1.2.5 — ISMCTS visit counts in debug mode)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -36,6 +36,7 @@ _Last updated: 2026-06-14 (v1.2.4 — structured Claude analysis)_
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **ISMCTS visit distribution exposed in debug mode** — v1.2.5
 - [x] **Structured Claude analysis with per-hand recap + glossary + Markdown rendering** — v1.2.4
 - [x] **Claude analysis prompt rework + Sonnet 4.6** — v1.2.3
 - [x] **Genín advice uses the master pipeline (priorities + ISMCTS)** — v1.2.2

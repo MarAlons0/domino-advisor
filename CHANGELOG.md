@@ -3,6 +3,15 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.2.5] – 2026-06-14
+
+### Changed
+- **Debug mode now exposes the ISMCTS tree-search reasoning.** When the master fallback picks a move via Information Set MCTS, the debug log (enabled via `?debug=ai`) now renders a `🌳 ISMCTS @ N iter — root visit distribution` table showing every root-child move with its visit count, percentage of total iterations, and empirical win rate from the rollouts. A top-vs-runner-up ratio + plain-English verdict (decisive / clear / modest / close call) tells you at a glance how confident the search was. The "FALLBACK: Best combined score (1000000.0)" line previously had no indication that ISMCTS was the actual selector — it now reads as `MASTER FALLBACK: ISMCTS pick (1000 iter) — factor table below is static-scorer context`, making the chain of responsibility explicit.
+
+### Changed (internal)
+- **`ismcts()` return shape**: was `string | null` (the best move key). Now `{ bestMove: string|null, rootStats: Array<{move, visits, wins, winRate}> }`. The added stats are sorted by visits descending. The forced-single-move case returns one entry with zero visits (no search ran); the no-moves case returns an empty array.
+- **`SmartAI` master fallback** attaches `ismctsStats` and `ismctsIterations` to the chosen move object, which the DEBUG_AI block in the fallback passes through to `_logDebug`. No behavior change at runtime — these fields are inert unless debug mode reads them.
+
 ## [1.2.4] – 2026-06-14
 
 ### Changed

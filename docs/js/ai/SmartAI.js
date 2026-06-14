@@ -565,7 +565,8 @@ export class SmartAI {
                 view: this.playerViews[playerIndex],
                 handTracker: this.handTracker,
             });
-            const bestMoveKey = ismcts(root, this.ismctsIterations);
+            const ismctsResult = ismcts(root, this.ismctsIterations);
+            const bestMoveKey = ismctsResult.bestMove;
             if (bestMoveKey && bestMoveKey !== 'pass') {
                 for (const move of scoredMoves) {
                     if (`${move.tile.toKey()}|${move.end}` === bestMoveKey) {
@@ -578,6 +579,10 @@ export class SmartAI {
                         // bestMove = undefined. v1.2.1 hotfix.
                         move.finalScore = 1e6;
                         move.reasoning = `ISMCTS (${this.ismctsIterations} iter)`;
+                        // Attach the root visit distribution so debug mode
+                        // can render the ISMCTS confidence breakdown.
+                        move.ismctsStats = ismctsResult.rootStats;
+                        move.ismctsIterations = this.ismctsIterations;
                         break;
                     }
                 }
@@ -654,7 +659,13 @@ export class SmartAI {
             debugInfo.chosen = bestMove.tile.toString();
             const mcInfo = bestMove.mcResult ?
                 ` | MC: ${bestMove.mcResult.score.toFixed(1)} (cert: ${(certainty * 100).toFixed(0)}%)` : '';
-            debugInfo.chosenReason = `FALLBACK: Best combined score (${bestMove.finalScore.toFixed(1)})${mcInfo}`;
+            if (bestMove.ismctsStats) {
+                debugInfo.chosenReason = `MASTER FALLBACK: ISMCTS pick (${bestMove.ismctsIterations} iter) — factor table below is static-scorer context`;
+                debugInfo.ismctsStats = bestMove.ismctsStats;
+                debugInfo.ismctsIterations = bestMove.ismctsIterations;
+            } else {
+                debugInfo.chosenReason = `FALLBACK: Best combined score (${bestMove.finalScore.toFixed(1)})${mcInfo}`;
+            }
             debugInfo.chosenExplanation = bestMove.reasoning;
             this._logDebug(debugInfo, activeView);
         }
@@ -988,6 +999,32 @@ export class SmartAI {
                     'Flex': m.factors.handFlexibility,
                     'Pace': m.factors.paceControl
                 })));
+            }
+            console.groupEnd();
+        }
+
+        // ISMCTS visit distribution (v1.2.5): shown when the master fallback
+        // picked the move via Information Set MCTS. Tells you whether the
+        // search was a clear winner or a close call.
+        if (info.ismctsStats && info.ismctsStats.length > 0) {
+            console.group(`%c🌳 ISMCTS @ ${info.ismctsIterations} iter — root visit distribution`, 'color: #c084fc; font-weight: bold');
+            const total = info.ismctsStats.reduce((s, e) => s + e.visits, 0) || 1;
+            console.table(info.ismctsStats.slice(0, 10).map((e, i) => ({
+                rank: i + 1,
+                move: e.move,
+                visits: e.visits,
+                pct: `${((e.visits / total) * 100).toFixed(1)}%`,
+                winRate: `${(e.winRate * 100).toFixed(1)}%`,
+            })));
+            // Quick read on decisiveness: ratio of top two visit counts.
+            if (info.ismctsStats.length >= 2) {
+                const top = info.ismctsStats[0].visits;
+                const second = info.ismctsStats[1].visits;
+                const ratio = second > 0 ? (top / second).toFixed(2) : '∞';
+                const verdict = ratio === '∞' || ratio >= 2 ? 'decisive' :
+                                ratio >= 1.5 ? 'clear' :
+                                ratio >= 1.2 ? 'modest' : 'close call';
+                console.log(`%cTop:runner-up visit ratio: ${ratio}× (${verdict})`, 'color: #888; font-style: italic');
             }
             console.groupEnd();
         }
