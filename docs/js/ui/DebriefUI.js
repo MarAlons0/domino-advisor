@@ -3,6 +3,39 @@ import { GameState } from '../models/GameState.js';
 import { t, i18n } from '../i18n/i18n.js';
 
 /**
+ * Minimal Markdown-to-HTML renderer for the v1.2.4 analysis output.
+ * Handles `## headers`, `**bold**`, `*italic*`, paragraph breaks, and single
+ * line breaks inside paragraphs. HTML in the source is escaped first so the
+ * model output cannot inject script tags.
+ */
+function renderAnalysisMarkdown(text) {
+    if (!text) return '';
+    let html = String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    // Section headers (`## Heading`) become styled headers. Apply BEFORE bold
+    // so the leading `##` isn't picked up by the `**` rule.
+    html = html.replace(/^## (.+)$/gm, '<h4 class="analysis-section">$1</h4>');
+    // Bold (apply before italic so `**` is consumed first).
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // Italic
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    // Split into paragraph blocks on blank lines.
+    const blocks = html.split(/\n\s*\n+/);
+    return blocks
+        .map(block => {
+            const trimmed = block.trim();
+            if (!trimmed) return '';
+            // Headers are already block-level; don't wrap them in <p>.
+            if (trimmed.startsWith('<h4')) return trimmed;
+            return `<p class="analysis-paragraph">${trimmed.replace(/\n/g, '<br>')}</p>`;
+        })
+        .filter(Boolean)
+        .join('');
+}
+
+/**
  * DebriefUI - Modal interface for post-match review.
  */
 export class DebriefUI {
@@ -416,7 +449,10 @@ export class DebriefUI {
             this.llmLoading.style.display = 'none';
 
             if (result.success) {
-                this.llmResult.textContent = result.analysis;
+                // Render Markdown sections (## headings, **bold**, *italic*,
+                // paragraphs) to HTML so the v1.2.4 structured output shows
+                // up as actual sections instead of literal `##` characters.
+                this.llmResult.innerHTML = renderAnalysisMarkdown(result.analysis);
                 this.llmResult.style.display = 'block';
             } else {
                 this.llmResult.textContent = 'Error: ' + result.error;

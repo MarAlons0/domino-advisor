@@ -3,6 +3,21 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.2.4] – 2026-06-14
+
+### Changed
+- **Structured Claude analysis output.** The prompt now asks Claude to return its response as three explicitly delimited Markdown sections (`## What you did well`, `## Patterns to watch across hands`, `## Try this next match` — translated to `## Lo que hiciste bien`, `## Patrones para corregir`, `## Intenta esto la próxima vez` in Spanish). The DebriefUI renders these as styled `<h4>` sections with proper paragraph blocks and bold/italic emphasis, so the analysis reads as visually distinct coaching sections instead of a single block of text.
+- **Per-hand recap replaces the JSON dump.** Instead of including the full play-by-play JSON in the prompt, the builder now generates a compact one-line-per-hand summary: salida (who opened and with what), the human's noteworthy plays in that hand with AI alternatives, and how the hand ended (domino / cerrar / blocked + winning team + points). Result: prompts went from ~5–8 KB of mostly noise to a few hundred tokens of strategically focused context, while giving Claude *more* signal per token. New helper: `ClaudeService._buildPerHandRecap()`.
+- **Expanded terminology glossary in the prompt.** Cuban/Puerto Rican vocabulary is now defined inline at the top of the prompt (la salida, cuadrar, cerrar, domino, tranque, firme, ahorcado, darle pase, llave) so Claude can use these terms precisely instead of paraphrasing them in English.
+- **More directive task instructions.** The "Try this next match" section explicitly asks for *one* concrete habit change phrased as a falsifiable rule of thumb (good: "Before playing a double, count tiles in that suit — if zero, find another move"; bad: "be careful with doubles"). The cross-hand pattern instruction was tightened: "if a mistake only happened once, it's noise, not a pattern".
+
+### Added
+- **Minimal Markdown renderer in DebriefUI** (~30 lines). Handles `## headers`, `**bold**`, `*italic*`, paragraph breaks, and single-line breaks within paragraphs. HTML is escaped first so model output cannot inject script tags.
+- **CSS for the analysis sections** — accent-colored section headers with a divider rule, comfortable line height inside paragraphs, distinct emphasis colors for bold and italic. Cache-busted via `styles.css?v=38`.
+
+### Notes
+- Backwards compatible: if a future model response doesn't include any `##` headers, it just renders as styled paragraphs.
+
 ## [1.2.3] – 2026-06-12
 
 ### Changed

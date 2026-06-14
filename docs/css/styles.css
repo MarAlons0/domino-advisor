@@ -1641,7 +1641,31 @@ button:disabled {
     font-size: 13px;
     line-height: 1.6;
     color: #ddd;
-    white-space: pre-wrap;
+}
+
+/* v1.2.4 structured analysis sections (## Strengths / ## Patterns / ## Try this) */
+.llm-result .analysis-section {
+    margin: 18px 0 6px 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.25);
+    font-size: 13px;
+    font-weight: 700;
+    color: #6366f1;
+    letter-spacing: 0.02em;
+}
+.llm-result .analysis-section:first-child {
+    margin-top: 0;
+}
+.llm-result .analysis-paragraph {
+    margin: 8px 0;
+    color: #ddd;
+}
+.llm-result .analysis-paragraph strong {
+    color: #fff;
+}
+.llm-result .analysis-paragraph em {
+    color: #cbd5f5;
+    font-style: italic;
 }
 
 .llm-no-key {
