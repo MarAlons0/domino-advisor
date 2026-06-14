@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-06-14 (v1.2.5 — ISMCTS visit counts in debug mode)_
+_Last updated: 2026-06-14 (v1.2.5 + two analytical backlog items)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -24,6 +24,12 @@ _Last updated: 2026-06-14 (v1.2.5 — ISMCTS visit counts in debug mode)_
 
 ## 🟢 Low / Nice to have
 - [ ] **Harness/production parity for master settings** — make `setupMatch` apply the same per-difficulty configuration that main.js does in real play (currently master gets `randomizeTolerance = 5` in production but 0 in the harness). The v1.2.0 → v1.2.1 freeze bug would have been caught by self-play if this parity existed. `[chore]`
+- [ ] **Maximum cerrado pip haul — theoretical + simulation** — what's the largest possible point score in a single cerrar? Attack from two angles: combinatorial analysis of the smallest valid closed chain (driving the most pips into losers' hands), and empirical max observed across many harness self-play matches. `[idea]`
+  - Theoretical: a closed chain needs all 7 V-tiles played + both ends V. How few non-V tiles can a valid chain contain? Each non-double V-tile contributes one non-V face that must be matched by a non-V tile, so the minimum chain length is bounded below by a graph-matching argument. Likely admits a clean closed-form answer.
+  - Simulation: extend the harness with a `--max-cerrado` mode that records the largest losing-team pip total observed across N matches; bound the practical maximum (which will be smaller than the theoretical max because real AI play disperses pips).
+- [ ] **Suit-consistency vs. opportunistic play** — when both your signaled suit and another value are playable on the open ends, is it better to stay in suit (preserving the signal your partner is reading) or take the locally-optimal move? Example: you opened `[3|3]` and played `[3|0]` (signal: 3s). Later the ends show 1 and 3; you have a 3-tile but also several 1-tiles. Play the 3 to stay consistent, or the 1 to keep your hand flexible? `[idea]`
+  - Hypothesis test: add a `suitConsistencyBonus` flag to SmartAI that boosts moves matching the player's signaledSuits, A/B at 500 matches. If neutral → consistency is already adequately captured by `partnerSupport` + `ownSuitProtection`. If positive → there's a real signal-coordination value we're under-weighting.
+  - Alternative angle: instrument human play traces (from Mario's own matches) and correlate suit-consistency rate within a hand with hand-level win rate. Self-coaching data.
 - [ ] **Explore DNN-driven AI** — investigate a neural net to replace/augment the rule-based scorer once the rule system's ceiling is in sight. `[idea]`
   - Key challenge: corpus of quality play-by-play training data. Harness produces AI-vs-AI cheaply; strong human play is harder to source.
   - Precedent: [HowardDunn/Jamaican-Style-Dominoes-AI-Neural-Network](https://github.com/HowardDunn/Jamaican-Style-Dominoes-AI-Neural-Network) — 4-layer MLP + RL self-play, partnership variant. Cautionary: their metrics files show win rates 13–24% in 4-player games (random = 25%); the NN never clearly outperformed naive play. Useful as architecture reference, not as a result to match.
