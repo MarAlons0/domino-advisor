@@ -50,7 +50,16 @@ finish a hand with more than 118 either. But:
 
 > The 118 bound is too loose to be reached. The cerrar mechanic itself taxes the deal.
 
-The argument in Section 4 brings the upper bound down by ~20 points.
+The argument in Section 4 brings the upper bound down by ~10 points.
+
+**Note on uniqueness:** the 118-pip total can actually be reached by **six different
+14-tile sets**. The top-14 set sorted by pip count is `12, 11, 10, 10, 9, 9, 8, 8, 8,
+7, 7, 7, 6, 6`. The first twelve slots are uniquely determined (the *12-tile core*:
+all seven 6-tiles plus 5\|2, 5\|3, 5\|4, 5\|5, 4\|3, 4\|4). The last two slots are a
+**tie among four pip-6 tiles** — 6\|0, 5\|1, 4\|2, 3\|3 — and we pick 2 of the 4 to
+complete the heavy set. That's C(4,2) = 6 distinct partitions. The choice matters for
+§4b's ceiling analysis: partitions vary by ~7 pips of cerrar ceiling depending on
+which 2 pip-6 tiles end up in the heavy hand.
 
 ## 3. Structural minimum chain length
 
@@ -119,29 +128,37 @@ of forced losing-team plays), the V = 0 cooperative ceiling for this deal is
 
 ### 4b. The 50/118 max-disparity deal (structural extreme)
 
-The absolute maximum pip distribution gives team B all seven 6-tiles plus the five
-heaviest 5-tiles plus 4|3 and 4|4 — the 14 tiles in Section 2's bold cells. Team A
-gets the complement: the seven 0-tiles plus 1\|1, 1\|2, 1\|3, 1\|4, 2\|2, 2\|3,
-2\|4, 3\|3, summing to 50 pips. With this rigged deal, team A's closing options are
-constrained — they hold none of the 6-tiles, only one 5-tile (no, zero 5-tiles: their
-5-tiles would be… actually they hold no 5-faced tile), only 0/1/2/3-faced tiles.
+The maximum-pip-disparity dealings give team B 118 pips and team A 50 pips, split
+across the 6 partitions described in §2. Team A's closing options are heavily
+constrained — they hold no 6-tile, at most one 5-tile (only if 5\|1 ended up in
+their hand), and otherwise only 0/1/2/3/4-faced tiles.
 
-Per-V analysis under this deal:
+**The partition matters.** The six 50/118 partitions split into two structurally
+distinct groups based on whether **6\|0 is in the heavy hand**. When 6\|0 sits in
+team B, team A holds only 6 of the 7 zero-tiles and team B must dump 6\|0 (6 pips)
+as a forced V-tile play. When 6\|0 sits in team A, team A holds **all 7 zero-tiles**
+and team B is never forced to play a V-tile during a V=0 cerrar.
 
-| V | Team B forced V-plays | Team B forced filler-plays | Team B remaining (haul) |
-|---|---|---|---|
-| **V=0** | 6\|0 = 6 | 6\|1 (7) + 5\|3 (8) | **118 − 21 = 97** |
-| V=1 | 5\|1 + 6\|1 = 13 | 6\|0 (6) + 5\|3 (8) | 118 − 27 = 91 |
-| V=2 | 5\|2 + 6\|2 = 15 | 6\|0 (6) + 5\|3 (8) | 118 − 29 = 89 |
-| V=3 | 4\|3 + 5\|3 + 6\|3 = 24 | 6\|0 (6) + 5\|1 (6) | 118 − 36 = 82 |
-| V≥4 | progressively worse — team A holds too few V-tiles to drive closure | | < 82 |
+Corrected per-partition V=0 ceiling (optimized matching, not the suboptimal one in
+this doc's earlier draft):
 
-The **97-pip max-disparity ceiling** is 3 points sharper than the 94 ceiling for the
-"W holds all V-tiles" deal — the heavier starting pile more than compensates for the
-extra forced plays.
+| Heavy pip-6 pair | 6\|0 in heavy? | Best filler matching | Team B forced | V=0 ceiling |
+|---|---|---|---|---|
+| {6\|0, 5\|1} | yes | V=6\|0 (6) + filler 5\|6 (11) | 17 | **101** |
+| {6\|0, 4\|2} | yes | V=6\|0 (6) + filler 5\|6 (11) | 17 | **101** |
+| {6\|0, 3\|3} | yes | V=6\|0 (6) + filler 5\|6 (11) | 17 | **101** |
+| {5\|1, 4\|2} | no  | filler 5\|6 (11) only | 11 | **107** |
+| {5\|1, 3\|3} | no  | filler 5\|6 (11) only | 11 | **107** |
+| **{4\|2, 3\|3}** | **no** | **filler 6\|4 (10) only** (uses 5\|1 ∈ A) | 10 | **108** |
 
-Both ceilings are well below the 118 absolute bound, which assumed the loser plays
-zero tiles — impossible per §5.
+The **6|0-in-light** partitions hit a sharper ceiling because team A's filler-tile
+inventory is richer (5\|1 in light when partition = {4\|2, 3\|3}). The 108 ceiling
+in partition {4\|2, 3\|3} is the **theoretical maximum cooperative cerrar haul** over
+all deals.
+
+(Both ceilings are well below the 118 absolute bound, which assumed the loser plays
+zero tiles — impossible per §5. They also revise upward the earlier 97-pip estimate,
+which was based on a suboptimal filler matching for partition {6\|0, 5\|1}.)
 
 ## 5. Play-sequence feasibility tax
 
@@ -172,12 +189,14 @@ Repeating for other V gives similar values in the high 80s / low 90s. The
 absolute 118 bound.
 
 > **Caveat from §7 empirical data:** the empirical losing-team pip dump under cooperative
-> play turns out to be ≈ 66 pips in the rigged 50/118 simulation, not ~17. The cycle
-> argument above counts the *minimum* number of forced losing-team plays at the
-> structural level, but ignores game-flow effects: when the chain wanders into
-> non-V-end territory because of W's own non-V tile plays, the cooperative loser is
-> forced to bridge back, dumping more tiles than the bare cycle argument predicts.
-> The empirical tax is closer to 3× the cycle-counting prediction.
+> play turns out to be ≈ 66 pips in the rigged 50/118 simulation, vs ~10-17 forced
+> plays predicted by the §4b structural analysis. The cycle argument and the
+> structural-minimum filler-matching together bound the *minimum* number of forced
+> losing-team plays, but they ignore game-flow effects: when the chain wanders into
+> non-V-end territory because of W's own non-V tile plays (or because of suboptimal
+> ordering of W's V-tile plays), the cooperative loser is forced to bridge back,
+> dumping more tiles than the bare structural minimum requires. The empirical tax
+> is **roughly 4–6× the structural prediction**.
 
 ## 6. Two scenarios for the empirical question
 
@@ -186,8 +205,8 @@ The harness measures two distinct quantities by sweeping the deal randomly:
 **Scenario A — Cooperative losers.** Seats 1 and 3 play a stripped-down "cooperative"
 behavior: pass whenever legal, otherwise play the lowest-pip-count tile in hand. This
 maximizes the pip haul awarded to the (normally-playing) seats 0+2 in any cerrar. The
-empirical maximum across many matches should approach but not exceed the ~94 theoretical
-ceiling.
+empirical maximum across many matches should approach but not exceed the §4b ceilings
+(101 for 6|0-in-heavy partitions, up to 108 for partition {4|2, 3|3}).
 
 **Scenario B — Adversarial losers (natural play).** All four seats are master AI. Now
 the would-be losers play strategically to *minimize* their loss, dumping heavy tiles
@@ -206,7 +225,19 @@ Three regimes, each 1000 self-play matches at master difficulty:
 |---|---|---|---|---|---|---|
 | Natural adversarial | 2,080 / 6,006 hands | **78** | 27.9 | 27 | 86.6 | 58.8 |
 | Natural cooperative | 1,110 / 3,460 hands | **75** | 37.1 | 36 | 86.1 | 49.0 |
-| Rigged 50/118 + coop | 663 / 1,953 hands | **92** | 51.9 | 52 | 117.9 (rigged) | 66.0 |
+| Rigged 50/118 + coop (6-partition randomized) | 549 / 1,661 hands | **92** | 54.3 | 56 | 118 (rigged) | 63.7 |
+
+The rigged run randomized the partition (which 2 of the 4 pip-6 tiles are in heavy)
+across all six options each hand. Breaking the rigged samples by partition group:
+
+| Partition group | Cerrados | Mean haul | Max haul | §4b theoretical ceiling |
+|---|---|---|---|---|
+| 6\|0 in heavy (3 partitions) | 289 | 52.0 | 80 | 101 |
+| 6\|0 in light (3 partitions) | 260 | 56.9 | **92** | 107–108 |
+
+The 6|0-in-light group produced the higher mean (+4.9) and higher max (+12)
+— exactly the ranking §4b predicted. Partition {4|2, 5|1} produced the single
+highest sample (max 92).
 
 Reproduce with:
 
@@ -218,10 +249,10 @@ node tools/tournament.js --games 1000 --max-cerrado --cooperative-losers --max-d
 
 ### Reading the table
 
-- **The 97-pip theoretical ceiling is sharp but slightly optimistic.** The rigged
-  experiment, which presents cooperative play with the absolute-best deal possible
-  every hand, tops out at **92 pips** — 5 below the ceiling. The empirical
-  play-feasibility tax (§5 caveat) is ~3× the cycle-counting prediction.
+- **The corrected theoretical ceilings (§4b) are 101–108 depending on partition.** The
+  v1 rigged experiment used a single fixed partition with 6|0 in heavy and topped out
+  at 92 pips (vs the corrected ceiling of 101 for that partition). The v2 rigged
+  experiment randomizes the partition across all six options to give a fair picture.
 - **Natural play caps around 75–78 pips.** Both natural regimes top out near the same
   number despite very different mean hauls (27.9 vs 37.1). This is because the natural
   *maximum* is driven by the rare heavy deal (the natural runs got their max from
@@ -244,23 +275,24 @@ node tools/tournament.js --games 1000 --max-cerrado --cooperative-losers --max-d
 | 5 | 57 | 57 | 39 | (< 82) |
 | 6 | 60 | 60 | 42 | (< 82) |
 
-**Surprise: V=1 (92) edged out V=0 (91) in the rigged sample.** Theory predicted V=0
-to dominate (97 vs 91). The rigged-cooperative *means* still rank as theory predicts
-(V=0: 56.3, V=1: 53.3), but the single-observation maxima drifted upward at V=1 due
-to sample variance over the 159 V=1 cerrados vs 240 V=0 cerrados. The takeaway is
-that the V=0 and V=1 ceilings are *close enough together* that 1000-match noise can
-re-order them.
+**Surprise: V=1 (92) edged out V=0 (91) in the v1 rigged sample.** Theory predicted V=0
+to dominate (101 vs ~91 for partition {6|0, 5|1}). The rigged-cooperative *means*
+still rank as theory predicts (V=0: 56.3, V=1: 53.3), but the single-observation
+maxima drifted upward at V=1 due to sample variance over the 159 V=1 cerrados vs 240
+V=0 cerrados. The takeaway is that the V=0 and V=1 ceilings are *close enough
+together* that 1000-match noise can re-order them.
 
 **V≥4 produces almost no cerrados under rigging** because team A holds too few of
 those V-tiles. The deal partition structurally constrains which V can close.
 
 ### Interpretation
 
-- The **structural upper bound is 118** (one team's heaviest 14 tiles).
-- The **cooperative theoretical ceiling is 97** (rigged 50/118 deal + cycle-counting
-  forced plays).
-- The **empirical ceiling under perfect deal + cooperative play is ~92** — the
-  cycle-counting forced-play argument undercounts the play-feasibility tax by ~3×.
+- The **structural upper bound is 118** (one team's heaviest 14 tiles, §2).
+- The **cooperative theoretical ceiling is 101–108** depending on partition (§4b).
+  The {4|2, 3|3}-in-heavy partition is best at 108.
+- The **empirical ceiling under perfect deal + cooperative play is 92** in the v2
+  randomized-partition run (compared to 107–108 for the partition that produced it).
+  Even with the perfect deal, ~15 pips remain on the table relative to theoretical.
 - The **empirical ceiling under natural deals is ~75–78**, essentially independent of
   whether the losing team is cooperative or adversarial.
 

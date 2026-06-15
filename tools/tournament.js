@@ -25,19 +25,26 @@ const { Rules } = await import('../docs/js/engine/Rules.js');
 const { Tile } = await import('../docs/js/models/Tile.js');
 const { Hand } = await import('../docs/js/models/Hand.js');
 
-// The structural maximum 14-tile pip set (118 pips). Used by --max-disparity-deals
-// to rig the deal at every hand: team B (seats 1, 3) holds these 14 tiles, team A
-// (seats 0, 2) holds the complementary 14 tiles (50 pips). See docs/MAX_CERRADO.md.
-const MAX_DISPARITY_HEAVY = [
-    [6,0],[6,1],[6,2],[6,3],[6,4],[6,5],[6,6],
-    [5,1],[5,2],[5,3],[5,4],[5,5],
+// Max-disparity 50/118 deal. There are SIX distinct 14-tile partitions that achieve
+// the maximum pip total of 118, because the top-14 set by pip count contains a tie
+// among the four pip-6 tiles (6|0, 5|1, 4|2, 3|3) for the last two slots. We pick
+// 2 of those 4 randomly per hand so the simulation spans all 6 partitions evenly.
+// See docs/MAX_CERRADO.md §4b for the per-partition theoretical ceilings.
+const MAX_DISPARITY_CORE = [
+    // 12 always-heavy tiles (sum 106). The 12-tile uniquely-determined core.
+    [6,1],[6,2],[6,3],[6,4],[6,5],[6,6],
+    [5,2],[5,3],[5,4],[5,5],
     [4,3],[4,4],
 ];
-const MAX_DISPARITY_LIGHT = [
+const MAX_DISPARITY_FIXED_LIGHT = [
+    // 12 always-light tiles (sum 38).
     [0,0],[0,1],[0,2],[0,3],[0,4],[0,5],
     [1,1],[1,2],[1,3],[1,4],
-    [2,2],[2,3],[2,4],
-    [3,3],
+    [2,2],[2,3],
+];
+const MAX_DISPARITY_PIP6 = [
+    // 4 ambiguous pip-6 tiles. 2 go to heavy, 2 to light.
+    [6,0],[5,1],[4,2],[3,3],
 ];
 
 const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10'];
@@ -183,24 +190,31 @@ function chooseMoveCooperative(gameState, playerIndex) {
     return { ...best, reasoning: 'Cooperative loser: lowest-pip tile' };
 }
 
-// Rigs the deal so team B (seats 1, 3) holds MAX_DISPARITY_HEAVY (118 pips total)
-// and team A (seats 0, 2) holds MAX_DISPARITY_LIGHT (50 pips total). Within each
-// team the 14 tiles are randomly split 7+7 between the two seats. For the first
-// hand only, currentPlayer is reset to whichever team-B seat ended up holding the
-// double-six (the salida rule). Subsequent hands' currentPlayer is unchanged.
+// Rigs the deal so team B (seats 1, 3) holds 118 pips and team A (seats 0, 2) holds
+// 50 pips. The specific 50/118 partition is randomly picked from the 6 equivalent
+// partitions each hand (heavy = 12-tile core + 2 of 4 pip-6 tiles). Within each
+// team the 14 tiles are then randomly split 7+7 between the two seats. For the
+// first hand only, currentPlayer is reset to whichever team-B seat ended up
+// holding the double-six (the salida rule). Returns the partition descriptor.
 function applyMaxDisparityDeal(game) {
     const state = game.getState();
-    const heavyTiles = MAX_DISPARITY_HEAVY.map(([a, b]) => new Tile(a, b));
-    const lightTiles = MAX_DISPARITY_LIGHT.map(([a, b]) => new Tile(a, b));
-    // Fisher-Yates shuffle within each team's tile set.
+    // Shuffle the 4 ambiguous pip-6 tiles and split 2 to heavy, 2 to light.
+    const pip6 = MAX_DISPARITY_PIP6.map(p => [...p]);
+    for (let i = pip6.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pip6[i], pip6[j]] = [pip6[j], pip6[i]];
+    }
+    const pip6Heavy = pip6.slice(0, 2);
+    const pip6Light = pip6.slice(2, 4);
+    const heavyTiles = [...MAX_DISPARITY_CORE, ...pip6Heavy].map(([a, b]) => new Tile(a, b));
+    const lightTiles = [...MAX_DISPARITY_FIXED_LIGHT, ...pip6Light].map(([a, b]) => new Tile(a, b));
+    // Fisher-Yates shuffle within each team's tile set for the intra-team 7+7 split.
     for (let arr of [heavyTiles, lightTiles]) {
         for (let i = arr.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [arr[i], arr[j]] = [arr[j], arr[i]];
         }
     }
-    // Replace seats' hands. Hand is a thin wrapper so we just construct new
-    // ones and assign — HandTracker / PlayerView haven't read state.hands yet.
     state.hands[0] = new Hand();
     state.hands[2] = new Hand();
     state.hands[1] = new Hand();
@@ -210,12 +224,18 @@ function applyMaxDisparityDeal(game) {
     for (let i = 0; i < 7; i++) state.hands[1].add(heavyTiles[i]);
     for (let i = 7; i < 14; i++) state.hands[3].add(heavyTiles[i]);
     if (state.isFirstHand) {
-        // 6|6 lives in team B's heavy set — find which of seats 1, 3 holds it.
         const sixSix = new Tile(6, 6);
         for (const seat of [1, 3]) {
             if (state.hands[seat].has(sixSix)) { state.currentPlayer = seat; break; }
         }
     }
+    // Return partition descriptor — which pip-6 tiles ended up in heavy. Sort
+    // so each partition has a canonical string key (e.g. "4|2,6|0").
+    const heavyKey = pip6Heavy
+        .map(([a, b]) => `${Math.max(a, b)}|${Math.min(a, b)}`)
+        .sort()
+        .join(',');
+    return { partition: heavyKey, sixZeroInHeavy: pip6Heavy.some(([a, b]) => (a === 6 && b === 0) || (a === 0 && b === 6)) };
 }
 
 function initTrackersForHand(handTracker, playerViews, state) {
@@ -278,6 +298,8 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
                 chainLength,
                 winningTeam: data.winningTeam,
                 closingPlayer: data.closingPlayer,
+                partition: currentPartition?.partition ?? null,
+                sixZeroInHeavy: currentPartition?.sixZeroInHeavy ?? null,
             });
         }
 
@@ -315,7 +337,8 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
 
     ai.resetForNewHand();
     game.newMatch();
-    if (maxDisparityDeals) applyMaxDisparityDeal(game);
+    let currentPartition = null; // descriptor of the rigged partition in use this hand
+    if (maxDisparityDeals) currentPartition = applyMaxDisparityDeal(game);
     initTrackersForHand(handTracker, playerViews, game.getState());
     // Snapshot team pip totals at the start of each hand so cerrado samples
     // can record the losing team's *initial* pips (and the pip dump). Updated
@@ -356,7 +379,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
         } else if (state.gamePhase === 'handOver') {
             ai.resetForNewHand();
             game.newHand();
-            if (maxDisparityDeals) applyMaxDisparityDeal(game);
+            if (maxDisparityDeals) currentPartition = applyMaxDisparityDeal(game);
             initTrackersForHand(handTracker, playerViews, game.getState());
             const h = game.getState().hands;
             initialTeamPips = [h[0].pipCount() + h[2].pipCount(), h[1].pipCount() + h[3].pipCount()];
@@ -976,6 +999,41 @@ function reportMaxCerrado(acc, totalHands, opts) {
         const e = byV.get(v);
         if (!e) { console.log(`    ${v}    ${'—'.padStart(5)}    ${'—'.padStart(4)}    —`); continue; }
         console.log(`    ${v}    ${e.n.toString().padStart(5)}    ${(e.sumPips / e.n).toFixed(1).padStart(4)}    ${e.max}`);
+    }
+    // Partition breakdown (only when --max-disparity-deals is in use).
+    const samplesWithPartition = acc.samples.filter(s => s.partition != null);
+    if (samplesWithPartition.length > 0) {
+        console.log('');
+        console.log('  Max by partition (which 2 of the 4 pip-6 tiles are in team B):');
+        const byPart = new Map();
+        for (const s of samplesWithPartition) {
+            let e = byPart.get(s.partition);
+            if (!e) { e = { max: -Infinity, n: 0, sumPips: 0 }; byPart.set(s.partition, e); }
+            if (s.losingPips > e.max) e.max = s.losingPips;
+            e.n++;
+            e.sumPips += s.losingPips;
+        }
+        const partKeys = [...byPart.keys()].sort();
+        console.log('    heavy pip-6   count   mean    max');
+        for (const k of partKeys) {
+            const e = byPart.get(k);
+            console.log(`    ${k.padEnd(11)}   ${e.n.toString().padStart(5)}   ${(e.sumPips / e.n).toFixed(1).padStart(4)}    ${e.max}`);
+        }
+        // Group by whether 6|0 is in heavy. Theory predicts the 6|0-in-light group
+        // hits the higher ceiling (~107-108 vs ~101) because team A holds all V=0 tiles.
+        console.log('');
+        console.log('  Max by partition group (6|0 location):');
+        const inHeavy = samplesWithPartition.filter(s => s.sixZeroInHeavy);
+        const inLight = samplesWithPartition.filter(s => !s.sixZeroInHeavy);
+        const grpStats = arr => arr.length === 0 ? null : ({
+            n: arr.length,
+            mean: arr.reduce((s, x) => s + x.losingPips, 0) / arr.length,
+            max: arr.reduce((m, x) => Math.max(m, x.losingPips), -Infinity),
+        });
+        const sH = grpStats(inHeavy);
+        const sL = grpStats(inLight);
+        if (sH) console.log(`    6|0 in heavy   n=${sH.n}  mean ${sH.mean.toFixed(1)}  max ${sH.max}   (theory ceiling ≈ 101)`);
+        if (sL) console.log(`    6|0 in light   n=${sL.n}  mean ${sL.mean.toFixed(1)}  max ${sL.max}   (theory ceiling ≈ 107-108)`);
     }
     console.log('');
 }
