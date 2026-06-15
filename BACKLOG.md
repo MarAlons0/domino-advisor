@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-06-14 (v1.2.5 + two analytical backlog items)_
+_Last updated: 2026-06-14 (max-cerrado investigation shipped)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -24,9 +24,6 @@ _Last updated: 2026-06-14 (v1.2.5 + two analytical backlog items)_
 
 ## 🟢 Low / Nice to have
 - [ ] **Harness/production parity for master settings** — make `setupMatch` apply the same per-difficulty configuration that main.js does in real play (currently master gets `randomizeTolerance = 5` in production but 0 in the harness). The v1.2.0 → v1.2.1 freeze bug would have been caught by self-play if this parity existed. `[chore]`
-- [ ] **Maximum cerrado pip haul — theoretical + simulation** — what's the largest possible point score in a single cerrar? Attack from two angles: combinatorial analysis of the smallest valid closed chain (driving the most pips into losers' hands), and empirical max observed across many harness self-play matches. `[idea]`
-  - Theoretical: a closed chain needs all 7 V-tiles played + both ends V. How few non-V tiles can a valid chain contain? Each non-double V-tile contributes one non-V face that must be matched by a non-V tile, so the minimum chain length is bounded below by a graph-matching argument. Likely admits a clean closed-form answer.
-  - Simulation: extend the harness with a `--max-cerrado` mode that records the largest losing-team pip total observed across N matches; bound the practical maximum (which will be smaller than the theoretical max because real AI play disperses pips).
 - [ ] **Suit-consistency vs. opportunistic play** — when both your signaled suit and another value are playable on the open ends, is it better to stay in suit (preserving the signal your partner is reading) or take the locally-optimal move? Example: you opened `[3|3]` and played `[3|0]` (signal: 3s). Later the ends show 1 and 3; you have a 3-tile but also several 1-tiles. Play the 3 to stay consistent, or the 1 to keep your hand flexible? `[idea]`
   - Hypothesis test: add a `suitConsistencyBonus` flag to SmartAI that boosts moves matching the player's signaledSuits, A/B at 500 matches. If neutral → consistency is already adequately captured by `partnerSupport` + `ownSuitProtection`. If positive → there's a real signal-coordination value we're under-weighting.
   - Alternative angle: instrument human play traces (from Mario's own matches) and correlate suit-consistency rate within a hand with hand-level win rate. Self-coaching data.
@@ -42,6 +39,7 @@ _Last updated: 2026-06-14 (v1.2.5 + two analytical backlog items)_
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Maximum cerrado pip haul — theoretical + simulation** — analysis + `--max-cerrado` / `--cooperative-losers` / `--max-disparity-deals` harness modes. Empirical max ≈ 92 under rigged deal, ≈ 78 under natural deals; theoretical ceiling 97. See [docs/MAX_CERRADO.md](docs/MAX_CERRADO.md).
 - [x] **ISMCTS visit distribution exposed in debug mode** — v1.2.5
 - [x] **Structured Claude analysis with per-hand recap + glossary + Markdown rendering** — v1.2.4
 - [x] **Claude analysis prompt rework + Sonnet 4.6** — v1.2.3

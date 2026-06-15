@@ -21,11 +21,29 @@ const { Game } = await import('../docs/js/engine/Game.js');
 const { SmartAI } = await import('../docs/js/ai/SmartAI.js');
 const { HandTracker } = await import('../docs/js/ai/HandTracker.js');
 const { PlayerView } = await import('../docs/js/ai/PlayerView.js');
+const { Rules } = await import('../docs/js/engine/Rules.js');
+const { Tile } = await import('../docs/js/models/Tile.js');
+const { Hand } = await import('../docs/js/models/Hand.js');
+
+// The structural maximum 14-tile pip set (118 pips). Used by --max-disparity-deals
+// to rig the deal at every hand: team B (seats 1, 3) holds these 14 tiles, team A
+// (seats 0, 2) holds the complementary 14 tiles (50 pips). See docs/MAX_CERRADO.md.
+const MAX_DISPARITY_HEAVY = [
+    [6,0],[6,1],[6,2],[6,3],[6,4],[6,5],[6,6],
+    [5,1],[5,2],[5,3],[5,4],[5,5],
+    [4,3],[4,4],
+];
+const MAX_DISPARITY_LIGHT = [
+    [0,0],[0,1],[0,2],[0,3],[0,4],[0,5],
+    [1,1],[1,2],[1,3],[1,4],
+    [2,2],[2,3],[2,4],
+    [3,3],
+];
 
 const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10'];
 
 function parseArgs(argv) {
-    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, variant: 'mc-pass', allVariant: null };
+    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, variant: 'mc-pass', allVariant: null };
     for (let i = 2; i < argv.length; i++) {
         const a = argv[i];
         if (a === '--games') opts.games = parseInt(argv[++i], 10);
@@ -37,6 +55,9 @@ function parseArgs(argv) {
         else if (a === '--instrument') opts.instrument = true;
         else if (a === '--prob-accuracy') opts.probAccuracy = true;
         else if (a === '--pip-accuracy') opts.pipAccuracy = true;
+        else if (a === '--max-cerrado') opts.maxCerrado = true;
+        else if (a === '--cooperative-losers') opts.cooperativeLosers = true;
+        else if (a === '--max-disparity-deals') opts.maxDisparityDeals = true;
         else if (a === '--help' || a === '-h') {
             console.log('Usage: node tools/tournament.js [--games N] [--difficulty LEVEL] [--ab] [--variant NAME] [--instrument] [--verbose]');
             console.log('  --ab            Champion (current code) vs Challenger (a variant). Challenger');
@@ -56,6 +77,19 @@ function parseArgs(argv) {
             console.log('  --pip-accuracy  Snapshot AI pip-advantage estimate vs ground truth from');
             console.log('                  state.hands at each chooseMove; report mean signed error,');
             console.log('                  RMSE, and sign-mismatch rate (= false cuadrar trigger rate).');
+            console.log('  --max-cerrado   Record the largest cerrar pip haul (losing-team pip total)');
+            console.log('                  across all matches; report distribution and per-V breakdown.');
+            console.log('                  See docs/MAX_CERRADO.md for the theoretical analysis.');
+            console.log('  --cooperative-losers');
+            console.log('                  Seats 1 and 3 (team B) play a stripped-down "cooperative"');
+            console.log('                  behavior: pass whenever legal, otherwise play the lowest-pip');
+            console.log('                  tile in hand. Combined with --max-cerrado, measures the');
+            console.log('                  cooperative-ceiling scenario from MAX_CERRADO.md §6.');
+            console.log('  --max-disparity-deals');
+            console.log('                  Rig every hand so team B holds the maximum-pip 14-tile set');
+            console.log('                  (118 pips) and team A holds the complement (50 pips). The');
+            console.log('                  intra-team seat split is still randomized. Pair with');
+            console.log('                  --cooperative-losers to probe the absolute theoretical max.');
             process.exit(0);
         }
     }
@@ -130,6 +164,60 @@ function setupMatch(difficulty, challengerSeats = null, variant = null, allVaria
     return { game, ai, handTracker, playerViews };
 }
 
+// Stripped-down "cooperative loser" behavior used by --cooperative-losers.
+// When forced to play, choose the lowest-pip tile; otherwise pass. Defined
+// in the harness rather than SmartAI because it's tooling-only — it has no
+// place in the shipped AI.
+function chooseMoveCooperative(gameState, playerIndex) {
+    const hand = gameState.hands[playerIndex];
+    const chain = gameState.chain;
+    const mustPlayDoubleSix = gameState.isFirstHand && chain.isEmpty();
+    const validMoves = Rules.getValidMoves(hand, chain, mustPlayDoubleSix);
+    if (validMoves.length === 0) return null;
+    let best = validMoves[0];
+    let bestPips = best.tile.pipCount();
+    for (let i = 1; i < validMoves.length; i++) {
+        const p = validMoves[i].tile.pipCount();
+        if (p < bestPips) { bestPips = p; best = validMoves[i]; }
+    }
+    return { ...best, reasoning: 'Cooperative loser: lowest-pip tile' };
+}
+
+// Rigs the deal so team B (seats 1, 3) holds MAX_DISPARITY_HEAVY (118 pips total)
+// and team A (seats 0, 2) holds MAX_DISPARITY_LIGHT (50 pips total). Within each
+// team the 14 tiles are randomly split 7+7 between the two seats. For the first
+// hand only, currentPlayer is reset to whichever team-B seat ended up holding the
+// double-six (the salida rule). Subsequent hands' currentPlayer is unchanged.
+function applyMaxDisparityDeal(game) {
+    const state = game.getState();
+    const heavyTiles = MAX_DISPARITY_HEAVY.map(([a, b]) => new Tile(a, b));
+    const lightTiles = MAX_DISPARITY_LIGHT.map(([a, b]) => new Tile(a, b));
+    // Fisher-Yates shuffle within each team's tile set.
+    for (let arr of [heavyTiles, lightTiles]) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+    }
+    // Replace seats' hands. Hand is a thin wrapper so we just construct new
+    // ones and assign — HandTracker / PlayerView haven't read state.hands yet.
+    state.hands[0] = new Hand();
+    state.hands[2] = new Hand();
+    state.hands[1] = new Hand();
+    state.hands[3] = new Hand();
+    for (let i = 0; i < 7; i++) state.hands[0].add(lightTiles[i]);
+    for (let i = 7; i < 14; i++) state.hands[2].add(lightTiles[i]);
+    for (let i = 0; i < 7; i++) state.hands[1].add(heavyTiles[i]);
+    for (let i = 7; i < 14; i++) state.hands[3].add(heavyTiles[i]);
+    if (state.isFirstHand) {
+        // 6|6 lives in team B's heavy set — find which of seats 1, 3 holds it.
+        const sixSix = new Tile(6, 6);
+        for (const seat of [1, 3]) {
+            if (state.hands[seat].has(sixSix)) { state.currentPlayer = seat; break; }
+        }
+    }
+}
+
 function initTrackersForHand(handTracker, playerViews, state) {
     handTracker.initHand(state.hands[0]);
     for (let i = 0; i < 4; i++) {
@@ -138,7 +226,7 @@ function initTrackersForHand(handTracker, playerViews, state) {
     }
 }
 
-function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, pipAcc = null }) {
+function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, pipAcc = null, cerradoAcc = null, cooperativeLosers = false, maxDisparityDeals = false }) {
     const { game, ai, handTracker, playerViews } = setupMatch(difficulty, challengerSeats, variant, allVariant);
     // Track each player's most recent decision so a close can be classified as
     // deliberate (had ≥2 legal moves) vs forced (closing tile was the only move).
@@ -163,6 +251,35 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
             dominoPlayer: data.dominoPlayer,
             closingPlayer: data.closingPlayer,
         });
+
+        if (cerradoAcc && data.reason === 'closed') {
+            const state = game.getState();
+            const hands = state.hands;
+            const closingValue = state.chain.leftEnd; // both ends equal V for a cerrado
+            const chainLength = state.chain.size();
+            const teamPips = [
+                hands[0].pipCount() + hands[2].pipCount(),
+                hands[1].pipCount() + hands[3].pipCount(),
+            ];
+            const losingTeam = data.winningTeam === 0 ? 1 : data.winningTeam === 1 ? 0 : -1;
+            // data.points is the losing team's pip total per Rules.calculateHandResult.
+            const losingPips = data.points;
+            const winnersRemaining = losingTeam === -1 ? null : teamPips[1 - losingTeam];
+            const losingInitial = losingTeam === -1 ? null : initialTeamPips[losingTeam];
+            const winnersInitial = losingTeam === -1 ? null : initialTeamPips[1 - losingTeam];
+            const pipDump = losingInitial != null ? losingInitial - losingPips : null;
+            cerradoAcc.add({
+                losingPips,
+                winnersRemaining,
+                losingInitial,
+                winnersInitial,
+                pipDump,
+                closingValue,
+                chainLength,
+                winningTeam: data.winningTeam,
+                closingPlayer: data.closingPlayer,
+            });
+        }
 
         if (closeSink && data.reason === 'closed' && data.closingPlayer != null) {
             // Hands still hold their remaining tiles at callback time, so we can
@@ -198,7 +315,15 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
 
     ai.resetForNewHand();
     game.newMatch();
+    if (maxDisparityDeals) applyMaxDisparityDeal(game);
     initTrackersForHand(handTracker, playerViews, game.getState());
+    // Snapshot team pip totals at the start of each hand so cerrado samples
+    // can record the losing team's *initial* pips (and the pip dump). Updated
+    // again whenever a new hand is dealt below.
+    let initialTeamPips = (() => {
+        const h = game.getState().hands;
+        return [h[0].pipCount() + h[2].pipCount(), h[1].pipCount() + h[3].pipCount()];
+    })();
 
     const aiTimings = [];
     let safetyTicks = 0;
@@ -211,7 +336,13 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
             if (probAcc) captureProbSnapshot(playerViews, state, probAcc);
             if (pipAcc) capturePipSnapshot(ai, playerViews, state, pipAcc);
             const t0 = process.hrtime.bigint();
-            const move = ai.chooseMove(state, state.currentPlayer);
+            // Seats 1 and 3 (team B) use the stripped-down cooperative behavior
+            // when --cooperative-losers is set. Team A (seats 0, 2) still uses
+            // normal SmartAI to drive the cerrar.
+            const useCooperative = cooperativeLosers && (state.currentPlayer === 1 || state.currentPlayer === 3);
+            const move = useCooperative
+                ? chooseMoveCooperative(state, state.currentPlayer)
+                : ai.chooseMove(state, state.currentPlayer);
             const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
             aiTimings.push(elapsedMs);
 
@@ -225,7 +356,10 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
         } else if (state.gamePhase === 'handOver') {
             ai.resetForNewHand();
             game.newHand();
+            if (maxDisparityDeals) applyMaxDisparityDeal(game);
             initTrackersForHand(handTracker, playerViews, game.getState());
+            const h = game.getState().hands;
+            initialTeamPips = [h[0].pipCount() + h[2].pipCount(), h[1].pipCount() + h[3].pipCount()];
         } else {
             break; // matchOver caught by onMatchEnd setter above
         }
@@ -733,14 +867,128 @@ function reportPipAccuracy(acc) {
     console.log('');
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Max cerrado pip-haul tracker. See docs/MAX_CERRADO.md for context. Records
+// the losing team's pip total at every cerrar ending. The accumulator gives
+// us: overall max, distribution histogram, and a per-closing-value breakdown
+// (the theoretical analysis predicts low-V cerrados produce the high tails).
+// ─────────────────────────────────────────────────────────────────────────────
+
+class CerradoAccumulator {
+    constructor() {
+        this.samples = [];
+        this.maxLosingPips = -Infinity;
+        this.maxSample = null;
+    }
+    add(sample) {
+        this.samples.push(sample);
+        if (sample.losingPips > this.maxLosingPips) {
+            this.maxLosingPips = sample.losingPips;
+            this.maxSample = sample;
+        }
+    }
+}
+
+function reportMaxCerrado(acc, totalHands, opts) {
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(` Max cerrado pip haul (${acc.samples.length.toLocaleString()} cerrados / ${totalHands.toLocaleString()} hands)`);
+    if (opts.cooperativeLosers) {
+        console.log(' Mode: --cooperative-losers (seats 1, 3 play lowest-pip / prefer-pass)');
+    } else {
+        console.log(' Mode: adversarial (all seats master AI)');
+    }
+    console.log('═══════════════════════════════════════════════════════════');
+    if (acc.samples.length === 0) {
+        console.log('  No cerrados observed across all matches.');
+        console.log('');
+        return;
+    }
+    const pips = acc.samples.map(s => s.losingPips);
+    const meanPips = avg(pips);
+    const medPips = median(pips);
+    const cerradoRate = acc.samples.length / totalHands;
+    console.log('');
+    console.log(`  Max losing-team pip haul:      ${acc.maxLosingPips}`);
+    console.log(`  Mean:                          ${meanPips.toFixed(1)}`);
+    console.log(`  Median:                        ${medPips.toFixed(1)}`);
+    console.log(`  Cerrado rate:                  ${(cerradoRate * 100).toFixed(1)}% (${acc.samples.length} / ${totalHands} hands)`);
+    console.log('');
+    console.log('  Record cerrar that produced the max:');
+    const m = acc.maxSample;
+    console.log(`    losing initial → final pips: ${m.losingInitial ?? '—'} → ${m.losingPips} (dumped ${m.pipDump ?? '—'})`);
+    console.log(`    winners initial → remaining: ${m.winnersInitial ?? '—'} → ${m.winnersRemaining ?? '—'}`);
+    console.log(`    closed on V=${m.closingValue}  chain length: ${m.chainLength}  closing seat: ${m.closingPlayer}`);
+    console.log('');
+    // Pip-dump distribution and initial-pip correlation for losing team
+    const samplesWithInitial = acc.samples.filter(s => s.losingInitial != null);
+    if (samplesWithInitial.length > 0) {
+        const initials = samplesWithInitial.map(s => s.losingInitial);
+        const dumps = samplesWithInitial.map(s => s.pipDump);
+        console.log(`  Losing-team initial pips:  mean ${avg(initials).toFixed(1)}  median ${median(initials).toFixed(1)}  max ${maxOf(initials)}`);
+        console.log(`  Losing-team pip dump:      mean ${avg(dumps).toFixed(1)}  median ${median(dumps).toFixed(1)}  max ${maxOf(dumps)}`);
+        // Bucket losing-team initial by deal heaviness and show mean haul
+        console.log('');
+        console.log('  Mean cerrar haul by losing-team initial deal:');
+        const dealBuckets = new Map(); // floor(initial/10)*10 → { n, sumPips }
+        for (const s of samplesWithInitial) {
+            const b = Math.floor(s.losingInitial / 10) * 10;
+            let e = dealBuckets.get(b);
+            if (!e) { e = { n: 0, sumPips: 0, maxPips: 0 }; dealBuckets.set(b, e); }
+            e.n++;
+            e.sumPips += s.losingPips;
+            if (s.losingPips > e.maxPips) e.maxPips = s.losingPips;
+        }
+        const dKeys = [...dealBuckets.keys()].sort((a, b) => a - b);
+        console.log('    initial    n      mean haul   max haul');
+        for (const b of dKeys) {
+            const e = dealBuckets.get(b);
+            console.log(`    ${b}–${b+9}    ${e.n.toString().padStart(4)}   ${(e.sumPips / e.n).toFixed(1).padStart(6)}     ${e.maxPips}`);
+        }
+        console.log('');
+    }
+    console.log('  Distribution (10-pt buckets):');
+    const buckets = new Array(13).fill(0); // 0–9, 10–19, …, 110–119, 120+
+    for (const p of pips) {
+        const b = Math.min(12, Math.floor(p / 10));
+        buckets[b]++;
+    }
+    for (let b = 0; b < buckets.length; b++) {
+        if (buckets[b] === 0) continue;
+        const lo = b * 10;
+        const hi = b === 12 ? '+' : `–${b * 10 + 9}`;
+        const range = `${lo.toString().padStart(3)}${hi}`.padEnd(7);
+        const bar = '█'.repeat(Math.min(40, Math.round((buckets[b] / acc.samples.length) * 40)));
+        console.log(`    ${range}  ${buckets[b].toString().padStart(5)}  ${bar}`);
+    }
+    console.log('');
+    console.log('  Max by closing value V (lower V → heavier tails in theory):');
+    const byV = new Map();
+    for (const s of acc.samples) {
+        let e = byV.get(s.closingValue);
+        if (!e) { e = { max: -Infinity, n: 0, sumPips: 0 }; byV.set(s.closingValue, e); }
+        if (s.losingPips > e.max) e.max = s.losingPips;
+        e.n++;
+        e.sumPips += s.losingPips;
+    }
+    console.log('    V    count    mean    max');
+    for (let v = 0; v <= 6; v++) {
+        const e = byV.get(v);
+        if (!e) { console.log(`    ${v}    ${'—'.padStart(5)}    ${'—'.padStart(4)}    —`); continue; }
+        console.log(`    ${v}    ${e.n.toString().padStart(5)}    ${(e.sumPips / e.n).toFixed(1).padStart(4)}    ${e.max}`);
+    }
+    console.log('');
+}
+
 const opts = parseArgs(process.argv);
-console.log(`Running ${opts.games} matches at difficulty=${opts.difficulty}${opts.ab ? ` (A/B: ${opts.variant})` : ''}${opts.allVariant ? ` (all-seats: ${opts.allVariant})` : ''}${opts.instrument ? ' (instrumented)' : ''}${opts.probAccuracy ? ' (prob-accuracy)' : ''}${opts.pipAccuracy ? ' (pip-accuracy)' : ''}...`);
+console.log(`Running ${opts.games} matches at difficulty=${opts.difficulty}${opts.ab ? ` (A/B: ${opts.variant})` : ''}${opts.allVariant ? ` (all-seats: ${opts.allVariant})` : ''}${opts.instrument ? ' (instrumented)' : ''}${opts.probAccuracy ? ' (prob-accuracy)' : ''}${opts.pipAccuracy ? ' (pip-accuracy)' : ''}${opts.maxCerrado ? ' (max-cerrado)' : ''}${opts.cooperativeLosers ? ' (coop-losers)' : ''}${opts.maxDisparityDeals ? ' (max-disparity)' : ''}...`);
 
 const matches = [];
 const decisions = opts.instrument ? [] : null;
 const closes = opts.instrument ? [] : null;
 const probAcc = opts.probAccuracy ? new ProbAccumulator() : null;
 const pipAcc = opts.pipAccuracy ? new PipAccumulator() : null;
+const cerradoAcc = opts.maxCerrado ? new CerradoAccumulator() : null;
 const start = Date.now();
 for (let i = 0; i < opts.games; i++) {
     if (!opts.verbose && (i + 1) % Math.max(1, Math.floor(opts.games / 10)) === 0) {
@@ -757,6 +1005,9 @@ for (let i = 0; i < opts.games; i++) {
     if (decisions) perMatchOpts = { ...perMatchOpts, decisionSink: decisions, closeSink: closes };
     if (probAcc) perMatchOpts = { ...perMatchOpts, probAcc };
     if (pipAcc) perMatchOpts = { ...perMatchOpts, pipAcc };
+    if (cerradoAcc) perMatchOpts = { ...perMatchOpts, cerradoAcc };
+    if (opts.cooperativeLosers) perMatchOpts = { ...perMatchOpts, cooperativeLosers: true };
+    if (opts.maxDisparityDeals) perMatchOpts = { ...perMatchOpts, maxDisparityDeals: true };
     matches.push(runMatch(perMatchOpts));
 }
 const elapsed = (Date.now() - start) / 1000;
@@ -768,3 +1019,7 @@ if (opts.instrument) reportInstrumentation(decisions);
 if (opts.instrument) reportClosing(closes);
 if (opts.probAccuracy) reportProbAccuracy(probAcc);
 if (opts.pipAccuracy) reportPipAccuracy(pipAcc);
+if (opts.maxCerrado) {
+    const totalHands = matches.reduce((s, m) => s + m.handResults.length, 0);
+    reportMaxCerrado(cerradoAcc, totalHands, opts);
+}
