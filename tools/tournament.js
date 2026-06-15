@@ -50,7 +50,7 @@ const MAX_DISPARITY_PIP6 = [
 const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10'];
 
 function parseArgs(argv) {
-    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, variant: 'mc-pass', allVariant: null };
+    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, variant: 'mc-pass', allVariant: null };
     for (let i = 2; i < argv.length; i++) {
         const a = argv[i];
         if (a === '--games') opts.games = parseInt(argv[++i], 10);
@@ -65,6 +65,8 @@ function parseArgs(argv) {
         else if (a === '--max-cerrado') opts.maxCerrado = true;
         else if (a === '--cooperative-losers') opts.cooperativeLosers = true;
         else if (a === '--max-disparity-deals') opts.maxDisparityDeals = true;
+        else if (a === '--random-losers') opts.randomLosers = true;
+        else if (a === '--force-cerrar') opts.forceCerrar = true;
         else if (a === '--help' || a === '-h') {
             console.log('Usage: node tools/tournament.js [--games N] [--difficulty LEVEL] [--ab] [--variant NAME] [--instrument] [--verbose]');
             console.log('  --ab            Champion (current code) vs Challenger (a variant). Challenger');
@@ -97,6 +99,12 @@ function parseArgs(argv) {
             console.log('                  (118 pips) and team A holds the complement (50 pips). The');
             console.log('                  intra-team seat split is still randomized. Pair with');
             console.log('                  --cooperative-losers to probe the absolute theoretical max.');
+            console.log('  --random-losers Seats 1, 3 play a uniform-random legal move when forced.');
+            console.log('                  Unlike --cooperative-losers, no pip preference or pass bias.');
+            console.log('                  Used as unbiased exploration of the play space.');
+            console.log('  --force-cerrar  Seats 0, 2 take any move that closes the chain (cerrar)');
+            console.log('                  ahead of master AI strategy. Removes "did team A even try');
+            console.log('                  to close?" as a confound from max-haul measurements.');
             process.exit(0);
         }
     }
@@ -169,6 +177,58 @@ function setupMatch(difficulty, challengerSeats = null, variant = null, allVaria
     };
 
     return { game, ai, handTracker, playerViews };
+}
+
+// Random-play behavior used by --random-losers. Uniform pick over valid moves;
+// no pip preference, no pass bias. Used as unbiased exploration of the play
+// space — random will eventually sample sequences close to the structural
+// optimum without requiring us to design those sequences explicitly.
+function chooseMoveRandom(gameState, playerIndex) {
+    const hand = gameState.hands[playerIndex];
+    const chain = gameState.chain;
+    const mustPlayDoubleSix = gameState.isFirstHand && chain.isEmpty();
+    const validMoves = Rules.getValidMoves(hand, chain, mustPlayDoubleSix);
+    if (validMoves.length === 0) return null;
+    const pick = validMoves[Math.floor(Math.random() * validMoves.length)];
+    return { ...pick, reasoning: 'Random loser' };
+}
+
+// Returns true if playing `move` would cause the chain to be closed (cerrar):
+// both ends equal to some value V and all 7 V-tiles played. Used by
+// --force-cerrar to prioritize closing moves over master AI's strategic choice.
+function moveClosesChain(state, move) {
+    const chain = state.chain;
+    if (chain.isEmpty()) return false; // opening move can't close
+    const tile = move.tile;
+    const currentEnd = move.end === 'left' ? chain.leftEnd : chain.rightEnd;
+    const otherEnd = move.end === 'left' ? chain.rightEnd : chain.leftEnd;
+    const newExposed = tile.getOtherValue(currentEnd); // face after playing
+    if (newExposed !== otherEnd) return false;
+    const V = newExposed;
+    // Chain.countValue counts each played tile's contribution to value V.
+    // The candidate tile contributes: 1 if it has a V-face (always true here
+    // since newExposed === V means one of its faces is V — actually both ends
+    // are V meaning the played tile is V|V; or one face is V and the other is V).
+    // Simpler: count what the candidate tile adds.
+    let addedToV = 0;
+    if (tile.high === V) addedToV++;
+    if (tile.low === V && !tile.isDouble()) addedToV++;
+    return (chain.countValue(V) + addedToV) >= 7;
+}
+
+// Wrapper used by --force-cerrar for team A's seats. Scans valid moves for
+// any that closes the chain; if found, returns it. Otherwise falls through
+// to the master AI's normal strategic choice.
+function chooseMoveForceCerrar(ai, gameState, playerIndex) {
+    const hand = gameState.hands[playerIndex];
+    const chain = gameState.chain;
+    const validMoves = Rules.getValidMoves(hand, chain);
+    for (const move of validMoves) {
+        if (moveClosesChain(gameState, move)) {
+            return { ...move, reasoning: 'Force-cerrar' };
+        }
+    }
+    return ai.chooseMove(gameState, playerIndex);
 }
 
 // Stripped-down "cooperative loser" behavior used by --cooperative-losers.
@@ -246,7 +306,7 @@ function initTrackersForHand(handTracker, playerViews, state) {
     }
 }
 
-function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, pipAcc = null, cerradoAcc = null, cooperativeLosers = false, maxDisparityDeals = false }) {
+function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, pipAcc = null, cerradoAcc = null, cooperativeLosers = false, maxDisparityDeals = false, randomLosers = false, forceCerrar = false }) {
     const { game, ai, handTracker, playerViews } = setupMatch(difficulty, challengerSeats, variant, allVariant);
     // Track each player's most recent decision so a close can be classified as
     // deliberate (had ≥2 legal moves) vs forced (closing tile was the only move).
@@ -359,13 +419,19 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
             if (probAcc) captureProbSnapshot(playerViews, state, probAcc);
             if (pipAcc) capturePipSnapshot(ai, playerViews, state, pipAcc);
             const t0 = process.hrtime.bigint();
-            // Seats 1 and 3 (team B) use the stripped-down cooperative behavior
-            // when --cooperative-losers is set. Team A (seats 0, 2) still uses
-            // normal SmartAI to drive the cerrar.
-            const useCooperative = cooperativeLosers && (state.currentPlayer === 1 || state.currentPlayer === 3);
-            const move = useCooperative
-                ? chooseMoveCooperative(state, state.currentPlayer)
-                : ai.chooseMove(state, state.currentPlayer);
+            // Per-seat dispatch. Seats 1 and 3 (team B) may use random or
+            // cooperative behavior; seats 0 and 2 (team A) may use force-cerrar.
+            // Falls through to normal SmartAI in all other cases.
+            const isTeamB = state.currentPlayer === 1 || state.currentPlayer === 3;
+            const isTeamA = state.currentPlayer === 0 || state.currentPlayer === 2;
+            const useRandom = randomLosers && isTeamB;
+            const useCooperative = !useRandom && cooperativeLosers && isTeamB;
+            const useForceCerrar = forceCerrar && isTeamA;
+            let move;
+            if (useRandom) move = chooseMoveRandom(state, state.currentPlayer);
+            else if (useCooperative) move = chooseMoveCooperative(state, state.currentPlayer);
+            else if (useForceCerrar) move = chooseMoveForceCerrar(ai, state, state.currentPlayer);
+            else move = ai.chooseMove(state, state.currentPlayer);
             const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
             aiTimings.push(elapsedMs);
 
@@ -916,10 +982,15 @@ function reportMaxCerrado(acc, totalHands, opts) {
     console.log('');
     console.log('═══════════════════════════════════════════════════════════');
     console.log(` Max cerrado pip haul (${acc.samples.length.toLocaleString()} cerrados / ${totalHands.toLocaleString()} hands)`);
-    if (opts.cooperativeLosers) {
-        console.log(' Mode: --cooperative-losers (seats 1, 3 play lowest-pip / prefer-pass)');
-    } else {
+    const modeTags = [];
+    if (opts.cooperativeLosers) modeTags.push('cooperative-losers');
+    if (opts.randomLosers) modeTags.push('random-losers');
+    if (opts.forceCerrar) modeTags.push('force-cerrar');
+    if (opts.maxDisparityDeals) modeTags.push('max-disparity-deals');
+    if (modeTags.length === 0) {
         console.log(' Mode: adversarial (all seats master AI)');
+    } else {
+        console.log(` Mode: ${modeTags.join(' + ')}`);
     }
     console.log('═══════════════════════════════════════════════════════════');
     if (acc.samples.length === 0) {
@@ -1066,6 +1137,8 @@ for (let i = 0; i < opts.games; i++) {
     if (cerradoAcc) perMatchOpts = { ...perMatchOpts, cerradoAcc };
     if (opts.cooperativeLosers) perMatchOpts = { ...perMatchOpts, cooperativeLosers: true };
     if (opts.maxDisparityDeals) perMatchOpts = { ...perMatchOpts, maxDisparityDeals: true };
+    if (opts.randomLosers) perMatchOpts = { ...perMatchOpts, randomLosers: true };
+    if (opts.forceCerrar) perMatchOpts = { ...perMatchOpts, forceCerrar: true };
     matches.push(runMatch(perMatchOpts));
 }
 const elapsed = (Date.now() - start) / 1000;

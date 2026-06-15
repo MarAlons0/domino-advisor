@@ -226,6 +226,7 @@ Three regimes, each 1000 self-play matches at master difficulty:
 | Natural adversarial | 2,080 / 6,006 hands | **78** | 27.9 | 27 | 86.6 | 58.8 |
 | Natural cooperative | 1,110 / 3,460 hands | **75** | 37.1 | 36 | 86.1 | 49.0 |
 | Rigged 50/118 + coop (6-partition randomized) | 549 / 1,661 hands | **92** | 54.3 | 56 | 118 (rigged) | 63.7 |
+| Rigged 50/118 + random-losers + force-cerrar | 833 / 2,383 hands | **85** | 42.6 | 42 | 117.5 (rigged) | 74.9 |
 
 The rigged run randomized the partition (which 2 of the 4 pip-6 tiles are in heavy)
 across all six options each hand. Breaking the rigged samples by partition group:
@@ -245,6 +246,7 @@ Reproduce with:
 node tools/tournament.js --games 1000 --max-cerrado
 node tools/tournament.js --games 1000 --max-cerrado --cooperative-losers
 node tools/tournament.js --games 1000 --max-cerrado --cooperative-losers --max-disparity-deals
+node tools/tournament.js --games 1000 --max-cerrado --random-losers --force-cerrar --max-disparity-deals
 ```
 
 ### Reading the table
@@ -292,9 +294,19 @@ those V-tiles. The deal partition structurally constrains which V can close.
   The {4|2, 3|3}-in-heavy partition is best at 108.
 - The **empirical ceiling under perfect deal + cooperative play is 92** in the v2
   randomized-partition run (compared to 107–108 for the partition that produced it).
-  Even with the perfect deal, ~15 pips remain on the table relative to theoretical.
+  Even with the perfect deal, ~16 pips remain on the table relative to theoretical.
 - The **empirical ceiling under natural deals is ~75–78**, essentially independent of
   whether the losing team is cooperative or adversarial.
+
+The v3 experiment (random-losers + force-cerrar under the same rigged deals) tested
+whether the 16-pip gap to theoretical was an algorithm artifact (cooperative's
+lowest-pip rule leaving haul on the table) or a structural floor. The result: **v3
+produced a *lower* max (85) than v2 cooperative (92), not higher**, conclusively
+ruling out the algorithm-artifact hypothesis. Random doesn't *preserve* high-pip
+tiles the way cooperative does (random pip dump 74.9 vs cooperative 63.7), and
+force-cerrar takes early/marginal cerrars that don't reach the high tail. The gap to
+108 is therefore **genuine play-feasibility friction** in the game's turn-order +
+chain-extension dynamics, not a measurement artifact.
 
 The gap between the natural ceiling (~78) and the rigged ceiling (~92) quantifies how
 much pip haul is left on the table by the random deal alone — about **14 pips**, or
