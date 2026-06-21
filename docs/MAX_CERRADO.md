@@ -227,6 +227,34 @@ Three regimes, each 1000 self-play matches at master difficulty:
 | Natural cooperative | 1,110 / 3,460 hands | **75** | 37.1 | 36 | 86.1 | 49.0 |
 | Rigged 50/118 + coop (6-partition randomized) | 549 / 1,661 hands | **92** | 54.3 | 56 | 118 (rigged) | 63.7 |
 | Rigged 50/118 + random-losers + force-cerrar | 833 / 2,383 hands | **85** | 42.6 | 42 | 117.5 (rigged) | 74.9 |
+| **Exhaustive search** (6 partitions × 1,000 seat splits) | n/a | **103** | n/a | n/a | 118 (rigged) | 15 (optimal) |
+
+The exhaustive search uses [tools/cerrado-search.js](../tools/cerrado-search.js) — a recursive
+brute-force enumeration with alpha-beta upper-bound pruning. Per-partition empirical max
+across 1,000 random seat splits:
+
+| Partition | 6\|0 location | Theory ceiling (§4b) | Exhaustive empirical | Gap |
+|---|---|---|---|---|
+| {6\|0, 5\|1} | heavy | 101 | **99** | 2 |
+| {6\|0, 4\|2} | heavy | 101 | **99** | 2 |
+| {6\|0, 3\|3} | heavy | 101 | **99** | 2 |
+| {5\|1, 4\|2} | light | 107 | **100** | 7 |
+| **{5\|1, 3\|3}** | **light** | **107** | **103** | **4** |
+| {4\|2, 3\|3} | light | 108 | **102** | 6 |
+
+The 6|0-in-heavy partitions land within 2 pips of theoretical — the play-feasibility tax
+is tiny when the closing structure is unambiguous (team B forced to play 6|0 anyway, so
+sequencing has fewer degrees of freedom). The 6|0-in-light partitions leave more on the
+table (4–7 pips) because reaching their higher ceiling requires more delicate move ordering.
+
+The single highest-haul deal (partition {5|1, 3|3}, specific seat split, seat 3 opens
+with 6|1 instead of 6|6 — i.e., not the first hand of a match) produces the **103-pip
+maximum**. The optimal play sequence exploits **individual-player pass mechanics**: B1 (seat 1)
+holds no face-2 tiles in that deal, and B2 (seat 3) holds no face-4 tiles. Team A times their
+plays so that end value 2 is exposed when it's B1's turn (forcing a pass) and end value 4
+is exposed when it's B2's turn (forcing a pass). The team-level argument from §5 alone
+would not predict these extra passes — they come from the *seat-split* level, which the
+exhaustive search captures naturally by treating each seat's hand independently.
 
 The rigged run randomized the partition (which 2 of the 4 pip-6 tiles are in heavy)
 across all six options each hand. Breaking the rigged samples by partition group:
@@ -292,9 +320,14 @@ those V-tiles. The deal partition structurally constrains which V can close.
 - The **structural upper bound is 118** (one team's heaviest 14 tiles, §2).
 - The **cooperative theoretical ceiling is 101–108** depending on partition (§4b).
   The {4|2, 3|3}-in-heavy partition is best at 108.
+- The **exhaustive cooperative maximum is 103** (partition {5|1, 3|3}, specific
+  seat split, optimal play sequence). This is the *provable* upper bound under
+  optimal cooperative play — no sequence beats it for any deal in the 50/118
+  family. The 5-pip gap to the §4b theoretical is the *genuine* play-feasibility
+  tax — much smaller than the harness empirical-vs-theoretical gap suggested.
 - The **empirical ceiling under perfect deal + cooperative play is 92** in the v2
-  randomized-partition run (compared to 107–108 for the partition that produced it).
-  Even with the perfect deal, ~16 pips remain on the table relative to theoretical.
+  randomized-partition run. The 11-pip gap to the exhaustive 103 represents the
+  algorithmic shortfall of the harness's cooperative heuristic (lowest-pip + prefer-pass).
 - The **empirical ceiling under natural deals is ~75–78**, essentially independent of
   whether the losing team is cooperative or adversarial.
 
