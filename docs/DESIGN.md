@@ -348,13 +348,20 @@ roadmap (July 2026 exploration):
 1. ~~**Fix the determinization real-hand leak.**~~ *(shipped v1.2.6 — see CHANGELOG. Measured
    2.06% of determinizations silently reused real hands when `_sampleValidDeals` dead-ended,
    peaking 3.71% mid-hand; fixed with a backtracking backstop, re-measured 0 in 1.52M.)*
-2. **Informed rollouts** — rollouts are uniform random, so a rollout player holding a domino-out
-   move plays it only by chance; noisy terminal evaluations are the likely reason extra
-   iterations stopped helping. Two steps, each a harness variant + 500-match A/B:
-   (a) *decisive-move check*: in rollout, if a move empties the hand, play it (~5 lines);
-   (b) *ε-greedy heuristic rollout*: prefer a cheap policy (shed high pips, avoid handing an
-   opponent a firme) with probability 1−ε. Cowling et al. document the trade-off. Compute
-   headroom is large (~4 ms/move vs. a seconds-scale UI budget).
+2. ~~**Informed rollouts**~~ *(tested July 2026 — both washed; default stays `'random'`.)*
+   Hypothesis: uniform-random rollouts make terminal evaluations noisy (a rollout player holding
+   a domino-out move plays it only by chance), and that noise is why 1000 ≈ 5000 iterations.
+   Tested as `ismcts(root, itermax, rolloutPolicy)` with harness variants:
+   (a) `rollout-decisive` — a rollout player one tile from domino always plays it:
+   **49.6% ± 4.4%** (CI 45.2–54.0, seats 49.2/50.0);
+   (b) `rollout-greedy` — decisive + ε-greedy highest-pip shed (ε = 0.25):
+   **48.6% ± 4.4%** (CI 44.2–53.0).
+   Interpretation: domino rollouts are short (hands are 7 tiles; simulations run ≤ ~20 plies)
+   and the tree already covers the near horizon at 1000 iterations, so rollout informedness is
+   not the binding constraint — and the pip-shed bias may even distort evaluations slightly.
+   The variants remain in the harness for interaction tests with later 0g items; the rollout
+   hypothesis for the 1000 ≈ 5000 plateau is disconfirmed, shifting suspicion to the reward
+   signal (0g.3) and determinization distribution (0g.5).
 3. **Margin- and match-aware reward** — `getResult()` is binary hand win/loss: winning by 5 and
    by 60 look identical, and the search knows nothing about the match score. Blend pip margin
    into terminal values (e.g. `0.5 + 0.5·margin/maxMargin` folded into win/loss) so cerrar

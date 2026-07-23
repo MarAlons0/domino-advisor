@@ -58,6 +58,44 @@ class Node {
     }
 }
 
+// Probability that the 'greedy' rollout policy plays uniformly at random
+// instead of the highest-pip heuristic — keeps rollouts from collapsing to a
+// single deterministic line (standard ε-greedy rollout, cf. Cowling §5).
+const ROLLOUT_EPSILON = 0.25;
+
+// Pip total of a "h-l|end" move key. Tile values are single digits (0-6) so
+// the key layout is fixed: pips at charcodes 0 and 2.
+function movePips(moveKey) {
+    return (moveKey.charCodeAt(0) - 48) + (moveKey.charCodeAt(2) - 48);
+}
+
+/**
+ * Pick one rollout move under the given policy. Policies:
+ *  - 'random'   : uniform random (canonical Cowling rollout)
+ *  - 'decisive' : random, except a player one tile from domino always plays it
+ *  - 'greedy'   : decisive check, then ε-greedy highest-pip shed
+ * The non-random policies additionally require `hands[playerToMove].size()`
+ * on the state (ISMCTSGameState provides it).
+ */
+function rolloutPick(state, legalMoves, policy) {
+    if (policy !== 'random' && legalMoves[0] !== 'pass'
+        && state.hands[state.playerToMove].size() === 1) {
+        // Decisive move: any legal tile play from a 1-tile hand wins the hand.
+        return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+    }
+    if (policy === 'greedy' && legalMoves[0] !== 'pass'
+        && Math.random() >= ROLLOUT_EPSILON) {
+        let best = legalMoves[0];
+        let bestPips = movePips(best);
+        for (let i = 1; i < legalMoves.length; i++) {
+            const p = movePips(legalMoves[i]);
+            if (p > bestPips) { bestPips = p; best = legalMoves[i]; }
+        }
+        return best;
+    }
+    return legalMoves[Math.floor(Math.random() * legalMoves.length)];
+}
+
 /**
  * Run ISMCTS for `itermax` iterations and return the most-visited move at the
  * root, along with the visit/win statistics of every root child so callers
@@ -65,13 +103,15 @@ class Node {
  *
  * @param {object} rootstate   - state implementing the required interface
  * @param {number} itermax     - number of search iterations (200-1000 typical)
+ * @param {string} [rolloutPolicy='random'] - 'random' | 'decisive' | 'greedy'
+ *          (see rolloutPick; affects only the simulation phase)
  * @returns {{ bestMove: string|null, rootStats: Array<{move:string, visits:number, wins:number, winRate:number}> }}
  *          - bestMove: most-visited root child's move key (null if no legal moves)
  *          - rootStats: per-root-child stats, sorted by visits descending. For the
  *            no-moves and forced-single-move cases this is empty / a single entry
  *            with zero visits respectively, since no real search ran.
  */
-export function ismcts(rootstate, itermax) {
+export function ismcts(rootstate, itermax, rolloutPolicy = 'random') {
     const root = new Node();
     const rootMoves = rootstate.getMoves();
     if (rootMoves.length === 0) {
@@ -107,11 +147,10 @@ export function ismcts(rootstate, itermax) {
             node = node.addChild(moveKey, player);
         }
 
-        // Simulate: random rollout to terminal.
+        // Simulate: rollout to terminal under the chosen rollout policy.
         legalMoves = state.getMoves();
         while (legalMoves.length > 0) {
-            const moveKey = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-            state.doMove(moveKey);
+            state.doMove(rolloutPick(state, legalMoves, rolloutPolicy));
             legalMoves = state.getMoves();
         }
 

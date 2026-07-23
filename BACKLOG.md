@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-07-23 (ISMCTS determinization leak fix shipped; search-quality roadmap added)_
+_Last updated: 2026-07-23 (0g.1 leak fix shipped; 0g.2 informed rollouts tested — washed)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -9,7 +9,6 @@ _Last updated: 2026-07-23 (ISMCTS determinization leak fix shipped; search-quali
 - [ ] **Visual effects for key moments (UX-A)** — highlight zapatos, cerrados, comebacks. `[feature]`
 
 ## 🟡 Medium
-- [ ] **ISMCTS informed rollouts (0g.2)** — decisive-move check, then ε-greedy heuristic rollout policy; A/B each at 500 matches. Highest-expected-value strength lever. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **ISMCTS margin/match-aware reward (0g.3)** — pip-margin-scaled terminal values + match-score context; validate at match level, not hand level. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Pure-ISMCTS vs. priority hybrid A/B (0g.4)** — let the search evaluate P2–P4 decisions instead of preempting it. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Determinization distribution A/B (0g.5)** — uniform vs. affinity-weighted sampling, now uncontaminated by the v1.2.6 leak fix. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
@@ -43,6 +42,7 @@ _Last updated: 2026-07-23 (ISMCTS determinization leak fix shipped; search-quali
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **ISMCTS informed rollouts (0g.2) — tested, washed** — decisive-move and ε-greedy pip-shed rollout policies both ~50% in 500-match A/Bs; default stays random, variants kept in harness. Disconfirms the rollout-noise hypothesis for the 1000≈5000-iteration plateau — v1.2.7
 - [x] **ISMCTS determinization real-hand leak fix (0g.1)** — backtracking sampler backstop; 2.06% of determinizations were searching with perfect information — v1.2.6
 - [x] **Maximum cerrado pip haul — theoretical + simulation** — analysis + `--max-cerrado` / `--cooperative-losers` / `--max-disparity-deals` harness modes. Empirical max ≈ 92 under rigged deal, ≈ 78 under natural deals; theoretical ceiling 97. See [docs/MAX_CERRADO.md](docs/MAX_CERRADO.md).
 - [x] **ISMCTS visit distribution exposed in debug mode** — v1.2.5

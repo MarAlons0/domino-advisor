@@ -66,6 +66,11 @@ export class SmartAI {
         // the BACKLOG 0f development and has been removed. The fallback now
         // dispatches on this.difficulties[playerIndex] in chooseMove().
         this.ismctsIterations = 1000;
+        // Per-seat ISMCTS rollout policy (BACKLOG 0g.2): 'random' (canonical
+        // uniform rollouts), 'decisive' (a rollout player one tile from domino
+        // always plays it), or 'greedy' (decisive + ε-greedy highest-pip shed).
+        // Harness variants rollout-decisive / rollout-greedy set these for A/Bs.
+        this.ismctsRolloutPolicy = ['random', 'random', 'random', 'random'];
         // Per-seat tolerance for move randomization: in the fallback path, pick
         // uniformly among moves whose finalScore is within this many points of
         // the top. Default 0 = always pick the single best move (deterministic).
@@ -565,7 +570,7 @@ export class SmartAI {
                 view: this.playerViews[playerIndex],
                 handTracker: this.handTracker,
             });
-            const ismctsResult = ismcts(root, this.ismctsIterations);
+            const ismctsResult = ismcts(root, this.ismctsIterations, this.ismctsRolloutPolicy[playerIndex]);
             const bestMoveKey = ismctsResult.bestMove;
             if (bestMoveKey && bestMoveKey !== 'pass') {
                 for (const move of scoredMoves) {

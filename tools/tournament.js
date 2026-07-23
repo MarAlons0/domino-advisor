@@ -47,7 +47,7 @@ const MAX_DISPARITY_PIP6 = [
     [6,0],[5,1],[4,2],[3,3],
 ];
 
-const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop'];
+const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy'];
 
 function parseArgs(argv) {
     const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, variant: 'mc-pass', allVariant: null };
@@ -147,6 +147,12 @@ function applyVariant(variant, ai, playerViews, seat) {
             // ISMCTS determinizations silently reuse the real hands (the
             // information leak fixed by PlayerView.useSamplerBackstop).
             playerViews[seat].useSamplerBackstop = false;
+            break;
+        case 'rollout-decisive':
+            ai.ismctsRolloutPolicy[seat] = 'decisive';
+            break;
+        case 'rollout-greedy':
+            ai.ismctsRolloutPolicy[seat] = 'greedy';
             break;
     }
 }

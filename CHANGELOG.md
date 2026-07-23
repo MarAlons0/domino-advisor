@@ -3,6 +3,14 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.2.7] – 2026-07-23
+
+### Added (internal)
+- **ISMCTS rollout-policy parameter and variants (BACKLOG 0g.2).** `ismcts()` now takes a third argument `rolloutPolicy` — `'random'` (canonical uniform rollouts, unchanged default), `'decisive'` (a rollout player one tile from domino always plays it), or `'greedy'` (decisive check + ε-greedy highest-pip shed, ε = 0.25). Per-seat `SmartAI.ismctsRolloutPolicy` flag; harness variants `rollout-decisive` / `rollout-greedy`.
+
+### Notes — experiment results
+- Both informed-rollout policies **washed** in 500-match A/Bs vs. random rollouts: decisive 49.6% ± 4.4% (CI 45.2–54.0%), greedy 48.6% ± 4.4% (CI 44.2–53.0%), both seat-balanced. No default change. This disconfirms the "rollout noise explains the 1000 ≈ 5000 iteration plateau" hypothesis: domino rollouts are short (≤ ~20 plies) and the tree covers the near horizon, so rollout informedness isn't the binding constraint. Remaining 0g leverage shifts to reward shaping (0g.3) and determinization distribution (0g.5). Variants stay in the harness for interaction tests with later 0g work.
+
 ## [1.2.6] – 2026-07-23
 
 ### Fixed
