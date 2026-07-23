@@ -362,16 +362,20 @@ roadmap (July 2026 exploration):
    The variants remain in the harness for interaction tests with later 0g items; the rollout
    hypothesis for the 1000 ≈ 5000 plateau is disconfirmed, shifting suspicion to the reward
    signal (0g.3) and determinization distribution (0g.5).
-3. **Margin- and match-aware reward** — `getResult()` is binary hand win/loss: winning by 5 and
-   by 60 look identical, and the search knows nothing about the match score. Blend pip margin
-   into terminal values (e.g. `0.5 + 0.5·margin/maxMargin` folded into win/loss) so cerrar
-   trade-offs are evaluated in-tree (potentially subsuming the noisy P2 pip estimator,
-   RMSE ≈ 9.3); pass match score in for endgame behavior (safe at match point, gamble when far
-   behind). **Validate at match level** — this can wash on hand win rate while improving match
-   win rate.
-4. **Let ISMCTS see more decisions** — P2 (cerrar), P3 (block), and P4 (partner support) preempt
-   the search; they were designed to compensate for a weaker fallback than we now have. A/B a
-   `pure-ismcts` variant keeping only P1 (winning move) as a shortcut.
+3. ~~**Margin-aware reward**~~ + 4. ~~**Let ISMCTS see more decisions**~~ *(shipped together in
+   v1.3.0 — the interaction was the story.)* 500-match A/Bs vs. the v1.2.x hybrid champion:
+   - `reward-margin` alone (priorities intact): **exact 250/250 wash** — the decisions where
+     margin matters (closes) never reached the search; P2 preempted them.
+   - `pure-ismcts` (P2/P3/P4 skipped, binary reward): **57.0% ± 4.3%** (CI 52.7–61.3) — the
+     hand-coded priorities, built to compensate for a weaker fallback, were *costing* strength.
+   - `pure-margin` (both): **58.8% ± 4.3%** (CI 54.5–63.1, seats 58.4/59.2) — new default.
+   Reward shape: `0.8·win + 0.2·(0.5 + 0.5·points/60)`, points = losing team's remaining pips.
+   The two pure variants aren't statistically separable at N=500; pure-margin chosen on trend +
+   principle (optimizes real points). P1 (winning move) kept as a shortcut. Experienced is
+   unaffected. Harness variants `legacy-hybrid` / `reward-binary` reproduce the old configs.
+   *Still open from the original item 3:* **match-score-aware reward** (safe at match point,
+   gamble when far behind) — needs match score threaded into `ISMCTSGameState`; queued as a
+   follow-up (0g.3b).
 5. **Determinization distribution A/B** — uniform vs. affinity-weighted sampling (proposed in 0f,
    never run; the leak fix removes the contamination that would have muddied it). Revives the
    strength value of 0b (end-choice inference) and 0c Phase 2: sharper affinities now have a

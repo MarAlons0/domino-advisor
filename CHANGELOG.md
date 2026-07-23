@@ -3,6 +3,22 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.3.0] – 2026-07-23
+
+### Changed
+- **Master is now pure ISMCTS with margin-aware reward (BACKLOG 0g.3 + 0g.4).** Through v1.2.x, the hand-coded priorities P2 (cerrar at pip advantage > threshold), P3 (high-confidence block), and P4 (early-game partner support) preempted the ISMCTS fallback. Those priorities were designed to compensate for a weaker fallback than the project now has — and measurably underperform the search. As of v1.3.0, at Master only P1 (an immediate winning move) short-circuits; every other decision, including closes, goes to ISMCTS, and terminal values blend the winner's actual point haul into the reward: `0.8·win + 0.2·(0.5 + 0.5·points/60)`, where points = losing team's remaining pips per `Rules.calculateHandResult`. Win/loss stays dominant (margin shifts a terminal value ≤ ±0.1) so the search prefers bigger hauls among near-equal win-probability lines without trading wins for points.
+
+  The experiment sequence that got here (500-match A/Bs vs. the v1.2.x hybrid champion):
+  - `reward-margin` alone (priorities intact): **exact 250/250 wash** — closes never reached the search, so the margin term had nothing to act on.
+  - `pure-ismcts` (P2–P4 skipped, binary reward): **57.0% ± 4.3%** (CI 52.7–61.3%).
+  - `pure-margin` (both): **58.8% ± 4.3%** (CI 54.5–63.1%, seats 58.4/59.2) → new default. Not statistically separable from pure-ismcts at N=500; chosen on trend plus principle (optimizes the points actually banked).
+
+  Consequences at Master: the v1.1.2 `cuadrarPipThreshold` no longer gates closes (the search weighs closing moves against the sampled hidden-hand distribution directly); defensive closes and partner support emerge in-tree. **Experienced and Beginner are unchanged** — the P2–P4 code paths remain active there (`ismctsPure` gates on `difficulty === 'master'`). Genín and debrief grading inherit the new pipeline automatically (v1.2.2 precedent). Move timing: mean ~7 ms, max ~310 ms (up from ~4/75 ms — more decisions now reach the search), still invisible behind the UI thinking delay.
+
+### Added (internal)
+- `SmartAI.ismctsPure` and `ismctsRewardShaping` per-seat flags (defaults `true` / `'margin'`); `ISMCTSGameState` `rewardShaping` option.
+- Harness variants: `pure-ismcts`, `pure-margin`, `reward-margin` (the 0g.3/0g.4 experiment set, now ≈ no-ops vs. the new default, kept for reproducibility), `legacy-hybrid` (restores the full v1.2.x master configuration for regression A/Bs), `reward-binary` (isolates the margin term).
+
 ## [1.2.7] – 2026-07-23
 
 ### Added (internal)

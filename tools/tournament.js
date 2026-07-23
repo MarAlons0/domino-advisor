@@ -47,7 +47,7 @@ const MAX_DISPARITY_PIP6 = [
     [6,0],[5,1],[4,2],[3,3],
 ];
 
-const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy'];
+const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary'];
 
 function parseArgs(argv) {
     const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, variant: 'mc-pass', allVariant: null };
@@ -153,6 +153,31 @@ function applyVariant(variant, ai, playerViews, seat) {
             break;
         case 'rollout-greedy':
             ai.ismctsRolloutPolicy[seat] = 'greedy';
+            break;
+        case 'reward-margin':
+            ai.ismctsRewardShaping[seat] = 'margin';
+            break;
+        case 'pure-ismcts':
+            ai.ismctsPure[seat] = true;
+            break;
+        case 'pure-margin':
+            // 0g.4 × 0g.3 interaction: search sees cerrar decisions AND has a
+            // margin-aware reward to weigh them with. (Default since v1.3.0 —
+            // kept for reproducibility of the 0g.4 experiments.)
+            ai.ismctsPure[seat] = true;
+            ai.ismctsRewardShaping[seat] = 'margin';
+            break;
+        case 'legacy-hybrid':
+            // The v1.2.x master configuration: P2-P4 priorities preempt the
+            // search, binary terminal reward. For regression A/Bs against the
+            // v1.3.0 pure+margin default.
+            ai.ismctsPure[seat] = false;
+            ai.ismctsRewardShaping[seat] = null;
+            break;
+        case 'reward-binary':
+            // Isolates the margin term: pure mode stays on (default), terminal
+            // reward reverts to binary win/loss.
+            ai.ismctsRewardShaping[seat] = null;
             break;
     }
 }

@@ -10,6 +10,17 @@ import { Hand } from '../models/Hand.js';
 
 const PASS = 'pass';
 
+// Margin-aware reward shaping (BACKLOG 0g.3). Terminal value becomes
+//   ALPHA·win + (1−ALPHA)·(0.5 + 0.5·signedPoints/SCALE)
+// where signedPoints is the losing team's remaining pip total (the points the
+// winner actually scores per Rules.calculateHandResult), positive when the
+// observer's team wins. ALPHA keeps win/loss dominant — the margin term can
+// shift a terminal value by at most ±(1−ALPHA)/2, enough to break ties
+// between near-equal win-probability lines without trading wins for points.
+// SCALE ≈ a large hand haul; margins are clamped to ±SCALE.
+const REWARD_ALPHA = 0.8;
+const REWARD_SCALE = 60;
+
 export class ISMCTSGameState {
     /**
      * Build the root state for an ISMCTS search.
@@ -18,11 +29,14 @@ export class ISMCTSGameState {
      * @param {number}   opts.observerIndex  - the AI seat running ISMCTS
      * @param {PlayerView} opts.view         - that AI's PlayerView (used for sampling)
      * @param {HandTracker} opts.handTracker - shared tracker
+     * @param {string|null} [opts.rewardShaping] - null for binary win/loss
+     *        (canonical), 'margin' for pip-margin-blended terminal values
      */
-    constructor({ realState, observerIndex, view, handTracker }) {
+    constructor({ realState, observerIndex, view, handTracker, rewardShaping = null }) {
         this.observerIndex = observerIndex;
         this.view = view;
         this.handTracker = handTracker;
+        this.rewardShaping = rewardShaping;
         this.playerToMove = realState.currentPlayer;
         this.hands = realState.hands.map(h => h.clone());
         this.chain = realState.chain.clone();
@@ -45,6 +59,7 @@ export class ISMCTSGameState {
         c.observerIndex = this.observerIndex;
         c.view = this.view;
         c.handTracker = this.handTracker;
+        c.rewardShaping = this.rewardShaping;
         c.playerToMove = this.playerToMove;
         c.chain = this.chain.clone();
         c.consecutivePasses = this.consecutivePasses;
@@ -117,23 +132,36 @@ export class ISMCTSGameState {
     }
 
     /**
-     * Result from the perspective of `player`: 1 = their team won, 0 = lost,
-     * 0.5 = tied. Must only be called at a terminal state.
+     * Result from the perspective of `player`. Binary mode (default):
+     * 1 = their team won, 0 = lost, 0.5 = tied. 'margin' mode blends the
+     * winner's actual point haul (losing team's remaining pips) into the
+     * terminal value — see REWARD_ALPHA/REWARD_SCALE. Must only be called
+     * at a terminal state.
      */
     getResult(player) {
         const myTeam = player % 2; // seats 0,2 = team 0; seats 1,3 = team 1
+        let winnerTeam = -1;
         // Domino: any player with empty hand wins for their team.
         for (let p = 0; p < 4; p++) {
             if (this.hands[p].size() === 0) {
-                return (p % 2) === myTeam ? 1 : 0;
+                winnerTeam = p % 2;
+                break;
             }
         }
-        // Otherwise blocked (or closed): compare team pip totals.
         const team0Pips = this.hands[0].pipCount() + this.hands[2].pipCount();
         const team1Pips = this.hands[1].pipCount() + this.hands[3].pipCount();
-        if (team0Pips === team1Pips) return 0.5;
-        const winnerTeam = team0Pips < team1Pips ? 0 : 1;
-        return winnerTeam === myTeam ? 1 : 0;
+        if (winnerTeam === -1) {
+            // Blocked (or closed): lower team pip total wins.
+            if (team0Pips === team1Pips) return 0.5;
+            winnerTeam = team0Pips < team1Pips ? 0 : 1;
+        }
+        const win = winnerTeam === myTeam ? 1 : 0;
+        if (this.rewardShaping !== 'margin') return win;
+        // Points the winner scores = losing team's remaining pips.
+        const points = winnerTeam === 0 ? team1Pips : team0Pips;
+        const signed = win === 1 ? points : -points;
+        const m = Math.max(-1, Math.min(1, signed / REWARD_SCALE));
+        return REWARD_ALPHA * win + (1 - REWARD_ALPHA) * (0.5 + 0.5 * m);
     }
 
     /** @private */

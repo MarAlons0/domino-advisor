@@ -71,6 +71,25 @@ export class SmartAI {
         // always plays it), or 'greedy' (decisive + ε-greedy highest-pip shed).
         // Harness variants rollout-decisive / rollout-greedy set these for A/Bs.
         this.ismctsRolloutPolicy = ['random', 'random', 'random', 'random'];
+        // Per-seat ISMCTS terminal reward shaping (BACKLOG 0g.3): 'margin'
+        // blends the winner's point haul (losing team's remaining pips) into
+        // terminal values so the search distinguishes winning by 60 from
+        // winning by 5; null is canonical binary win/loss. Default 'margin'
+        // as of v1.3.0 (with pure mode below: 58.8% CI 54.5-63.1 vs the
+        // v1.2.x hybrid in a 500-match A/B). Harness variant reward-binary
+        // reverts to null for A/Bs.
+        this.ismctsRewardShaping = ['margin', 'margin', 'margin', 'margin'];
+        // Per-seat pure-ISMCTS mode (BACKLOG 0g.4): when true (and the seat is
+        // master), the P2 cerrar / P3 block / P4 partner-support priorities are
+        // skipped so the tree search evaluates those decisions itself — every
+        // valid move (including closes) goes to the ISMCTS fallback. P1
+        // (winning move) is kept as a trivial shortcut. Default true as of
+        // v1.3.0: the priorities were designed to compensate for a weaker
+        // fallback and measurably underperform the search (pure-ismcts 57.0%
+        // CI 52.7-61.3 vs the hybrid). Harness variant legacy-hybrid restores
+        // the v1.2.x configuration for A/Bs. Experienced/beginner seats are
+        // unaffected (the gate requires difficulty === 'master').
+        this.ismctsPure = [true, true, true, true];
         // Per-seat tolerance for move randomization: in the fallback path, pick
         // uniformly among moves whose finalScore is within this many points of
         // the top. Default 0 = always pick the single best move (deterministic).
@@ -457,8 +476,16 @@ export class SmartAI {
             return { ...winningMove, reasoning: 'Winning move - domino!' };
         }
 
+        // Pure-ISMCTS mode (0g.4): skip P2/P3/P4 so the tree search sees every
+        // valid move and evaluates cerrar/block/support decisions in-tree.
+        const pureISMCTS = this.ismctsPure[playerIndex] && this.difficulties[playerIndex] === 'master';
+
         // PRIORITY 2: Cerrar — close the game when probability-weighted pip edge favors us
-        const { move: cerrarMove, excludeCerrar } = this._findCerrarMove(validMoves, gameState, playerIndex, chain, activeView);
+        let cerrarMove = null;
+        let excludeCerrar = false;
+        if (!pureISMCTS) {
+            ({ move: cerrarMove, excludeCerrar } = this._findCerrarMove(validMoves, gameState, playerIndex, chain, activeView));
+        }
         if (DEBUG_AI) {
             debugInfo.priorities.cerrarMove = cerrarMove ? cerrarMove.tile.toString() : null;
             debugInfo.priorities.excludeCerrar = excludeCerrar;
@@ -489,7 +516,7 @@ export class SmartAI {
         const evalMoves = candidateMoves.length > 0 ? candidateMoves : validMoves;
 
         // PRIORITY 3: Check for high-confidence blocking opportunity
-        const blockingMove = this._findHighConfidenceBlock(evalMoves, gameState, playerIndex, chain, activeView);
+        const blockingMove = pureISMCTS ? null : this._findHighConfidenceBlock(evalMoves, gameState, playerIndex, chain, activeView);
         if (DEBUG_AI) {
             debugInfo.priorities.blockingMove = blockingMove ? {
                 tile: blockingMove.tile.toString(),
@@ -517,7 +544,7 @@ export class SmartAI {
         }
 
         // PRIORITY 4: Partner support in early game (first 8 plays)
-        const partnerSupportMove = this._findPartnerSupportMove(evalMoves, gameState, playerIndex, chain, activeView);
+        const partnerSupportMove = pureISMCTS ? null : this._findPartnerSupportMove(evalMoves, gameState, playerIndex, chain, activeView);
         if (DEBUG_AI) {
             debugInfo.priorities.partnerSupport = partnerSupportMove ? partnerSupportMove.tile.toString() : null;
             debugInfo.priorities.partnerSupportActive = this.playCount < 8;
@@ -569,6 +596,7 @@ export class SmartAI {
                 observerIndex: playerIndex,
                 view: this.playerViews[playerIndex],
                 handTracker: this.handTracker,
+                rewardShaping: this.ismctsRewardShaping[playerIndex],
             });
             const ismctsResult = ismcts(root, this.ismctsIterations, this.ismctsRolloutPolicy[playerIndex]);
             const bestMoveKey = ismctsResult.bestMove;

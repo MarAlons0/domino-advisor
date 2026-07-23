@@ -76,7 +76,7 @@ Each AI player (Opp 1, Partner, Opp 2) can be set independently via the Settings
 
 | Layer | Beginner | Experienced | Master |
 |---|---|---|---|
-| Priority system (winning / blocking / partner support) | ✗ | ✓ | ✓ |
+| Priority system (winning / blocking / partner support) | ✗ | ✓ | P1 (winning) only — P2–P4 searched in-tree (v1.3.0) |
 | 10-factor heuristic scoring | ✗ (simplified) | ✓ | ✓ |
 | Bayesian inference (suit affinities, PlayerView) | ✗ | ✓ | ✓ |
 | HandTracker pass constraints | ✗ | ✓ | ✓ |
@@ -88,7 +88,7 @@ Each AI player (Opp 1, Partner, Opp 2) can be set independently via the Settings
 
 **Experienced** runs the complete rule-based engine — priorities, 10-factor heuristic scoring, Bayesian suit-affinity inference, firme reasoning, the cuadrar pip-advantage threshold, calibrated probabilities — and blends static scoring with Monte Carlo lookahead (adaptive depth 1-6, 30-100 samples driven by certainty). This is the strongest rule-based configuration the project has shipped (it was the Master level through v1.1.x).
 
-**Master (v1.2.0+)** runs the same priorities and scoring as Experienced, but in the fallback step it replaces the Monte Carlo blend with **Information Set Monte Carlo Tree Search (ISMCTS)** — a proper tree search that builds one unified search tree across thousands of sampled determinizations and selects the most-visited root move. In 500-match self-play A/B against the Experienced configuration, Master wins ~66% of matches (CI 61–70%). See the ISMCTS section below for details, attribution, and references.
+**Master (v1.2.0+, reworked v1.3.0)** hands nearly every decision to **Information Set Monte Carlo Tree Search (ISMCTS)** — a proper tree search that builds one unified search tree across thousands of sampled determinizations and selects the most-visited root move. Since v1.3.0 Master is *pure* search: only Priority 1 (an immediate winning move) short-circuits; cerrar, blocking, and partner-support decisions — previously hand-coded priorities — are evaluated in-tree, and terminal values blend the winner's actual point haul into the reward (`0.8·win + 0.2·margin`), so the search distinguishes winning by 60 from winning by 5. The pure+margin configuration beat the v1.2.x priority hybrid **58.8% (CI 54.5–63.1%)** in a 500-match A/B — the hand-coded priorities, designed to compensate for a weaker fallback, were measurably underperforming the search. (The v1.2.0 hybrid itself won ~66% against Experienced.) See the ISMCTS section below for details, attribution, and references.
 
 ---
 
@@ -132,6 +132,10 @@ The SmartAI implements a **priority-based decision system** with **weighted scor
 │  7. FALLBACK (Master): Score moves statically, then run     │
 │     ISMCTS (1000 iterations) and pick the most-visited      │
 │     root move                                               │
+│                                                             │
+│  NOTE (v1.3.0): at Master, steps 5-6 (and the cerrar        │
+│  priority) are skipped — those decisions are evaluated      │
+│  inside the ISMCTS tree. Only steps 1-4 + 7 apply.          │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -510,21 +514,18 @@ Standard MCTS assumes perfect information. Dominoes is a hidden-information game
 
 ## How it integrates
 
-The first three priorities are unchanged at Master:
-1. Winning move (domino) — return immediately
-2. High-confidence cuadrar block at pip advantage > 5
-3. Partner support in early game
-
-If none triggers, instead of the static-score + Monte Carlo blend, the Master AI:
+Since **v1.3.0**, Master is *pure* search. Only Priority 1 (an immediate winning move) short-circuits; every other decision — including cerrar, high-confidence blocking, and partner support, which were hand-coded priorities through v1.2.x — reaches the search and is evaluated in-tree. The Master AI:
 1. Constructs an `ISMCTSGameState` wrapping the current `GameState`, `Chain`, and player `Hand`s
 2. Calls `ismcts(rootstate, 1000)` from `ISMCTSEvaluator.js`
 3. Receives the most-visited root move and plays it
 
-The static 10-factor scoring still runs, so decision instrumentation (factor breakdowns, top-factor records) stays populated for the debrief and debug logs — only the *selection* of the chosen move shifts from "highest scored" to "most-visited in the ISMCTS tree."
+Terminal values use **margin-aware reward shaping** (v1.3.0): `0.8·win + 0.2·(0.5 + 0.5·points/60)`, where `points` is the losing team's remaining pips — the score the winner actually banks under `Rules.calculateHandResult`. Win/loss stays dominant (the margin term shifts a terminal value by at most ±0.1), so the search breaks ties between near-equal win-probability lines in favor of bigger point hauls instead of trading wins for points. Measured in 500-match A/Bs against the v1.2.x hybrid: pure search with binary reward wins 57.0% (CI 52.7–61.3%); pure + margin wins 58.8% (CI 54.5–63.1%). Margin shaping *without* pure mode was an exact wash — the decisions where margin matters (closes) never reached the search while the P2 priority preempted them. The harness variants `legacy-hybrid` and `reward-binary` reproduce the old configurations for regression A/Bs.
+
+The static 10-factor scoring still runs, so decision instrumentation (factor breakdowns, top-factor records) stays populated for the debrief and debug logs — only the *selection* of the chosen move shifts from "highest scored" to "most-visited in the ISMCTS tree." The P2–P4 priority code paths remain active at Experienced. At Master, the v1.1.2 `cuadrarPipThreshold` no longer gates closes — the search weighs closing moves directly against the sampled distribution of hidden hands.
 
 ## Iteration count
 
-The default is **1000 iterations per decision**. Mean wall time per AI move at this setting is **~4 ms**, with a long tail up to **~75 ms** in late-game positions where the tree gets deeper. Both are imperceptible behind the UI's existing AI "thinking" delay.
+The default is **1000 iterations per decision**. Mean wall time per AI move at this setting is **~7 ms** (v1.3.0 pure mode — more decisions reach the search than under the v1.2.x hybrid), with a long tail up to **~310 ms** in complex positions. Both are imperceptible behind the UI's existing AI "thinking" delay.
 
 This number was chosen empirically by running A/Bs at 200, 1000, 2000, 5000, and 10000 iterations against the Experienced fallback. At 200 iterations the search was too thin (~50% win rate, indistinguishable from Experienced). From 1000 iterations onward the result becomes a clear win and the marginal benefit of more iterations flattens — at 500 matches the win rate at 1000 and 5000 iterations is statistically indistinguishable (65.6% vs 63.4%), while 1000 is ~3.5× faster. At 10000 iterations the result *regressed* due to garbage-collection pauses on a very large tree, with worst-case decision latencies up to ~25 seconds. **1000 iterations is the sweet spot of strength vs. latency.**
 
@@ -554,8 +555,8 @@ Two further references that informed the integration design:
 
 - **Partnership Dominoes**: 4-player teams (You + Partner vs. Opponents)
 - **Configurable AI Difficulty**: Set each AI player (Opp 1, Partner, Opp 2) independently to Beginner, Experienced, or Master. Settings persist in localStorage.
-- **ISMCTS-Powered Master**: At Master difficulty, the fallback path runs Information Set Monte Carlo Tree Search (Cowling, Powley, Whitehouse 2012) — a proper hidden-information tree search that wins ~66% head-to-head against the prior best (Experienced fallback) in 500-match self-play A/B.
-- **Smart AI**: Priority-based decisions with calibrated probabilities, firme reasoning, cuadrar pip-advantage threshold, weighted 10-factor scoring, and Monte Carlo look-ahead (Experienced) or ISMCTS (Master)
+- **ISMCTS-Powered Master**: At Master difficulty, nearly every decision runs through Information Set Monte Carlo Tree Search (Cowling, Powley, Whitehouse 2012) with margin-aware reward shaping (v1.3.0 pure-search rework: 58.8% head-to-head vs. the v1.2.x priority hybrid, which itself won ~66% vs. Experienced).
+- **Smart AI**: Priority-based decisions with calibrated probabilities, firme reasoning, cuadrar pip-advantage threshold, weighted 10-factor scoring, and Monte Carlo look-ahead (Experienced) or pure ISMCTS (Master)
 - **Genín Coach**: Ask Genín for move advice with strategic explanations — firme detection, cuadrar/cerrar analysis, opponent reads, and partner support guidance
 - **Bayesian Inference**: AI tracks suit affinities from play patterns (salida, suit introduction, end avoidance) to sharpen probability estimates
 - **Quiz Mode**: Test your ability to predict opponent hands
@@ -571,7 +572,7 @@ Two further references that informed the integration design:
 
 # Genín Coach — Advice System
 
-During your turn, click **"Ask Genín"** to get a move recommendation with a strategic explanation. **As of v1.2.2** Genín's recommendation goes through the full **Master** decision pipeline — priorities (winning move, high-confidence cuadrar, partner support), the calibrated 10-factor scoring with firme strategy and cuadrar pip-advantage threshold, and ISMCTS tree search at 1000 iterations in the fallback path. The static factor breakdown is computed on top of the chosen move so the explanation below still describes *why* the move is strong in factor terms. (Previously Genín used only single-ply static scoring, which Mario observed as "very focused on single plays rather than the longitudinal game" — accurate, because no priorities or lookahead ran.)
+During your turn, click **"Ask Genín"** to get a move recommendation with a strategic explanation. **As of v1.2.2** Genín's recommendation goes through the full **Master** decision pipeline — which since **v1.3.0** means pure ISMCTS tree search at 1000 iterations with margin-aware reward (only an immediate winning move short-circuits; cerrar, blocking, and partner-support trade-offs are weighed inside the search). The static factor breakdown is computed on top of the chosen move so the explanation below still describes *why* the move is strong in factor terms. (Previously Genín used only single-ply static scoring, which Mario observed as "very focused on single plays rather than the longitudinal game" — accurate, because no priorities or lookahead ran.)
 
 Genín shows:
 
