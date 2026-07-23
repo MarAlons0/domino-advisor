@@ -47,7 +47,7 @@ const MAX_DISPARITY_PIP6 = [
     [6,0],[5,1],[4,2],[3,3],
 ];
 
-const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10'];
+const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop'];
 
 function parseArgs(argv) {
     const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, variant: 'mc-pass', allVariant: null };
@@ -141,6 +141,12 @@ function applyVariant(variant, ai, playerViews, seat) {
             break;
         case 'rand10':
             ai.randomizeTolerance[seat] = 10;
+            break;
+        case 'no-det-backstop':
+            // Reproduces the pre-fix sampler: greedy attempts only, so failed
+            // ISMCTS determinizations silently reuse the real hands (the
+            // information leak fixed by PlayerView.useSamplerBackstop).
+            playerViews[seat].useSamplerBackstop = false;
             break;
     }
 }

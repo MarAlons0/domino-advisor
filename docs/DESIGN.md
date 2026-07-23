@@ -335,6 +335,50 @@ Either (a) commit to the ~350-line build behind a harness variant, or (b) defer 
 
 ---
 
+### 0g. ISMCTS Search-Quality Improvements
+**Priority:** Medium-High
+**Complexity:** Low–Medium (per item)
+**Depends on:** ISMCTS Master fallback (v1.2.0)
+
+The v1.2.0 A/B found 1000 and 5000 ISMCTS iterations perform identically — the search is not
+compute-limited, it's limited by what each iteration measures. That points the remaining leverage
+at the three quality components of the loop: determinization, rollouts, and reward. Ranked
+roadmap (July 2026 exploration):
+
+1. ~~**Fix the determinization real-hand leak.**~~ *(shipped v1.2.6 — see CHANGELOG. Measured
+   2.06% of determinizations silently reused real hands when `_sampleValidDeals` dead-ended,
+   peaking 3.71% mid-hand; fixed with a backtracking backstop, re-measured 0 in 1.52M.)*
+2. **Informed rollouts** — rollouts are uniform random, so a rollout player holding a domino-out
+   move plays it only by chance; noisy terminal evaluations are the likely reason extra
+   iterations stopped helping. Two steps, each a harness variant + 500-match A/B:
+   (a) *decisive-move check*: in rollout, if a move empties the hand, play it (~5 lines);
+   (b) *ε-greedy heuristic rollout*: prefer a cheap policy (shed high pips, avoid handing an
+   opponent a firme) with probability 1−ε. Cowling et al. document the trade-off. Compute
+   headroom is large (~4 ms/move vs. a seconds-scale UI budget).
+3. **Margin- and match-aware reward** — `getResult()` is binary hand win/loss: winning by 5 and
+   by 60 look identical, and the search knows nothing about the match score. Blend pip margin
+   into terminal values (e.g. `0.5 + 0.5·margin/maxMargin` folded into win/loss) so cerrar
+   trade-offs are evaluated in-tree (potentially subsuming the noisy P2 pip estimator,
+   RMSE ≈ 9.3); pass match score in for endgame behavior (safe at match point, gamble when far
+   behind). **Validate at match level** — this can wash on hand win rate while improving match
+   win rate.
+4. **Let ISMCTS see more decisions** — P2 (cerrar), P3 (block), and P4 (partner support) preempt
+   the search; they were designed to compensate for a weaker fallback than we now have. A/B a
+   `pure-ismcts` variant keeping only P1 (winning move) as a shortcut.
+5. **Determinization distribution A/B** — uniform vs. affinity-weighted sampling (proposed in 0f,
+   never run; the leak fix removes the contamination that would have muddied it). Revives the
+   strength value of 0b (end-choice inference) and 0c Phase 2: sharper affinities now have a
+   direct consumer in the search.
+6. **Longer shots** — tree reuse between consecutive moves; per-move time budget instead of fixed
+   iterations; MAST-style rollout learning; a learned (DNN) rollout policy as the natural entry
+   point for the backlog DNN item, trained on harness self-play.
+
+Also worth tracking: **Experienced** still runs the old MC-blend and inherits none of this. If
+the gap to Master grows too large, a reduced-iteration ISMCTS (100–200 iters) could become the
+new Experienced.
+
+---
+
 ### 1. Configurable AI Strategy Weights
 **Priority:** Low
 **Complexity:** Medium

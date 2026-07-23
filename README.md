@@ -530,7 +530,7 @@ This number was chosen empirically by running A/Bs at 200, 1000, 2000, 5000, and
 
 ## Determinization
 
-Each iteration calls `ISMCTSGameState.cloneAndRandomize(observer)`, which delegates to `PlayerView._sampleValidDeals(1)` — the same affinity-weighted hand sampler the Monte Carlo blend already uses. This means our ISMCTS determinization respects everything the AI has observed (played tiles, passes, dead-suit inferences, suit-affinity signals) by construction. Pure uniform sampling within the information set may be A/B'd as a future variant; the current default uses affinity-weighted sampling.
+Each iteration calls `ISMCTSGameState.cloneAndRandomize(observer)`, which delegates to `PlayerView._sampleValidDeals(1)` — the same affinity-weighted hand sampler the Monte Carlo blend already uses. This means our ISMCTS determinization respects everything the AI has observed (played tiles, passes, dead-suit inferences, suit-affinity signals) by construction. Since v1.2.6 the sampler carries a backtracking backstop (`PlayerView._backtrackingDeal`): if the greedy assignment dead-ends in a constrained position, a most-constrained-first backtracking search completes the deal instead of failing — previously ~2% of determinizations silently fell back to the *real* hands, an information leak into the search. Pure uniform sampling within the information set may be A/B'd as a future variant; the current default uses affinity-weighted sampling.
 
 ## Attribution
 

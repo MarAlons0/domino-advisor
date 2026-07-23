@@ -50,6 +50,15 @@ export class PlayerView {
         // existing behavior is unchanged.
         this.useMcDerivedPassProb = false;
 
+        // When true, _sampleValidDeals falls back to a backtracking assignment
+        // whenever the greedy sampler comes up short. Without it, constrained
+        // mid-hand positions can fail all greedy attempts, and ISMCTS's
+        // cloneAndRandomize then silently reuses the REAL hands — a perfect-
+        // information leak measured at ~2% of determinizations (peak 3.7% at
+        // 12-15 tiles played). On by default; the harness `no-det-backstop`
+        // variant disables it to reproduce the old behavior in A/Bs.
+        this.useSamplerBackstop = true;
+
         // (Platt-scaling recalibration on getProbability is now always on.
         // The useCalibratedProbs flag was a transitional gate; confirmed
         // non-regressive in a 500-match A/B and locked in for v1.1.1.)
@@ -593,7 +602,84 @@ export class PlayerView {
             }
         }
 
+        // Backstop: the greedy pass assigns tiles in shuffled order with no
+        // backtracking, so tight positions can dead-end every attempt. The true
+        // deal is always consistent with the constraints, so a full assignment
+        // exists — find the missing samples by backtracking search instead of
+        // returning short (which leaks real hands into ISMCTS determinization).
+        if (this.useSamplerBackstop) {
+            while (validDeals.length < numSamples) {
+                const deal = this._backtrackingDeal(unknownTiles, targetCounts);
+                if (deal === null) break; // constraint model inconsistent; give up
+                validDeals.push(deal);
+            }
+        }
+
         return validDeals;
+    }
+
+    /**
+     * Single affinity-weighted random deal via backtracking search.
+     * Assigns most-constrained tiles first (fewest possible holders); at each
+     * tile, tries eligible holders in affinity-weighted random order and
+     * backtracks on dead ends. Guaranteed to find a deal when one exists
+     * (the real deal always does), unlike the greedy pass above.
+     *
+     * @param {Array<{key: string, tile: Tile, holders: number[]}>} unknownTiles
+     * @param {Map<number, number>} targetCounts - tiles each player needs
+     * @returns {Map<string, number>|null} tileKey → playerIndex, or null
+     * @private
+     */
+    _backtrackingDeal(unknownTiles, targetCounts) {
+        // Most-constrained-first ordering; random tiebreak keeps samples diverse.
+        const tiles = unknownTiles
+            .map(t => ({ t, r: Math.random() }))
+            .sort((a, b) => (a.t.holders.length - b.t.holders.length) || (a.r - b.r))
+            .map(x => x.t);
+
+        const counts = new Map();
+        for (const p of targetCounts.keys()) counts.set(p, 0);
+        const deal = new Map();
+        // Step budget bounds pathological cases; normal positions resolve with
+        // little to no backtracking thanks to the MRV ordering.
+        let steps = 0;
+        const MAX_STEPS = 20000;
+
+        const assign = (i) => {
+            if (i === tiles.length) return true;
+            if (++steps > MAX_STEPS) return false;
+            const { key, tile, holders } = tiles[i];
+            const pool = [];
+            for (const p of holders) {
+                if (targetCounts.has(p) && counts.get(p) < targetCounts.get(p)) {
+                    pool.push({ p, w: this._getTileAffinity(p, tile) });
+                }
+            }
+            // Affinity-weighted random order without replacement.
+            while (pool.length > 0) {
+                const total = pool.reduce((s, e) => s + e.w, 0);
+                let r = Math.random() * total;
+                let idx = pool.length - 1;
+                for (let j = 0; j < pool.length; j++) {
+                    r -= pool[j].w;
+                    if (r <= 0) { idx = j; break; }
+                }
+                const p = pool.splice(idx, 1)[0].p;
+                deal.set(key, p);
+                counts.set(p, counts.get(p) + 1);
+                if (assign(i + 1)) return true;
+                counts.set(p, counts.get(p) - 1);
+                deal.delete(key);
+            }
+            return false;
+        };
+
+        if (!assign(0)) return null;
+        // Mirror the greedy path's final guard: every player at target count.
+        for (const [p, target] of targetCounts) {
+            if (counts.get(p) !== target) return null;
+        }
+        return deal;
     }
 
     // ==================== Internal Methods ====================

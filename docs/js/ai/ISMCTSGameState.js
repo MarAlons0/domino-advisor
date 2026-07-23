@@ -62,7 +62,11 @@ export class ISMCTSGameState {
     cloneAndRandomize(observer) {
         const c = this._clone();
         // Use the PlayerView's MC sampler — it already enforces dead-suit
-        // constraints and respects tile counts. We request 1 sample.
+        // constraints and respects tile counts. We request 1 sample. With the
+        // sampler's backtracking backstop this cannot come back empty unless
+        // the constraint model itself is inconsistent; the bare `return c`
+        // below (which keeps the REAL hands — an information leak) is a
+        // last-resort guard, not an expected path.
         const deals = this.view._sampleValidDeals(1);
         if (deals.length === 0) return c; // sampler failed; keep current hands
 

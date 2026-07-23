@@ -3,6 +3,15 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.2.6] – 2026-07-23
+
+### Fixed
+- **ISMCTS determinization silently searched with real hands ~2% of the time.** `PlayerView._sampleValidDeals` assigns unknown tiles greedily in shuffled order with no backtracking and gives up after 3 attempts per requested sample. In constrained positions every attempt can dead-end; `ISMCTSGameState.cloneAndRandomize` then kept the clone's **real hands**, so that search iteration ran with perfect information. Measured over 20 master self-play matches (1.39M determinizations): **2.06% of iterations leaked, peaking at 3.71%** in the 12–15 tiles-played bucket — precisely where affinity weights are most skewed and honest inference matters most.
+
+  Fix: when the greedy pass comes up short, `_sampleValidDeals` now completes the missing samples with a backtracking search (`PlayerView._backtrackingDeal`): most-constrained-tiles-first (MRV) ordering with random tiebreak, affinity-weighted random holder order, backtrack on dead ends, 20k-step safety budget. The true deal is always consistent with the observed constraints, so a full assignment always exists and the sampler can no longer come up empty. Gated by `PlayerView.useSamplerBackstop` (default **on**); new harness variant `no-det-backstop` reproduces the old behavior for A/Bs. Side benefit: `_computeMcMarginals` (500-sample marginals) no longer silently under-samples constrained positions either.
+
+  Verification: re-measurement over 20 matches / 1.52M determinizations shows **0 failures** and 0 constraint violations across all sampled deals, with no wall-time regression. 500-match A/B (champion = fixed, challenger = leaky): challenger 53.8% ± 4.4% (CI 49.4–58.2%, seat-balanced 53.6/54.0) — statistically inconclusive, trending in the *expected* direction: the old behavior was an occasional-omniscience **cheat**, so the leaky variant holds a slight edge over the honest one. The fix is locked in on correctness grounds; the delta is the measured size of the cheat, not a regression.
+
 ## [1.2.5] – 2026-06-14
 
 ### Changed
