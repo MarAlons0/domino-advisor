@@ -12,6 +12,20 @@ Deep design detail does **not** live here — see [Long design specs](#long-desi
 
 ---
 
+## Edited from the dashboard
+
+The Project Dashboard can edit and commit this `BACKLOG.md` **straight to the repo's `main`**
+via the GitHub Contents API (its in-app backlog editor). So:
+
+- The remote `BACKLOG.md` may be **ahead of your local clone** — run `git pull` before editing
+  the backlog locally, and before any release that touches it.
+- A conflict only arises if the same file was changed both locally (uncommitted) and from the
+  dashboard. (Same pattern as Looking4Nature's `photos.json`.)
+- Dashboard commits use the message `Update BACKLOG.md via dashboard` and are **not** releases —
+  no version bump needed.
+
+---
+
 ## Header
 
 ```markdown
