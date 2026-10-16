@@ -3,6 +3,20 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.4.0] – 2026-10-16
+
+### Added
+- **Mano-level feedback — per-hand coaching at the hand-end modal.** After every hand, the result modal now shows a compact Genín coaching card: an outcome-plus-verdict line (e.g. "Won +24 · Sharp close", "Lost −8 · Missed close") with an expandable "Why?" detail. It is local and rule-based (no Claude API) — immediate, free, and complementary to the longitudinal Claude match analysis. Always on, independent of difficulty.
+
+  The design separates **outcome** (did the team win/lose, by how much) from **process** (how good the human's decisions were given the information available), because the human is 1 of 4 players — a loss is not necessarily bad play, nor a win good. Moment selection prioritizes the **cerrar decision** (taken or declined) over the biggest score-gap play over a positive highlight.
+
+  The cerrar feedback is **process-first**: it contrasts what the player could *infer* at the moment — the pip edge readable from observed passes/fallas, via `_estimateTeamPips` on the human's own `PlayerView` — against the ground-truth outcome. So it teaches reading the signals under uncertainty rather than hindsight-nagging: good process with a bad outcome is praised ("the decision was sound; the tiles didn't cooperate"), and a lucky win against an unclear read is gently flagged.
+
+### Added (internal)
+- `SmartAI.analyzeHumanTurn(gameState, playerIndex, playedMove)` — per-turn coaching instrumentation: the played move's static score (so different-tile plays grade by true score gap, not the old shared-value heuristic), cerrar availability/decision, and both the ground-truth cerrar counterfactual and the information-set pip edge + readable tells (opponent fallas, tiles remaining).
+- `docs/js/coach/HandFeedback.js` — `buildHandFeedback(hand, data, humanSeat)` pure generator returning `{outcome, verdict, moment}` with i18n keys + positional args.
+- Play records now carry `turnAnalysis`; `MatchHistory._evaluatePlay` consumes the played-move score; `Game.playTurn` forwards the analysis. New `coach.*` i18n keys (en + es).
+
 ## [1.3.0] – 2026-07-23
 
 ### Changed

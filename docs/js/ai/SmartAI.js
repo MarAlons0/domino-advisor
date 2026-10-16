@@ -1499,6 +1499,88 @@ export class SmartAI {
     }
 
     /**
+     * Analyze a human player's turn for mano-level (per-hand) coaching feedback.
+     * Captured at play time so the hand-end feedback generator can both grade the
+     * play accurately (via the played move's static score) and reason about the
+     * cerrar decision. The cerrar pip math uses the live engine state — the coach
+     * sees all four hands, so this is ground truth, not the player's limited view.
+     *
+     * @param {GameState} gameState - state BEFORE the move is applied
+     * @param {number} playerIndex - the human seat (typically 0)
+     * @param {{tile: Tile, end: string}|null} playedMove - move about to be played, or null for a pass
+     * @returns {{
+     *   recommendation: {tile,end,reasoning,score}|null,
+     *   playedScore: number|null,
+     *   cerrarAvailable: boolean,
+     *   cerrarTaken: boolean,
+     *   closeOutcome: {myRemaining:number, oppRemaining:number, scoreIfClosed:number}|null
+     * }}
+     */
+    analyzeHumanTurn(gameState, playerIndex, playedMove) {
+        const hand = gameState.hands[playerIndex];
+        const chain = gameState.chain;
+        const view = this.playerViews?.[playerIndex] || this.handTracker;
+        const mustPlayDoubleSix = gameState.isFirstHand && chain.isEmpty();
+        const validMoves = Rules.getValidMoves(hand, chain, mustPlayDoubleSix);
+
+        // The AI's recommendation (uses the full master pipeline via chooseMove).
+        const recommendation = this.getRecommendation(gameState, playerIndex);
+
+        // Static score of the move the human actually played — lets MatchHistory
+        // grade a different-tile play by true score gap instead of the old heuristic.
+        const playedScore = (playedMove && playedMove.tile)
+            ? this.scoreMove(playedMove, gameState, playerIndex, view).total
+            : null;
+
+        // Cerrar availability / decision.
+        const cerrarMoves = validMoves.filter(m => this._willCerrar(m, chain));
+        const cerrarAvailable = cerrarMoves.length > 0;
+        const cerrarTaken = !!(playedMove && playedMove.tile && this._willCerrar(playedMove, chain));
+
+        // Ground-truth counterfactual: what would closing have scored right now?
+        // Cerrar rule: the team with fewer remaining pips wins the loser's pip total;
+        // a tie goes to the closing team. Positive scoreIfClosed = points FOR the
+        // human's team; negative = points conceded to the opponents.
+        let closeOutcome = null;
+        if (cerrarAvailable) {
+            const partner = GameState.getPartner(playerIndex);
+            const opps = this.getOpponents(playerIndex);
+            const closingMove = cerrarTaken ? playedMove : cerrarMoves[0];
+            const closeValue = this._getEndsAfterPlay(closingMove, chain).newLeftEnd;
+
+            // --- Ground truth (the OUTCOME: coach sees all four hands) ---
+            const myTeamPips = hand.pipCount() + gameState.hands[partner].pipCount();
+            const oppRemaining = gameState.hands[opps[0]].pipCount() + gameState.hands[opps[1]].pipCount();
+            const myRemaining = myTeamPips - closingMove.tile.pipCount();
+            const scoreIfClosed = myRemaining <= oppRemaining ? oppRemaining : -myRemaining;
+
+            // --- Information set (the PROCESS: what the player could infer) ---
+            // Estimate the pip edge from the human's own PlayerView, which weighs
+            // opponents' likely holdings using the passes/fallas actually observed.
+            // Positive inferredEdge = you were likely ahead → closing indicated.
+            const est = this._estimateTeamPips(gameState, playerIndex, view);
+            const inferredEdge = est ? est.pipAdvantage : 0;
+            // The concrete, readable tells: each opponent's inferred fallas (values
+            // they revealed they can't hold by passing) and their tiles remaining.
+            const ds = view?.deadSuits;
+            const oppFallas = opps.map(o =>
+                ds && ds[o] ? [...ds[o]].sort((a, b) => a - b) : []
+            );
+            const oppTiles = opps.map(o => gameState.hands[o].size());
+
+            closeOutcome = {
+                closeValue,
+                // outcome (ground truth)
+                myRemaining, oppRemaining, scoreIfClosed,
+                // process (information set available to the player)
+                inferredEdge, oppFallas, oppTiles,
+            };
+        }
+
+        return { recommendation, playedScore, cerrarAvailable, cerrarTaken, closeOutcome };
+    }
+
+    /**
      * Score a potential move based on strategic principles.
      * @param {object} move
      * @param {GameState} gameState

@@ -13,6 +13,7 @@ import { QuizStorage } from './services/QuizStorage.js';
 import { StorageService } from './stats/StorageService.js';
 import { Tile } from './models/Tile.js';
 import { ProbabilityAnalyzer } from './ai/ProbabilityAnalyzer.js';
+import { buildHandFeedback } from './coach/HandFeedback.js';
 import { t, i18n } from './i18n/i18n.js';
 
 // Check for debug mode via URL parameter (?debug=ai)
@@ -185,6 +186,14 @@ class DominoApp {
         this.messageGenin = document.getElementById('message-genin');
         this.continueBtn = document.getElementById('continue-btn');
         this.reviewBtn = document.getElementById('review-btn');
+        // Mano-level feedback card (per-hand coaching)
+        this.messageFeedback = document.getElementById('message-feedback');
+        this.feedbackVerdict = document.getElementById('feedback-verdict');
+        this.feedbackWhy = document.getElementById('feedback-why');
+        this.feedbackDetail = document.getElementById('feedback-detail');
+        if (this.feedbackWhy) {
+            this.feedbackWhy.addEventListener('click', () => this._toggleFeedbackDetail());
+        }
 
         // Log
         this.logContainer = document.getElementById('log');
@@ -835,16 +844,17 @@ class DominoApp {
 
         if (movesForTile.length === 0) return;
 
-        // Get AI recommendation for this move (for evaluation)
-        const aiRec = this.ai.getRecommendation(this.game.getState(), 0);
-
         if (movesForTile.length === 1) {
+            const end = movesForTile[0].end;
+            // Analyze the turn for mano-level feedback (AI recommendation, the
+            // played move's score, and the cerrar decision) BEFORE the play
+            // mutates state. Deferred to play time for multi-end tiles below.
+            const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end });
             this._checkSlamCondition(tile);
-            this.game.playTurn(tile, movesForTile[0].end, { aiRecommendation: aiRec });
+            this.game.playTurn(tile, end, { aiRecommendation: analysis.recommendation, turnAnalysis: analysis });
             this.afterHumanPlay();
         } else {
             this.selectedTile = tile;
-            this.pendingAiRecommendation = aiRec;
             this.showEndSelection(tile);
         }
     }
@@ -860,16 +870,18 @@ class DominoApp {
     playSelectedTile(end) {
         if (!this.selectedTile) return;
 
-        this._checkSlamCondition(this.selectedTile);
-        this.game.playTurn(this.selectedTile, end, { aiRecommendation: this.pendingAiRecommendation });
+        const tile = this.selectedTile;
+        // State is unchanged since the tile was selected (still the human's turn,
+        // awaiting the end choice), so we analyze now with the full move known.
+        const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end });
+        this._checkSlamCondition(tile);
+        this.game.playTurn(tile, end, { aiRecommendation: analysis.recommendation, turnAnalysis: analysis });
         this.hideEndSelection();
-        this.pendingAiRecommendation = null;
         this.afterHumanPlay();
     }
 
     cancelSelection() {
         this.selectedTile = null;
-        this.pendingAiRecommendation = null;
         this.hideEndSelection();
     }
 
@@ -1005,6 +1017,9 @@ class DominoApp {
         this.reviewBtn.style.display = 'none';
         if (this.messageGenin) this.messageGenin.style.display = 'none';
 
+        // Mano-level coaching feedback for the hand just finished.
+        this._renderHandFeedback(data);
+
         const reasonText = data.reason === 'domino' ? t('log.domino') :
                            data.reason === 'closed' ? t('log.cerrado') : t('log.tranque');
         this.log(reasonText, 'system');
@@ -1062,6 +1077,52 @@ class DominoApp {
         return text;
     }
 
+    /**
+     * Render the mano-level coaching feedback for the hand that just finished:
+     * a compact "outcome · verdict" line plus an expandable key-moment detail.
+     * Local and rule-based (no API) — built from MatchHistory play records and
+     * the per-turn instrumentation captured in SmartAI.analyzeHumanTurn.
+     * @private
+     */
+    _renderHandFeedback(data) {
+        if (!this.messageFeedback) return;
+        if (this.feedbackDetail) this.feedbackDetail.style.display = 'none'; // collapse
+
+        const hand = this.game.getMatchHistory()?.currentHand;
+        let fb = null;
+        try {
+            fb = hand ? buildHandFeedback(hand, data, 0) : null;
+        } catch (e) {
+            console.warn('Hand feedback generation failed:', e);
+        }
+        if (!fb) {
+            this.messageFeedback.style.display = 'none';
+            return;
+        }
+
+        const outKey = `coach.outcome.${fb.outcome.result}`;
+        const outcomeText = fb.outcome.result === 'tie' ? t(outKey) : t(outKey, fb.outcome.margin);
+        const verdictText = t(fb.verdict.key, ...fb.verdict.args);
+        this.feedbackVerdict.textContent = `${outcomeText} · ${verdictText}`;
+
+        if (fb.moment) {
+            this.feedbackDetail.textContent = t(fb.moment.key, ...fb.moment.args);
+            this.feedbackWhy.style.display = '';
+            this.feedbackWhy.textContent = t('coach.why');
+        } else {
+            this.feedbackDetail.textContent = '';
+            this.feedbackWhy.style.display = 'none';
+        }
+        this.messageFeedback.style.display = 'block';
+    }
+
+    /** @private Toggle the expandable "Why?" detail on the feedback card. */
+    _toggleFeedbackDetail() {
+        if (!this.feedbackDetail) return;
+        const showing = this.feedbackDetail.style.display !== 'none';
+        this.feedbackDetail.style.display = showing ? 'none' : 'block';
+    }
+
     showMatchEndMessage(data) {
         const winnerName = GameState.getTeamName(data.winner);
         const isYourTeam = data.winner === 0;
@@ -1076,6 +1137,9 @@ class DominoApp {
         if (this.messageGenin) {
             this.messageGenin.style.display = isYourTeam ? 'block' : 'none';
         }
+
+        // Per-hand feedback card is a hand-end concept — never show it at match-end.
+        if (this.messageFeedback) this.messageFeedback.style.display = 'none';
 
         // Hide the "New Match" button entirely — Play Analysis is the only action
         // on this modal. New Match is available inside the debrief, or via the

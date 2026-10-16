@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-07-23 (0g.3+0g.4 pure ISMCTS with margin reward shipped as v1.3.0 — 58.8% vs prior master)_
+_Last updated: 2026-10-16 (mano-level per-hand coaching feedback shipped as v1.4.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -23,7 +23,6 @@ _Last updated: 2026-07-23 (0g.3+0g.4 pure ISMCTS with margin reward shipped as v
 - [ ] **Named AI players (UX-B)** — give the AI opponents names. `[feature]`
 - [ ] **Tile slam effect (UX-E)** — satisfying tile-play animation. `[feature]`
 - [ ] **AI thinking indicator (UX-D)** — show the AI "thinking" before it plays. `[feature]`
-- [ ] **Mano level feedback** — Provide player feedback after a hand is finished. `[feature]`
 
 ## 🟢 Low / Nice to have
 - [ ] **Harness/production parity for master settings** — make `setupMatch` apply the same per-difficulty configuration that main.js does in real play (currently master gets `randomizeTolerance = 5` in production but 0 in the harness). The v1.2.0 → v1.2.1 freeze bug would have been caught by self-play if this parity existed. `[chore]`
@@ -42,6 +41,7 @@ _Last updated: 2026-07-23 (0g.3+0g.4 pure ISMCTS with margin reward shipped as v
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Mano-level feedback (per-hand coaching)** — compact Genín card at hand-end: outcome+verdict with expandable "Why?"; local/rule-based; process-first cerrar coaching (inferable pip edge from observed fallas vs ground-truth outcome) — v1.4.0
 - [x] **Pure ISMCTS with margin-aware reward at Master (0g.3 + 0g.4)** — P2–P4 priorities skipped at master (searched in-tree) + pip-margin reward shaping; 58.8% (CI 54.5–63.1%) vs the v1.2.x hybrid — v1.3.0
 - [x] **ISMCTS informed rollouts (0g.2) — tested, washed** — decisive-move and ε-greedy pip-shed rollout policies both ~50% in 500-match A/Bs; default stays random, variants kept in harness. Disconfirms the rollout-noise hypothesis for the 1000≈5000-iteration plateau — v1.2.7
 - [x] **ISMCTS determinization real-hand leak fix (0g.1)** — backtracking sampler backstop; 2.06% of determinizations were searching with perfect information — v1.2.6

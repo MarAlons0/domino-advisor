@@ -74,6 +74,10 @@ export class MatchHistory {
             stateSnapshot: playRecord.stateSnapshot || null,
             aiRecommendation: playRecord.aiRecommendation || null,
             actualReasoning: playRecord.actualReasoning || null,
+            // Per-turn coaching instrumentation (human plays only): played-move
+            // score, cerrar availability/decision, and the ground-truth cerrar
+            // counterfactual. Consumed by the mano-level hand feedback generator.
+            turnAnalysis: playRecord.turnAnalysis || null,
             isHuman: playRecord.isHuman || false,
             evaluation: null // Will be set by evaluateHumanPlays()
         };
@@ -130,16 +134,12 @@ export class MatchHistory {
             return 'good';
         }
 
-        // Different tile - need to calculate score difference
-        // We don't have the played tile's score, so estimate based on recommendation
-        // For now, we'll use a heuristic based on tile similarity
-
-        // Check if played tile shares a value with recommended tile
-        const sharedValue = tile.hasValue(recTile.high) || tile.hasValue(recTile.low);
-
-        // If score is provided in state snapshot, use it for comparison
-        if (record.stateSnapshot && record.stateSnapshot.playedScore !== undefined) {
-            const scoreDiff = recScore - record.stateSnapshot.playedScore;
+        // Different tile - grade by the true score gap when we have the played
+        // move's score (captured in turnAnalysis via SmartAI.analyzeHumanTurn).
+        const playedScore = record.turnAnalysis?.playedScore
+            ?? record.stateSnapshot?.playedScore;
+        if (playedScore !== undefined && playedScore !== null) {
+            const scoreDiff = recScore - playedScore;
 
             if (scoreDiff <= 10) {
                 return 'good';
@@ -150,7 +150,9 @@ export class MatchHistory {
             }
         }
 
-        // Heuristic: if tiles share a value, probably not too bad
+        // Fallback heuristic (no played-move score available): if the tiles share
+        // a value it's probably not catastrophic, otherwise call it a mistake.
+        const sharedValue = tile.hasValue(recTile.high) || tile.hasValue(recTile.low);
         if (sharedValue) {
             return 'questionable';
         }

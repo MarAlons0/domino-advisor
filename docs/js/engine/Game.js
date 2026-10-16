@@ -119,6 +119,7 @@ export class Game {
             stateSnapshot: stateSnapshot,
             aiRecommendation: options.aiRecommendation || null,
             actualReasoning: options.reasoning || null,
+            turnAnalysis: options.turnAnalysis || null,
             isHuman: isHuman
         });
 

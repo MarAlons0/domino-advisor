@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.3.0',
+        'app.version': 'v1.4.0',
         'app.createdBy': 'Created by',
 
         // Players
@@ -95,6 +95,32 @@ export const translations = {
         'result.empty': '(empty)',
         'result.pips': '{0} pips',
         'result.finalScore': 'Final: {0} - {1}',
+        // Mano-level coaching feedback (per-hand)
+        'coach.label': 'Genín',
+        'coach.why': 'Why?',
+        'coach.outcome.won': 'Won +{0}',
+        'coach.outcome.lost': 'Lost −{0}',
+        'coach.outcome.tie': 'Tie',
+        'coach.verdict.sharpClose': 'Sharp close',
+        'coach.verdict.luckyClose': 'Lucky close',
+        'coach.verdict.closedBehind': 'Closed while behind',
+        'coach.verdict.goodDiscipline': 'Good discipline',
+        'coach.verdict.missedClose': 'Missed close',
+        'coach.verdict.reasonableHold': 'Reasonable hold',
+        'coach.verdict.wonWithLeak': 'Won, but watch one play',
+        'coach.verdict.oneCostlyPlay': 'One costly play',
+        'coach.verdict.wellPlayed': 'Well played',
+        'coach.verdict.solidHand': 'Solid hand',
+        'coach.verdict.toughDeal': 'Well played, tough deal',
+        'coach.verdict.evenHand': 'Even hand',
+        'coach.moment.cerrarTakenGood': 'You closed on {0}s. The passes pointed to your team being ahead (readable edge +{1}), so it was the right call — and it landed +{2}.',
+        'coach.moment.cerrarTakenLucky': 'You closed on {0}s and won +{2}, but the signals weren’t clear (readable edge {1}). It worked out — just confirm you’re ahead on pips before closing.',
+        'coach.moment.cerrarTakenBad': 'You closed on {0}s but your team was behind — that handed the opponents {2} points. The readable edge was {1}; check the pip count and the opponents’ passes before cerrar.',
+        'coach.moment.cerrarDeclinedGood': 'You had a close on {0}s but held — the right call. The readable edge was {1} (not ahead), and closing would have cost {2}.',
+        'coach.moment.cerrarDeclinedMissed': 'A close on {0}s was there. The passes favored you (readable edge +{1}) and closing would have scored +{2}; the hand instead ended at {3} for your team. That was the moment to cerrar.',
+        'coach.moment.cerrarDeclinedForgivable': 'Closing on {0}s would actually have won +{1}, but nothing in the passes told you that — holding was a reasonable read.',
+        'coach.moment.scoreGap': 'On your play {0} you led {1}; {2} was the stronger tile ({3} pts better by the AI’s read).',
+        'coach.moment.highlight': 'Your {1} on play {0} was the AI’s top pick — nicely read.',
 
         // Quiz modal
         'quiz.title': 'Call Their Hand',
@@ -391,7 +417,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.3.0',
+        'app.version': 'v1.4.0',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -479,6 +505,32 @@ export const translations = {
         'result.empty': '(vacía)',
         'result.pips': '{0} puntos',
         'result.finalScore': 'Final: {0} - {1}',
+        // Retroalimentación por mano (coaching)
+        'coach.label': 'Genín',
+        'coach.why': '¿Por qué?',
+        'coach.outcome.won': 'Ganada +{0}',
+        'coach.outcome.lost': 'Perdida −{0}',
+        'coach.outcome.tie': 'Empate',
+        'coach.verdict.sharpClose': 'Buen cierre',
+        'coach.verdict.luckyClose': 'Cierre afortunado',
+        'coach.verdict.closedBehind': 'Cerraste por detrás',
+        'coach.verdict.goodDiscipline': 'Buena disciplina',
+        'coach.verdict.missedClose': 'Cierre perdido',
+        'coach.verdict.reasonableHold': 'Espera razonable',
+        'coach.verdict.wonWithLeak': 'Ganaste, pero ojo con una jugada',
+        'coach.verdict.oneCostlyPlay': 'Una jugada costosa',
+        'coach.verdict.wellPlayed': 'Bien jugado',
+        'coach.verdict.solidHand': 'Buena mano',
+        'coach.verdict.toughDeal': 'Bien jugado, mal reparto',
+        'coach.verdict.evenHand': 'Mano pareja',
+        'coach.moment.cerrarTakenGood': 'Cerraste en {0}. Los pases indicaban que tu equipo iba adelante (ventaja estimada +{1}), así que fue la decisión correcta — y sumó +{2}.',
+        'coach.moment.cerrarTakenLucky': 'Cerraste en {0} y ganaste +{2}, pero las señales no eran claras (ventaja estimada {1}). Salió bien — pero confirma que vas adelante en puntos antes de cerrar.',
+        'coach.moment.cerrarTakenBad': 'Cerraste en {0} pero tu equipo iba por detrás — eso le dio {2} puntos a los rivales. La ventaja estimada era {1}; revisa los puntos y los pases de los rivales antes de cerrar.',
+        'coach.moment.cerrarDeclinedGood': 'Tenías cierre en {0} pero esperaste — bien hecho. La ventaja estimada era {1} (no ibas adelante), y cerrar habría costado {2}.',
+        'coach.moment.cerrarDeclinedMissed': 'Había cierre en {0}. Los pases te favorecían (ventaja estimada +{1}) y cerrar habría sumado +{2}; la mano terminó en {3} para tu equipo. Ese era el momento de cerrar.',
+        'coach.moment.cerrarDeclinedForgivable': 'Cerrar en {0} habría ganado +{1}, pero nada en los pases lo indicaba — esperar fue una lectura razonable.',
+        'coach.moment.scoreGap': 'En tu jugada {0} saliste con {1}; {2} era la mejor ficha ({3} puntos más según la IA).',
+        'coach.moment.highlight': 'Tu {1} en la jugada {0} fue la mejor opción según la IA — bien leído.',
 
         // Quiz modal
         'quiz.title': '¿Qué crees que tienen?',

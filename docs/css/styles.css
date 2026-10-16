@@ -1013,6 +1013,60 @@ button:disabled {
     margin-bottom: 10px;
 }
 
+/* Mano-level coaching feedback card (per-hand) */
+.hand-feedback {
+    text-align: left;
+    background: rgba(255, 217, 61, 0.08);
+    border-left: 3px solid #ffd93d;
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin: 0 0 15px;
+}
+.hand-feedback-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.feedback-genin {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: rgba(0, 0, 0, 0.2);
+    transform: scaleX(-1); /* face/point toward the verdict text on the right */
+}
+.feedback-verdict {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffe9a8;
+}
+.feedback-why {
+    flex: none;
+    background: transparent;
+    border: 1px solid rgba(255, 217, 61, 0.5);
+    color: #ffd93d;
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+}
+.feedback-why:hover { background: rgba(255, 217, 61, 0.15); }
+/* Override the monospace result-dump styling inherited from .message-box p */
+.feedback-detail {
+    white-space: normal;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    max-height: none;
+    overflow: visible;
+    padding: 8px 0 0;
+    margin: 0;
+}
+
 /* Open Ends Indicator */
 .open-ends {
     text-align: center;
