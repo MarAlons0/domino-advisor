@@ -23,6 +23,7 @@ _Last updated: 2026-07-23 (0g.3+0g.4 pure ISMCTS with margin reward shipped as v
 - [ ] **Named AI players (UX-B)** — give the AI opponents names. `[feature]`
 - [ ] **Tile slam effect (UX-E)** — satisfying tile-play animation. `[feature]`
 - [ ] **AI thinking indicator (UX-D)** — show the AI "thinking" before it plays. `[feature]`
+- [ ] **Mano level feedback** — Provide player feedback after a hand is finished. `[feature]`
 
 ## 🟢 Low / Nice to have
 - [ ] **Harness/production parity for master settings** — make `setupMatch` apply the same per-difficulty configuration that main.js does in real play (currently master gets `randomizeTolerance = 5` in production but 0 in the harness). The v1.2.0 → v1.2.1 freeze bug would have been caught by self-play if this parity existed. `[chore]`
