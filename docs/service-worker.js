@@ -35,7 +35,10 @@ self.addEventListener('activate', event => {
     );
 });
 
-// Fetch: cache-first with network fallback; cache successful responses
+// Fetch strategy:
+//  - Navigations (the HTML document): NETWORK-FIRST, so returning users always get
+//    the latest app shell on the first load; fall back to the cached shell offline.
+//  - Other assets (CSS/JS/images, cache-busted via ?v=): cache-first for speed.
 self.addEventListener('fetch', event => {
     const { request } = event;
 
@@ -43,6 +46,23 @@ self.addEventListener('fetch', event => {
     if (request.method !== 'GET') return;
     if (!request.url.startsWith(self.location.origin)) return;
 
+    // Network-first for navigation requests (the root document).
+    if (request.mode === 'navigate') {
+        event.respondWith(
+            fetch(request)
+                .then(response => {
+                    if (response && response.status === 200 && response.type === 'basic') {
+                        const copy = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+                    }
+                    return response;
+                })
+                .catch(() => caches.match(request).then(cached => cached || caches.match('./')))
+        );
+        return;
+    }
+
+    // Cache-first with network fallback for everything else; cache successful responses.
     event.respondWith(
         caches.match(request).then(cached => {
             if (cached) return cached;
