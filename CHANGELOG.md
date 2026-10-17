@@ -3,6 +3,14 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.4.1] – 2026-10-17
+
+### Fixed
+- **Spanish mano-feedback copy: "saliste" → "tiraste".** The score-gap feedback line read "En tu jugada N saliste con [ficha]" — but *salir* applies only to *la salida* (the hand's opening play); a mid-hand play is *tirar*. Now reads "En tu jugada N tiraste [ficha]".
+
+### Changed (internal)
+- Service worker `fetch` is now **network-first for navigations** (the HTML shell), cache-first for other assets — so returning users get the latest app shell on the first load instead of after a reload. `CACHE_NAME` bumped to `7fichas-v1.4.1` (it had been stale at v1.0.1 through v1.4.0, which is why the v1.4.0 shell initially did not reach installed clients). Both shipped in the v1.4.1 deploy window.
+
 ## [1.4.0] – 2026-10-16
 
 ### Added

@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.4.0',
+        'app.version': 'v1.4.1',
         'app.createdBy': 'Created by',
 
         // Players
@@ -417,7 +417,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.4.0',
+        'app.version': 'v1.4.1',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -529,7 +529,7 @@ export const translations = {
         'coach.moment.cerrarDeclinedGood': 'Tenías cierre en {0} pero esperaste — bien hecho. La ventaja estimada era {1} (no ibas adelante), y cerrar habría costado {2}.',
         'coach.moment.cerrarDeclinedMissed': 'Había cierre en {0}. Los pases te favorecían (ventaja estimada +{1}) y cerrar habría sumado +{2}; la mano terminó en {3} para tu equipo. Ese era el momento de cerrar.',
         'coach.moment.cerrarDeclinedForgivable': 'Cerrar en {0} habría ganado +{1}, pero nada en los pases lo indicaba — esperar fue una lectura razonable.',
-        'coach.moment.scoreGap': 'En tu jugada {0} saliste con {1}; {2} era la mejor ficha ({3} puntos más según la IA).',
+        'coach.moment.scoreGap': 'En tu jugada {0} tiraste {1}; {2} era la mejor ficha ({3} puntos más según la IA).',
         'coach.moment.highlight': 'Tu {1} en la jugada {0} fue la mejor opción según la IA — bien leído.',
 
         // Quiz modal
