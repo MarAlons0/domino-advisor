@@ -105,10 +105,26 @@ function scoreGapMoment(humanPlays) {
     }
     if (!worst) return null;
     const rec = worst.play.aiRecommendation;
-    return {
-        key: 'coach.moment.scoreGap',
-        args: [worst.humanN, tileStr(worst.play.tile), rec ? tileStr(rec.tile) : '?', Math.max(0, Math.round(worstGap))],
-    };
+    const ta = worst.play.turnAnalysis || {};
+    const playedTile = tileStr(worst.play.tile);
+    const altTile = rec ? tileStr(rec.tile) : '?';
+
+    // Richest form: strategic reason (the "why") + ISMCTS win-rate comparison (the
+    // "how", only at Master). Degrade to principle-only, then to a bare statement.
+    if (ta.recReason && ta.recWinRate != null && ta.playedWinRate != null) {
+        return {
+            key: 'coach.moment.scoreGapWhy',
+            args: [worst.humanN, playedTile, altTile, ta.recReason,
+                   Math.round(ta.recWinRate * 100), Math.round(ta.playedWinRate * 100)],
+        };
+    }
+    if (ta.recReason) {
+        return {
+            key: 'coach.moment.scoreGapPrinciple',
+            args: [worst.humanN, playedTile, altTile, ta.recReason],
+        };
+    }
+    return { key: 'coach.moment.scoreGap', args: [worst.humanN, playedTile, altTile] };
 }
 
 /** Positive highlight (an optimal play), or null. */
@@ -121,6 +137,9 @@ function highlightMoment(humanPlays) {
 /** Compact verdict phrase (no args) from the moment + outcome. */
 function verdictFor(moment, result) {
     if (moment) {
+        // All three score-gap variants (bare / principle / why) describe the same
+        // kind of moment — a weaker-than-recommended play — so they share a verdict.
+        const costlyPlay = result === 'won' ? 'coach.verdict.wonWithLeak' : 'coach.verdict.oneCostlyPlay';
         const map = {
             'coach.moment.cerrarTakenGood': 'coach.verdict.sharpClose',
             'coach.moment.cerrarTakenLucky': 'coach.verdict.luckyClose',
@@ -128,7 +147,9 @@ function verdictFor(moment, result) {
             'coach.moment.cerrarDeclinedGood': 'coach.verdict.goodDiscipline',
             'coach.moment.cerrarDeclinedMissed': 'coach.verdict.missedClose',
             'coach.moment.cerrarDeclinedForgivable': 'coach.verdict.reasonableHold',
-            'coach.moment.scoreGap': result === 'won' ? 'coach.verdict.wonWithLeak' : 'coach.verdict.oneCostlyPlay',
+            'coach.moment.scoreGap': costlyPlay,
+            'coach.moment.scoreGapPrinciple': costlyPlay,
+            'coach.moment.scoreGapWhy': costlyPlay,
             'coach.moment.highlight': 'coach.verdict.wellPlayed',
         };
         return { key: map[moment.key] || 'coach.verdict.wellPlayed', args: [] };

@@ -1523,14 +1523,56 @@ export class SmartAI {
         const mustPlayDoubleSix = gameState.isFirstHand && chain.isEmpty();
         const validMoves = Rules.getValidMoves(hand, chain, mustPlayDoubleSix);
 
-        // The AI's recommendation (uses the full master pipeline via chooseMove).
-        const recommendation = this.getRecommendation(gameState, playerIndex);
+        // The AI's recommendation via chooseMove (full master pipeline). We call
+        // chooseMove directly rather than getRecommendation so we can also capture
+        // the chosen move's ISMCTS root stats (per-move win estimates at Master).
+        const recMove = this.chooseMove(gameState, playerIndex);
+        let recommendation = null;
+        let ismctsStats = null;
+        let recScoreObj = null;
+        if (recMove) {
+            recScoreObj = recMove.score || this.scoreMove(recMove, gameState, playerIndex, view);
+            recommendation = {
+                tile: recMove.tile,
+                end: recMove.end,
+                reasoning: recMove.reasoning || 'Best move',
+                score: recScoreObj.total,
+            };
+            ismctsStats = recMove.ismctsStats || null;
+        }
 
         // Static score of the move the human actually played — lets MatchHistory
         // grade a different-tile play by true score gap instead of the old heuristic.
-        const playedScore = (playedMove && playedMove.tile)
-            ? this.scoreMove(playedMove, gameState, playerIndex, view).total
+        const playedScoreObj = (playedMove && playedMove.tile)
+            ? this.scoreMove(playedMove, gameState, playerIndex, view)
             : null;
+        const playedScore = playedScoreObj ? playedScoreObj.total : null;
+
+        // --- Score-gap coaching: the strategic reason the recommended tile is
+        // stronger, plus the ISMCTS win-rate comparison (the "why" and the "how").
+        // Only meaningful when the human played a DIFFERENT move than recommended. ---
+        let recReason = null, recWinRate = null, playedWinRate = null;
+        const playedDiffers = recommendation && playedMove && playedMove.tile
+            && !(playedMove.tile.equals(recommendation.tile) && playedMove.end === recommendation.end);
+        if (playedDiffers) {
+            // Strategic "why": the single dimension on which the recommended move
+            // most out-scores the one played — an inherently positive differentiator
+            // (unlike explain(), which lists a move's own pros AND "Warning:" cons
+            // and so reads as self-contradictory when framed as "why it was better").
+            recReason = (recScoreObj && playedScoreObj)
+                ? this.explainer.explainContrast(recScoreObj.factors, playedScoreObj.factors)
+                : null;
+            // ISMCTS "how": per-move win estimates from simulating sampled deals.
+            // Keys match the rootStats format `${tile.toKey()}|${end}`.
+            if (ismctsStats && ismctsStats.length) {
+                const recKey = `${recommendation.tile.toKey()}|${recommendation.end}`;
+                const playedKey = `${playedMove.tile.toKey()}|${playedMove.end}`;
+                const recEntry = ismctsStats.find(e => e.move === recKey);
+                const playedEntry = ismctsStats.find(e => e.move === playedKey);
+                if (recEntry && recEntry.visits > 0) recWinRate = recEntry.winRate;
+                if (playedEntry && playedEntry.visits > 0) playedWinRate = playedEntry.winRate;
+            }
+        }
 
         // Cerrar availability / decision.
         const cerrarMoves = validMoves.filter(m => this._willCerrar(m, chain));
@@ -1577,7 +1619,10 @@ export class SmartAI {
             };
         }
 
-        return { recommendation, playedScore, cerrarAvailable, cerrarTaken, closeOutcome };
+        return {
+            recommendation, playedScore, cerrarAvailable, cerrarTaken, closeOutcome,
+            recReason, recWinRate, playedWinRate,
+        };
     }
 
     /**

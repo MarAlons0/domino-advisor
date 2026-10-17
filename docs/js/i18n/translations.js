@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.4.1',
+        'app.version': 'v1.5.0',
         'app.createdBy': 'Created by',
 
         // Players
@@ -119,7 +119,9 @@ export const translations = {
         'coach.moment.cerrarDeclinedGood': 'You had a close on {0}s but held — the right call. The readable edge was {1} (not ahead), and closing would have cost {2}.',
         'coach.moment.cerrarDeclinedMissed': 'A close on {0}s was there. The passes favored you (readable edge +{1}) and closing would have scored +{2}; the hand instead ended at {3} for your team. That was the moment to cerrar.',
         'coach.moment.cerrarDeclinedForgivable': 'Closing on {0}s would actually have won +{1}, but nothing in the passes told you that — holding was a reasonable read.',
-        'coach.moment.scoreGap': 'On your play {0} you led {1}; {2} was the stronger tile ({3} pts better by the AI’s read).',
+        'coach.moment.scoreGapWhy': 'On your play {0} you played {1}; {2} was stronger — {3}. Simulating many possible opponent hands, the AI won ~{4}% with {2} vs ~{5}% with {1}.',
+        'coach.moment.scoreGapPrinciple': 'On your play {0} you played {1}; {2} was stronger — {3}.',
+        'coach.moment.scoreGap': 'On your play {0} you played {1}; {2} was the stronger tile.',
         'coach.moment.highlight': 'Your {1} on play {0} was the AI’s top pick — nicely read.',
 
         // Quiz modal
@@ -323,6 +325,18 @@ export const translations = {
         'explain.factor.blocking': 'blocking potential',
         'explain.factor.flexibility': 'hand flexibility',
         'explain.factor.paceControl': 'pace control',
+        // Contrast phrases for mano coaching — why the recommended tile out-scores
+        // the one played, on its single strongest dimension (see explainContrast).
+        'explain.contrast.suitDominance': 'it leans into the suit your team controls',
+        'explain.contrast.doubleManagement': 'it unloads a double more safely',
+        'explain.contrast.partnerSupport': "it backs your partner's suit",
+        'explain.contrast.ownSuitProtection': 'it protects your own suit',
+        'explain.contrast.firmeProtection': 'it preserves your firme (your guaranteed plays)',
+        'explain.contrast.oppSuitAvoidance': "it steers clear of the opponents' suit",
+        'explain.contrast.blockingPotential': 'it does more to force a pass (darle pase)',
+        'explain.contrast.pipManagement': 'it sheds more pips while you still can',
+        'explain.contrast.handFlexibility': 'it keeps your hand more flexible',
+        'explain.contrast.paceControl': 'it controls the pace of the hand better',
         'and': 'and',
 
         // Advice detail
@@ -417,7 +431,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.4.1',
+        'app.version': 'v1.5.0',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -529,7 +543,9 @@ export const translations = {
         'coach.moment.cerrarDeclinedGood': 'Tenías cierre en {0} pero esperaste — bien hecho. La ventaja estimada era {1} (no ibas adelante), y cerrar habría costado {2}.',
         'coach.moment.cerrarDeclinedMissed': 'Había cierre en {0}. Los pases te favorecían (ventaja estimada +{1}) y cerrar habría sumado +{2}; la mano terminó en {3} para tu equipo. Ese era el momento de cerrar.',
         'coach.moment.cerrarDeclinedForgivable': 'Cerrar en {0} habría ganado +{1}, pero nada en los pases lo indicaba — esperar fue una lectura razonable.',
-        'coach.moment.scoreGap': 'En tu jugada {0} tiraste {1}; {2} era la mejor ficha ({3} puntos más según la IA).',
+        'coach.moment.scoreGapWhy': 'En tu jugada {0} tiraste {1}; {2} era más fuerte — {3}. Simulando muchas manos posibles de los rivales, la IA ganó ~{4}% con {2} frente a ~{5}% con {1}.',
+        'coach.moment.scoreGapPrinciple': 'En tu jugada {0} tiraste {1}; {2} era más fuerte — {3}.',
+        'coach.moment.scoreGap': 'En tu jugada {0} tiraste {1}; {2} era la mejor ficha.',
         'coach.moment.highlight': 'Tu {1} en la jugada {0} fue la mejor opción según la IA — bien leído.',
 
         // Quiz modal
@@ -733,6 +749,18 @@ export const translations = {
         'explain.factor.blocking': 'potencial de bloqueo',
         'explain.factor.flexibility': 'flexibilidad de mano',
         'explain.factor.paceControl': 'control de ritmo',
+        // Frases de contraste para el consejo por mano — por qué la ficha recomendada
+        // supera a la jugada, en su dimensión más fuerte (ver explainContrast).
+        'explain.contrast.suitDominance': 'aprovecha el palo que domina tu equipo',
+        'explain.contrast.doubleManagement': 'suelta un doble con más seguridad',
+        'explain.contrast.partnerSupport': 'apoya el palo de tu pareja',
+        'explain.contrast.ownSuitProtection': 'protege tu propio palo',
+        'explain.contrast.firmeProtection': 'conserva tu firme (tus jugadas garantizadas)',
+        'explain.contrast.oppSuitAvoidance': 'evita el palo de los rivales',
+        'explain.contrast.blockingPotential': 'presiona más para darle pase a un rival',
+        'explain.contrast.pipManagement': 'descarga más puntos mientras puedes',
+        'explain.contrast.handFlexibility': 'mantiene tu mano más flexible',
+        'explain.contrast.paceControl': 'controla mejor el ritmo de la mano',
         'and': 'y',
 
         // Advice detail

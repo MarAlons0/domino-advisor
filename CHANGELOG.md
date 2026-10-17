@@ -3,6 +3,21 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.5.0] – 2026-10-17
+
+### Added
+- **Score-gap mano feedback now explains *why* and *how*.** When a hand's key moment is a weaker-than-recommended play, the "Why?" detail no longer just names the better tile — it gives the strategic principle and the probability behind the AI's pick. Example: *"On your play 5 you played [6|3]; [6|5] was stronger — it backs your partner's suit. Simulating many possible opponent hands, the AI won ~58% with [6|5] vs ~41% with [6|3]."* The win-rate comparison appears at Master (from ISMCTS root stats); static difficulties show the principle alone. This replaces the old opaque "(N points more per the AI)" number, which was misleading — at Master that delta came from the static scorer, not from what actually chose the move.
+
+  The principle comes from a **factor contrast**: the single scoring dimension on which the recommended tile most out-scores the one played (partner support, firme, darle pase, pip unloading, pace…) — an inherently positive differentiator, so the reason reads as a clean "why it was better" rather than a mixed pros-and-cons breakdown.
+
+### Added (internal)
+- `StrategicExplainer.explainContrast(recFactors, playedFactors)` — returns a short bilingual phrase naming the recommended move's strongest single advantage over the played move, or `null` when no dimension stands out. Backed by new `explain.contrast.*` i18n keys (10 factors × en/es).
+- `SmartAI.analyzeHumanTurn` now captures `recReason` (via `explainContrast`), `recWinRate`, and `playedWinRate` (per-move ISMCTS win estimates) when the played move differs from the recommendation.
+- `HandFeedback.scoreGapMoment` emits `coach.moment.scoreGapWhy` / `scoreGapPrinciple` / `scoreGap` by data availability.
+
+### Fixed
+- Score-gap verdicts routed correctly. The enriched `scoreGapWhy` / `scoreGapPrinciple` moments had fallen through to the "Well played" default; a weaker-than-recommended play now shows "One costly play" (lost) or "Won, but watch one play" (won).
+
 ## [1.4.1] – 2026-10-17
 
 ### Fixed

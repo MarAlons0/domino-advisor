@@ -261,6 +261,51 @@ export class StrategicExplainer {
         return t('brief.bestOption');
     }
 
+    /**
+     * Explain WHY one move out-scores another, for mano-level coaching.
+     *
+     * Unlike explain()/explainBrief (which describe a single move's own pros and
+     * "Warning:" cons, and so read as self-contradictory when framed as "why it was
+     * better"), this contrasts two factor vectors and names the single dimension on
+     * which the recommended move most out-scores the one actually played — an
+     * inherently positive differentiator. Returns a short, context-free localized
+     * phrase ("it backs your partner's suit") or null when no dimension stands out.
+     *
+     * All 10 factors are "higher is better" contributions, so the biggest positive
+     * (rec − played) difference is the recommendation's strongest single advantage.
+     *
+     * @param {object} recFactors - factors of the recommended move (SmartAI.scoreMove)
+     * @param {object} playedFactors - factors of the move the human played
+     * @returns {string|null}
+     */
+    explainContrast(recFactors, playedFactors) {
+        if (!recFactors || !playedFactors) return null;
+
+        const CONTRAST_KEYS = {
+            suitDominance: 'explain.contrast.suitDominance',
+            doubleManagement: 'explain.contrast.doubleManagement',
+            partnerSupport: 'explain.contrast.partnerSupport',
+            ownSuitProtection: 'explain.contrast.ownSuitProtection',
+            firmeProtection: 'explain.contrast.firmeProtection',
+            oppSuitAvoidance: 'explain.contrast.oppSuitAvoidance',
+            blockingPotential: 'explain.contrast.blockingPotential',
+            pipManagement: 'explain.contrast.pipManagement',
+            handFlexibility: 'explain.contrast.handFlexibility',
+            paceControl: 'explain.contrast.paceControl',
+        };
+
+        let bestFactor = null;
+        let bestDiff = 0;
+        for (const f of Object.keys(CONTRAST_KEYS)) {
+            const diff = (recFactors[f] ?? 0) - (playedFactors[f] ?? 0);
+            if (diff > bestDiff) { bestDiff = diff; bestFactor = f; }
+        }
+
+        // Require a modest edge so near-ties don't produce a misleading "reason".
+        if (!bestFactor || bestDiff < 5) return null;
+        return t(CONTRAST_KEYS[bestFactor]);
+    }
+
     // ==================== Helpers ====================
 
     _explainSalida(tile) {
