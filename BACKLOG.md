@@ -1,10 +1,9 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-17 (score-gap mano feedback now explains why + how, shipped as v1.5.0)_
+_Last updated: 2026-10-21 (STATS-1 audited: already shipped in v1.0.3; final-hand + cerrado-label fixes in v1.5.1)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## 🔴 High
-- [ ] **Player stats, achievements & badges** — lifetime stats page + badge pop-ups; localStorage via a `StorageService`. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Streamlined post-game feedback (UX-0)** — tighten the debrief flow. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Visual effects for key moments (UX-A)** — highlight zapatos, cerrados, comebacks. `[feature]`
 
@@ -23,6 +22,7 @@ _Last updated: 2026-10-17 (score-gap mano feedback now explains why + how, shipp
 - [ ] **Named AI players (UX-B)** — give the AI opponents names. `[feature]`
 - [ ] **Tile slam effect (UX-E)** — satisfying tile-play animation. `[feature]`
 - [ ] **AI thinking indicator (UX-D)** — show the AI "thinking" before it plays. `[feature]`
+- [ ] **Re-run the max-cerrado harness numbers** — before v1.5.1 the harness dropped every match-ending hand, so the empirical maxima in [docs/MAX_CERRADO.md](docs/MAX_CERRADO.md) and the white paper (≈92 rigged / ≈78 natural) were sampled without the hands most likely to carry big hauls. Re-run `--max-cerrado` (with `--max-disparity-deals`, `--cooperative-losers`, `--random-losers --force-cerrar`) and update both docs if the maxima move. The exhaustive 103-pip ceiling (`tools/cerrado-search.js`) is unaffected. `[chore]`
 
 ## 🟢 Low / Nice to have
 - [ ] **Harness/production parity for master settings** — make `setupMatch` apply the same per-difficulty configuration that main.js does in real play (currently master gets `randomizeTolerance = 5` in production but 0 in the harness). The v1.2.0 → v1.2.1 freeze bug would have been caught by self-play if this parity existed. `[chore]`
@@ -41,6 +41,7 @@ _Last updated: 2026-10-17 (score-gap mano feedback now explains why + how, shipp
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Player stats, achievements & badges (STATS-1)** — lifetime stats page, 12 badges with toasts, `StorageService` — v1.0.3; final-hand recording + cerrado stat labels fixed — v1.5.1
 - [x] **Score-gap mano feedback explains why + how** — the "Why?" detail now gives the strategic principle (factor contrast: the dimension where the recommended tile most out-scores the one played) plus the ISMCTS win-rate comparison at Master, replacing the misleading static "N points more" number — v1.5.0
 - [x] **Mano-level feedback (per-hand coaching)** — compact Genín card at hand-end: outcome+verdict with expandable "Why?"; local/rule-based; process-first cerrar coaching (inferable pip edge from observed fallas vs ground-truth outcome) — v1.4.0
 - [x] **Pure ISMCTS with margin-aware reward at Master (0g.3 + 0g.4)** — P2–P4 priorities skipped at master (searched in-tree) + pip-margin reward shaping; 58.8% (CI 54.5–63.1%) vs the v1.2.x hybrid — v1.3.0

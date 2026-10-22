@@ -3,6 +3,16 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.5.1] – 2026-10-21
+
+### Fixed
+- **The match-ending hand is now counted in lifetime stats.** The engine skipped the hand-end event for the hand that ends a match, so that hand never reached Player Stats: hand counts, by-reason breakdowns, cerrado stats, and hand badges (*Cerrado!*, *Power Cerrado*, *Cerrado Master*, *Domino Master*) all missed it. A 40-match headless run showed 40 of 262 hands missing, including 26 of 127 cerrados — the match-winning cerrado is exactly the hand most likely to earn a cerrado badge. Now every hand is recorded; the match-ending one still goes straight to the match-end screen. Past matches can't be backfilled (only lifetime totals are stored).
+- **Cerrado stats now say what they count.** "Team Cerrados" was counting every cerrado hand, including the opponents' closes (which were also listed under "Opp Cerrados"). It is relabeled **Cerrado Hands**, and the section adds **Team Closes** (closes by you or your partner) and **Close Win %** (how often your team's closes won). "You Closed" / "Partner Closed" are relabeled **… & Won** to match what they count, and "Opp Cerrados" becomes **Opp Closes**. The two new counters start from zero.
+- Stats storage can no longer stop the app from loading: unreadable or corrupt saved stats fall back to defaults instead of throwing during startup.
+
+### Changed (internal)
+- `Game` now fires `onHandEnd` for every hand, flagging the last one `isMatchEnding: true` before `onMatchEnd`. The tournament harness inherits this, so its per-hand outputs (hand results, cerrado samples, close classification) now include match-ending hands that were previously dropped — results from earlier harness runs undercounted those hands.
+
 ## [1.5.0] – 2026-10-17
 
 ### Added

@@ -102,6 +102,8 @@ export class StatsUI {
     _renderCerrado(c) {
         this._set('stat-cerrado-team-total', c.teamTotal);
         this._set('stat-cerrado-team-won', c.teamWon);
+        this._set('stat-cerrado-team-closed', c.teamClosed);
+        this._set('stat-cerrado-close-win-pct', this._pct(c.teamClosedWon, c.teamClosed));
         this._set('stat-cerrado-you-closed', c.youClosed);
         this._set('stat-cerrado-partner-closed', c.partnerClosed);
         this._set('stat-cerrado-opponent-total', c.opponentTotal);

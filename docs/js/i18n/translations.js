@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.5.0',
+        'app.version': 'v1.5.1',
         'app.createdBy': 'Created by',
 
         // Players
@@ -380,11 +380,13 @@ export const translations = {
         'stats.reason.domino': 'Domino',
         'stats.reason.closed': 'Closed',
         'stats.reason.blocked': 'Blocked',
-        'stats.cerrado.teamTotal': 'Team Cerrados',
+        'stats.cerrado.teamTotal': 'Cerrado Hands',
         'stats.cerrado.teamWon': 'Won by Cerrado',
-        'stats.cerrado.youClosed': 'You Closed',
-        'stats.cerrado.partnerClosed': 'Partner Closed',
-        'stats.cerrado.opponentTotal': 'Opp Cerrados',
+        'stats.cerrado.teamClosed': 'Team Closes',
+        'stats.cerrado.closeWinPct': 'Close Win %',
+        'stats.cerrado.youClosed': 'You Closed & Won',
+        'stats.cerrado.partnerClosed': 'Partner Closed & Won',
+        'stats.cerrado.opponentTotal': 'Opp Closes',
         'stats.cerrado.largestScore': 'Largest Win',
         'stats.cerrado.largestSurrender': 'Largest Loss',
         'stats.coaching.agreements': 'Genín Agreements',
@@ -431,7 +433,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.5.0',
+        'app.version': 'v1.5.1',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -804,11 +806,13 @@ export const translations = {
         'stats.reason.domino': 'Dominó',
         'stats.reason.closed': 'Cerrado',
         'stats.reason.blocked': 'Trancado',
-        'stats.cerrado.teamTotal': 'Cerrados del Equipo',
+        'stats.cerrado.teamTotal': 'Manos por Cerrado',
         'stats.cerrado.teamWon': 'Ganados por Cerrado',
-        'stats.cerrado.youClosed': 'Tú Cerraste',
-        'stats.cerrado.partnerClosed': 'Pareja Cerró',
-        'stats.cerrado.opponentTotal': 'Cerrados Rivales',
+        'stats.cerrado.teamClosed': 'Cierres del Equipo',
+        'stats.cerrado.closeWinPct': '% Cierres Ganados',
+        'stats.cerrado.youClosed': 'Cerraste y Ganaste',
+        'stats.cerrado.partnerClosed': 'Pareja Cerró y Ganó',
+        'stats.cerrado.opponentTotal': 'Cierres Rivales',
         'stats.cerrado.largestScore': 'Mayor Victoria',
         'stats.cerrado.largestSurrender': 'Mayor Derrota',
         'stats.coaching.agreements': 'Acuerdos con Genín',

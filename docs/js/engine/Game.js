@@ -307,22 +307,26 @@ export class Game {
             }))
         });
 
-        // Check if match is over before emitting hand end event
+        // onHandEnd fires for EVERY hand, including the match-ending one, so
+        // consumers that tally hands (player stats, the tournament harness) see
+        // them all. The final hand is flagged isMatchEnding and is immediately
+        // followed by onMatchEnd — UI should show the match-end modal for it, not
+        // the hand-end modal, so Play Analysis isn't displaced.
         const matchResult = Rules.checkMatchOver(this.state.scores.match);
+        if (this.onHandEnd) {
+            this.onHandEnd({
+                reason: reason,
+                dominoPlayer: dominoPlayer,
+                closingPlayer: closingPlayer,
+                winningTeam: result.winningTeam,
+                points: result.points,
+                matchScores: [...this.state.scores.match],
+                isMatchEnding: matchResult.isOver
+            });
+        }
         if (matchResult.isOver) {
-            // Skip hand-end modal and go straight to match-end so Play Analysis isn't displaced
             this._endMatch(matchResult.winner, reason);
         } else {
-            if (this.onHandEnd) {
-                this.onHandEnd({
-                    reason: reason,
-                    dominoPlayer: dominoPlayer,
-                    closingPlayer: closingPlayer,
-                    winningTeam: result.winningTeam,
-                    points: result.points,
-                    matchScores: [...this.state.scores.match]
-                });
-            }
             this._emitStateChange();
         }
     }

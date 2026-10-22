@@ -499,9 +499,13 @@ class DominoApp {
             // Delay modal on domino so the slam animation has time to play
             const delay = data.reason === 'domino' ? 1800 : 0;
             setTimeout(() => {
-                // If the match ended during the delay, skip the hand-end message
-                // so the match-end message (with the Review Game button) stays on screen
-                if (this.game.getState().gamePhase === 'matchOver') return;
+                // Record stats for every hand — including the match-ending one,
+                // which gets no hand-end modal. This timer was queued before
+                // onMatchEnd's (same delay), so hand stats land before match stats.
+                this._recordHandStats(data);
+                // The match-ending hand goes straight to the match-end message
+                // (with the Review Game button) instead of the hand-end modal.
+                if (data.isMatchEnding || this.game.getState().gamePhase === 'matchOver') return;
                 this.showHandEndMessage(data);
             }, delay);
         };
@@ -512,8 +516,9 @@ class DominoApp {
             // before the modal appears (prevents accidental "New Match" tap on iPad)
             const delay = data.reason === 'domino' ? 1800 : 0;
             setTimeout(() => {
-                // If the match ended on a cerrar hand, onHandEnd was skipped so we
-                // finalize the pending cerrar decision here instead
+                // If the match ended on a cerrar hand, showHandEndMessage (which
+                // normally finalizes it) was skipped, so finalize the pending
+                // cerrar decision here instead
                 if (this.ai._pendingCerrar) {
                     const state = this.game.getState();
                     const hands = state.hands;
@@ -1033,8 +1038,14 @@ class DominoApp {
         if (data.reason === 'closed') {
             this.ai.finalizeCerrarOutcome(data, this.game.getState().hands);
         }
+    }
 
-        // Record stats and check for hand badges
+    /**
+     * Record lifetime stats for a finished hand and award any hand badges.
+     * Called for every hand, including the match-ending one.
+     * @private
+     */
+    _recordHandStats(data) {
         this.playerStats.recordHandResult(data, this.game.getMatchHistory());
         const hBadges = this.badgeSystem.checkHandBadges(this.playerStats.get());
         if (hBadges.length) this.badgeToast.showBadges(hBadges);

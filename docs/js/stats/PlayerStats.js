@@ -20,7 +20,11 @@ const DEFAULT_STATS = {
         largestScore: 0, largestSurrender: 0
     },
     cerrado: {
-        teamTotal: 0, teamWon: 0, youClosed: 0, partnerClosed: 0,
+        // teamTotal / teamWon: ALL cerrado hands (any closer) and those our team won.
+        // teamClosed / teamClosedWon: closes initiated by our team (you or partner).
+        // youClosed / partnerClosed: closes by that seat that our team WON.
+        teamTotal: 0, teamWon: 0, teamClosed: 0, teamClosedWon: 0,
+        youClosed: 0, partnerClosed: 0,
         opponentTotal: 0, largestScore: 0, largestSurrender: 0,
         youClosedLargestScore: 0
     },
@@ -110,6 +114,11 @@ export class PlayerStats {
         // Cerrado stats
         if (reason === 'closed') {
             stats.cerrado.teamTotal++;
+            // Closes our team initiated, and how many of them we won
+            if (closingPlayer === 0 || closingPlayer === 2) {
+                stats.cerrado.teamClosed++;
+                if (winningTeam === 0) stats.cerrado.teamClosedWon++;
+            }
             if (winningTeam === 0) {
                 stats.cerrado.teamWon++;
                 if (closingPlayer === 0) {
