@@ -4,8 +4,8 @@ _Last updated: 2026-10-23 (Master grading by simulated win rate shipped as v1.9.
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## 🔴 High
-- [ ] **Multiplayer game** — Enable multiple humans to play, either as part of the same team or opposing teams. Anywhere from 2 to 4 humans should be able to play `[feature]`
-  - Networked: each human on their own device (invite link), via a game-room server — e.g. Cloudflare Durable Objects + WebSockets alongside the existing `domino-api` Worker. Chosen over hot-seat (one shared device) on 2026-10-23.
+- [ ] 🚧 **Multiplayer game** — Enable multiple humans to play, either as part of the same team or opposing teams. Anywhere from 2 to 4 humans should be able to play `[feature]`
+  - 🚧 Design: [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) — networked (chosen over hot-seat), **free Cloudflare plan only**: a Durable Object per room keeps hands secret and runs the AI seats; Genín runs in each player's browser (proven to need only their own information). Next: P0 spike to measure the free-plan CPU cap.
   - Seat choice at match start: same team vs. opposing teams; AI fills empty seats.
 
 ## 🟡 Medium
