@@ -1513,7 +1513,11 @@ export class SmartAI {
      *   playedScore: number|null,
      *   cerrarAvailable: boolean,
      *   cerrarTaken: boolean,
-     *   closeOutcome: {myRemaining:number, oppRemaining:number, scoreIfClosed:number}|null
+     *   closeOutcome: {myRemaining:number, oppRemaining:number, scoreIfClosed:number}|null,
+     *   recReason: string|null, recFactor: string|null,
+     *   recWinRate: number|null, playedWinRate: number|null,
+     *   forced: boolean, legalMoves: number,
+     *   handBefore: Array<[number, number]>, signals: {own: number|null, partner: number|null, opps: number[]}
      * }}
      */
     analyzeHumanTurn(gameState, playerIndex, playedMove) {
@@ -1551,7 +1555,7 @@ export class SmartAI {
         // --- Score-gap coaching: the strategic reason the recommended tile is
         // stronger, plus the ISMCTS win-rate comparison (the "why" and the "how").
         // Only meaningful when the human played a DIFFERENT move than recommended. ---
-        let recReason = null, recWinRate = null, playedWinRate = null;
+        let recReason = null, recFactor = null, recWinRate = null, playedWinRate = null;
         const playedDiffers = recommendation && playedMove && playedMove.tile
             && !(playedMove.tile.equals(recommendation.tile) && playedMove.end === recommendation.end);
         if (playedDiffers) {
@@ -1559,9 +1563,13 @@ export class SmartAI {
             // most out-scores the one played — an inherently positive differentiator
             // (unlike explain(), which lists a move's own pros AND "Warning:" cons
             // and so reads as self-contradictory when framed as "why it was better").
-            recReason = (recScoreObj && playedScoreObj)
-                ? this.explainer.explainContrast(recScoreObj.factors, playedScoreObj.factors)
+            // recFactor is the language-independent key (debrief patterns group
+            // by it and resolve the phrase at render time); recReason is that
+            // phrase resolved now, for the hand-end card.
+            recFactor = (recScoreObj && playedScoreObj)
+                ? this.explainer.contrastFactor(recScoreObj.factors, playedScoreObj.factors)
                 : null;
+            recReason = recFactor ? this.explainer.explainContrast(recScoreObj.factors, playedScoreObj.factors) : null;
             // ISMCTS "how": per-move win estimates from simulating sampled deals.
             // Keys match the rootStats format `${tile.toKey()}|${end}`.
             if (ismctsStats && ismctsStats.length) {
@@ -1621,7 +1629,22 @@ export class SmartAI {
 
         return {
             recommendation, playedScore, cerrarAvailable, cerrarTaken, closeOutcome,
-            recReason, recWinRate, playedWinRate,
+            recReason, recFactor, recWinRate, playedWinRate,
+            // Debrief context: a forced move (one legal option) is not a decision
+            // and is excluded from accuracy; handBefore + signals + the ends in the
+            // play's stateSnapshot let the debrief redraw the moment.
+            forced: validMoves.length === 1,
+            legalMoves: validMoves.length,
+            handBefore: hand.getTiles().map(tl => [tl.high, tl.low]),
+            signals: {
+                own: this.signaledSuits?.[playerIndex] ?? null,
+                partner: this.signaledSuits?.[GameState.getPartner(playerIndex)] ?? null,
+                // Opponents' live signaled suits (a suit they later killed no longer counts),
+                // matching StrategicExplainer's opponent-suit warning.
+                opps: [...new Set(this.getOpponents(playerIndex)
+                    .filter(o => this.signaledSuits?.[o] != null && !this.killedOwnSuit?.[o])
+                    .map(o => this.signaledSuits[o]))],
+            },
         };
     }
 

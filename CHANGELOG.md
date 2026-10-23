@@ -3,6 +3,29 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.6.0] – 2026-10-22
+
+### Added
+- **Match debrief, part 1 (UX-0): the Overview now teaches lessons instead of listing moves.**
+  - **Match header** — the result and score ("Match lost 48–118 · 6 hands"), and accuracy over your *real decisions* only.
+  - **Lessons from this match** — up to two recurring patterns, lesson first: the strategic dimension you gave up on at least two costly plays (e.g. *"Back your partner's suit — your partner's salida names their strong suit; keep it open so they keep playing. You missed this in 3 of your 4 costly plays (hands 1, 3, 6)."*). Ten bilingual lessons, one per scoring factor; a clean or one-off match says so instead.
+  - **Top 3 key moments by impact**, not every weak play. Each leads with its lesson, says where it happened ("Hand 2 · your play 4", matching the hand-end card), shows a **mini board** — the open ends (or the empty board for a salida), your partner's, your own and the opponents' signaled suits, and the hand you held with your tile ringed red and Genín's ringed green — then explains why the other tile was stronger, with the simulated win rates at Master. At Master, moments are ranked by the simulated win-rate drop, which often disagrees with the static score gap; plays the simulation found about equally good are ranked last. In Spanish, a salida reads "Saliste con…" and any later play "Tiraste…".
+- Your Plays numbers plays as "Hand N · your play M" and dims forced moves with a **Forced** badge (also in Full Match).
+
+### Changed
+- **Forced moves no longer count toward accuracy.** A play with only one legal move isn't a decision; it used to count as "optimal" and inflated the headline (in testing about a third of all tile plays were forced). This applies to the debrief, the lifetime **Genín agreement** stat and *Genín Student* badge (from now on — past totals can't be corrected), and the Claude play-style analysis.
+- The four grade counters are now a compact one-row strip under the accuracy line.
+- Spanish: the open ends are now *puntas* throughout (the mini board and Genín's *firme*, *darle pase* and opponent-suit explanations), as players say it.
+
+### Fixed
+- On phones, the debrief tab bar could collapse to a sliver when the content was long; the header, tabs and footer now keep their height.
+
+### Added (internal)
+- `docs/js/coach/MatchLessons.js` — `buildMatchLessons(matchHistory)` pure builder (result, decisions, patterns, ranked moments).
+- `SmartAI.analyzeHumanTurn` also records `forced`, `legalMoves`, `recFactor` (the contrast factor key — language-independent, so the debrief resolves it in the current UI language), `handBefore`, and `signals` (own / partner / opponents' suits).
+- `StrategicExplainer.contrastFactor()` (the key behind `explainContrast`); `MatchHistory.isForced()`; `getHumanStats()` reports `forced` separately.
+- Tile rendering helpers moved from `main.js` to `docs/js/ui/dominoRender.js`, shared with the debrief.
+
 ## [1.5.1] – 2026-10-21
 
 ### Fixed

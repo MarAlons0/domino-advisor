@@ -1475,6 +1475,15 @@ button:disabled {
 }
 
 /* Debrief Tabs */
+/* Header, tabs and footer keep their height; only .debrief-content scrolls.
+   (On phones the tab bar scrolls horizontally, which otherwise lets it shrink
+   to ~20px when the content is long.) */
+.debrief-header,
+.debrief-tabs,
+.debrief-footer {
+    flex-shrink: 0;
+}
+
 .debrief-tabs {
     display: flex;
     border-bottom: 1px solid #0f3460;
@@ -1516,20 +1525,37 @@ button:disabled {
     display: block;
 }
 
-/* Stat Cards */
+/* Debrief decisions line (accuracy over real decisions) */
+.debrief-decisions {
+    margin: 0 0 10px 0;
+    color: #ccc;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* Stat Cards — a compact supporting strip under the decisions line */
 .stat-cards {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    margin-bottom: 20px;
+    gap: 8px;
+    margin-bottom: 18px;
 }
 
 .stat-card {
     background: #0a1628;
     border-radius: 8px;
-    padding: 15px;
+    padding: 8px 6px;
     text-align: center;
     border: 2px solid transparent;
+}
+
+.stat-cards .stat-value {
+    font-size: 20px;
+}
+
+.stat-cards .stat-label {
+    margin-top: 2px;
+    font-size: 10px;
 }
 
 .stat-card.optimal {
@@ -1562,10 +1588,191 @@ button:disabled {
     margin-top: 5px;
 }
 
+/* Lessons (recurring patterns), lesson first */
+.lessons-section {
+    margin-bottom: 20px;
+}
+
+.lessons-section h3 {
+    margin: 0 0 10px 0;
+    color: #fff;
+    font-size: 14px;
+}
+
+.lessons-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.lessons-list .empty-state {
+    text-align: left;
+    padding: 4px 0;
+    color: #888;
+}
+
+.lesson-card {
+    background: #0a1628;
+    border-radius: 6px;
+    padding: 12px;
+    border-left: 3px solid #f0c040;
+}
+
+.lesson-title {
+    color: #f0c040;
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.lesson-why {
+    color: #ddd;
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 6px;
+}
+
+.lesson-evidence {
+    color: #888;
+    font-size: 12px;
+}
+
 /* Key Moments Section */
 .key-moments-section {
     margin-bottom: 20px;
 }
+
+.moment-lesson {
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.moment-meta {
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.moment-sentence {
+    color: #ddd;
+    font-size: 13px;
+    line-height: 1.45;
+    margin-top: 8px;
+}
+
+.moments-more {
+    color: #888;
+    font-size: 12px;
+    text-align: right;
+}
+
+/* Mini board snapshot inside a key moment */
+.mini-board {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mini-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.mini-label {
+    color: #888;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-right: 2px;
+}
+
+.end-face {
+    display: inline-flex;
+    background: linear-gradient(135deg, #f5f5dc 0%, #e8e8c8 100%);
+    border: 1px solid #333;
+    border-radius: 4px;
+}
+
+.end-face .domino-half {
+    width: 20px;
+    height: 20px;
+    padding: 2px;
+}
+
+.end-face .pip,
+.mini-hand .pip {
+    width: 3px;
+    height: 3px;
+}
+
+.end-sep {
+    color: #666;
+}
+
+.signal-chip {
+    font-size: 11px;
+    color: #9fb4d9;
+    background: rgba(59, 130, 246, 0.15);
+    border-radius: 10px;
+    padding: 2px 8px;
+}
+
+.mini-hand {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.mini-hand .domino.vertical {
+    width: 18px;
+    height: 36px;
+    border-width: 1px;
+    border-radius: 3px;
+    box-shadow: none;
+}
+
+.mini-hand .domino-half {
+    width: 16px;
+    height: 17px;
+    padding: 2px;
+}
+
+.mini-hand .domino.mini-played {
+    outline: 2px solid #ff6b6b;
+    outline-offset: 1px;
+}
+
+.mini-hand .domino.mini-pick {
+    outline: 2px solid #22c55e;
+    outline-offset: 1px;
+}
+
+.mini-legend {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: #888;
+}
+
+.legend-played::before,
+.legend-pick::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+
+.legend-played::before { border: 2px solid #ff6b6b; }
+.legend-pick::before { border: 2px solid #22c55e; }
 
 .key-moments-section h3 {
     margin: 0 0 10px 0;
@@ -1802,6 +2009,15 @@ button:disabled {
 .play-badge.pass {
     background: rgba(136, 136, 136, 0.2);
     color: #888;
+}
+
+.play-badge.forced {
+    background: rgba(136, 136, 136, 0.15);
+    color: #999;
+}
+
+.play-item.forced {
+    opacity: 0.6;
 }
 
 .play-badge.ai {
@@ -2479,10 +2695,6 @@ button:disabled {
         min-height: 350px;
     }
 
-    .stat-cards {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
     .debrief-modal {
         max-height: 85vh;
     }
@@ -2841,12 +3053,20 @@ button:disabled {
     }
 
     .stat-cards {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
+        gap: 6px;
     }
 
     .stat-card {
-        padding: 10px;
+        padding: 6px 4px;
+    }
+
+    .stat-cards .stat-value {
+        font-size: 18px;
+    }
+
+    .stat-cards .stat-label {
+        font-size: 9px;
+        letter-spacing: 0;
     }
 
     .stat-value {

@@ -175,8 +175,19 @@ export class MatchHistory {
     }
 
     /**
-     * Get statistics for human plays
-     * @returns {object} { optimal, good, questionable, mistake, total }
+     * A forced play had exactly one legal move — not a decision, so it is left
+     * out of accuracy (debrief headline, lifetime Genín agreement, Claude prompt).
+     * @param {object} play - play record
+     * @returns {boolean}
+     */
+    static isForced(play) {
+        return play?.turnAnalysis?.forced === true;
+    }
+
+    /**
+     * Get statistics for human plays. Forced plays are counted separately and
+     * excluded from the grade buckets and total (real decisions only).
+     * @returns {object} { optimal, good, questionable, mistake, total, passes, forced }
      */
     getHumanStats() {
         const stats = {
@@ -185,7 +196,8 @@ export class MatchHistory {
             questionable: 0,
             mistake: 0,
             total: 0,
-            passes: 0
+            passes: 0,
+            forced: 0
         };
 
         for (const hand of this.hands) {
@@ -193,6 +205,8 @@ export class MatchHistory {
                 if (play.isHuman) {
                     if (play.tile === null) {
                         stats.passes++;
+                    } else if (MatchHistory.isForced(play)) {
+                        stats.forced++;
                     } else if (play.evaluation) {
                         stats[play.evaluation]++;
                         stats.total++;
@@ -240,7 +254,8 @@ export class MatchHistory {
         for (const hand of this.hands) {
             for (let i = 0; i < hand.plays.length; i++) {
                 const play = hand.plays[i];
-                if (play.isHuman && (play.evaluation === 'optimal' || play.evaluation === 'good')) {
+                if (play.isHuman && !MatchHistory.isForced(play)
+                    && (play.evaluation === 'optimal' || play.evaluation === 'good')) {
                     moments.push({
                         handNumber: hand.handNumber,
                         playIndex: i,

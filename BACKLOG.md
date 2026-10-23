@@ -1,11 +1,14 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-21 (STATS-1 audited: already shipped in v1.0.3; final-hand + cerrado-label fixes in v1.5.1)_
+_Last updated: 2026-10-22 (UX-0 part 1 — lessons-first debrief Overview — shipped as v1.6.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## 🔴 High
-- [ ] **Streamlined post-game feedback (UX-0)** — tighten the debrief flow. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
+- [ ] 🚧 **Streamlined post-game feedback (UX-0)** — tighten the debrief flow. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
+  - Part 1 shipped in v1.6.0: lessons-first Overview (patterns, top-3 moments with mini board, forced moves excluded from accuracy).
+  - Part 2: Full Match as one scrollable timeline, hand-by-hand recap of the hand-end cards, Your Plays / Full Match translation gaps ("en right", "Only valid move").
 - [ ] **Visual effects for key moments (UX-A)** — highlight zapatos, cerrados, comebacks. `[feature]`
+- [ ] **Grade plays by simulated win rate at Master** — at Master, Genín's pick comes from ISMCTS, but play grades (optimal/good/questionable/mistake) use the static score gap, and the two often disagree (in testing, the biggest "mistake" by static score had a 0-point win-rate difference; 3 of 10 "costly" plays were under 3 points). Grade by the simulated win-rate drop when available (with a minimum-visits check for noisy estimates), so the stat strip, patterns, hand-end card verdict and lifetime stats agree with the "~X% vs ~Y%" explanations. The v1.6.0 debrief already ranks key moments this way. `[feature]`
 
 ## 🟡 Medium
 - [ ] **Match-score-aware ISMCTS reward (0g.3b)** — thread match score into `ISMCTSGameState` terminal values (play safe at match point, gamble when far behind). Follow-up to the shipped 0g.3/0g.4 margin reward. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`

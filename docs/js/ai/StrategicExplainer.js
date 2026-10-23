@@ -1,6 +1,13 @@
 import { GameState } from '../models/GameState.js';
 import { t } from '../i18n/i18n.js';
 
+/** The 10 SmartAI scoring factors, each with an explain.contrast.<factor> phrase. */
+export const CONTRAST_FACTORS = [
+    'suitDominance', 'doubleManagement', 'partnerSupport', 'ownSuitProtection',
+    'firmeProtection', 'oppSuitAvoidance', 'blockingPotential', 'pipManagement',
+    'handFlexibility', 'paceControl',
+];
+
 /**
  * StrategicExplainer - Generates rich, contextual explanations using traditional domino terminology.
  *
@@ -279,31 +286,29 @@ export class StrategicExplainer {
      * @returns {string|null}
      */
     explainContrast(recFactors, playedFactors) {
-        if (!recFactors || !playedFactors) return null;
+        const factor = this.contrastFactor(recFactors, playedFactors);
+        return factor ? t(`explain.contrast.${factor}`) : null;
+    }
 
-        const CONTRAST_KEYS = {
-            suitDominance: 'explain.contrast.suitDominance',
-            doubleManagement: 'explain.contrast.doubleManagement',
-            partnerSupport: 'explain.contrast.partnerSupport',
-            ownSuitProtection: 'explain.contrast.ownSuitProtection',
-            firmeProtection: 'explain.contrast.firmeProtection',
-            oppSuitAvoidance: 'explain.contrast.oppSuitAvoidance',
-            blockingPotential: 'explain.contrast.blockingPotential',
-            pipManagement: 'explain.contrast.pipManagement',
-            handFlexibility: 'explain.contrast.handFlexibility',
-            paceControl: 'explain.contrast.paceControl',
-        };
+    /**
+     * The factor key behind explainContrast (e.g. 'partnerSupport'), or null.
+     * Language-independent, so callers can store it, group moments by it (the
+     * debrief's pattern summary) and resolve the phrase at render time.
+     * @returns {string|null}
+     */
+    contrastFactor(recFactors, playedFactors) {
+        if (!recFactors || !playedFactors) return null;
 
         let bestFactor = null;
         let bestDiff = 0;
-        for (const f of Object.keys(CONTRAST_KEYS)) {
+        for (const f of CONTRAST_FACTORS) {
             const diff = (recFactors[f] ?? 0) - (playedFactors[f] ?? 0);
             if (diff > bestDiff) { bestDiff = diff; bestFactor = f; }
         }
 
         // Require a modest edge so near-ties don't produce a misleading "reason".
         if (!bestFactor || bestDiff < 5) return null;
-        return t(CONTRAST_KEYS[bestFactor]);
+        return bestFactor;
     }
 
     // ==================== Helpers ====================

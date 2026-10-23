@@ -1,5 +1,8 @@
 import { ClaudeService } from '../services/ClaudeService.js';
 import { GameState } from '../models/GameState.js';
+import { MatchHistory } from '../models/MatchHistory.js';
+import { buildMatchLessons } from '../coach/MatchLessons.js';
+import { createDominoElement, createDominoHalf } from './dominoRender.js';
 import { t, i18n } from '../i18n/i18n.js';
 
 /**
@@ -61,6 +64,8 @@ export class DebriefUI {
         this.debriefCloseBtn = document.getElementById('debrief-close-btn');
         this.newMatchBtn = document.getElementById('debrief-new-match-btn');
         this.summaryEl = document.getElementById('debrief-summary');
+        this.decisionsEl = document.getElementById('debrief-decisions');
+        this.lessonsList = document.getElementById('lessons-list');
 
         // Tab elements
         this.tabBtns = document.querySelectorAll('.debrief-tabs .tab-btn');
@@ -159,6 +164,7 @@ export class DebriefUI {
         if (!this.isInitialized) this.init();
 
         this.matchHistory = matchHistory;
+        this.lessons = buildMatchLessons(matchHistory);
 
         if (this.modal) {
             this.modal.classList.add('visible');
@@ -173,6 +179,7 @@ export class DebriefUI {
         // Populate all content
         this._updateSummary();
         this._updateStats();
+        this._updateLessons();
         this._updateKeyMoments();
         this._updateYourPlays();
         this._updateHandSelector();
@@ -223,15 +230,48 @@ export class DebriefUI {
      * @private
      */
     _updateSummary() {
-        if (!this.summaryEl || !this.matchHistory) return;
+        if (!this.summaryEl || !this.lessons) return;
 
-        const stats = this.matchHistory.getHumanStats();
-        const handCount = this.matchHistory.getHandCount();
-        const total = stats.optimal + stats.good + stats.questionable + stats.mistake;
-        const goodRate = total > 0 ? Math.round(((stats.optimal + stats.good) / total) * 100) : 0;
+        const r = this.lessons.result;
+        this.summaryEl.textContent = t(`debrief.result.${r.outcome}`, r.us, r.them, r.hands, r.hands !== 1 ? 's' : '');
 
-        const plural = handCount !== 1 ? 's' : '';
-        this.summaryEl.textContent = t('debrief.summary', handCount, plural, goodRate);
+        if (this.decisionsEl) {
+            const d = this.lessons.decisions;
+            let text = d.total > 0 ? t('debrief.decisions', d.pct, d.total) : t('debrief.decisions.none');
+            if (d.forced > 0) text += t('debrief.decisions.forced', d.forced);
+            this.decisionsEl.textContent = text;
+        }
+    }
+
+    /**
+     * Render the lessons (recurring patterns), lesson first.
+     * @private
+     */
+    _updateLessons() {
+        if (!this.lessonsList || !this.lessons) return;
+        const L = this.lessons;
+
+        if (L.weakCount === 0) {
+            this.lessonsList.innerHTML = `<div class="empty-state">${t('debrief.lessons.clean')}</div>`;
+            return;
+        }
+        if (L.patterns.length === 0) {
+            this.lessonsList.innerHTML = `<div class="empty-state">${t('debrief.lessons.none')}</div>`;
+            return;
+        }
+
+        this.lessonsList.innerHTML = L.patterns.map(p => {
+            const evidence = p.hands.length === 1
+                ? t('debrief.pattern.evidenceOne', p.count, L.weakCount, p.hands[0])
+                : t('debrief.pattern.evidenceMany', p.count, L.weakCount, p.hands.join(', '));
+            return `
+                <div class="lesson-card">
+                    <div class="lesson-title">${t(`debrief.lesson.${p.factor}.title`)}</div>
+                    <div class="lesson-why">${t(`debrief.lesson.${p.factor}.why`)}</div>
+                    <div class="lesson-evidence">${evidence}</div>
+                </div>
+            `;
+        }).join('');
     }
 
     /**
@@ -254,37 +294,107 @@ export class DebriefUI {
      * @private
      */
     _updateKeyMoments() {
-        if (!this.keyMomentsList || !this.matchHistory) return;
+        if (!this.keyMomentsList || !this.lessons) return;
+        const L = this.lessons;
 
-        const moments = this.matchHistory.getKeyMoments();
-
-        if (moments.length === 0) {
+        if (L.moments.length === 0) {
             this.keyMomentsList.innerHTML = `<div class="empty-state">${t('debrief.noMistakes')}</div>`;
             return;
         }
 
-        this.keyMomentsList.innerHTML = moments.map(moment => {
-            const play = moment.play;
-            const isQuestionable = play.evaluation === 'questionable';
-            const evalLabel = t(`debrief.stat.${play.evaluation}`);
+        const more = L.moreMoments > 0
+            ? `<div class="moments-more">${t('debrief.moments.more', L.moreMoments)}</div>`
+            : '';
+        this.keyMomentsList.innerHTML = L.moments.map(m => this._renderMoment(m)).join('') + more;
+    }
 
-            return `
-                <div class="moment-item ${isQuestionable ? 'questionable' : ''}">
-                    <div class="moment-header">
-                        <span class="moment-label">${t('debrief.handPlay', moment.handNumber, moment.playIndex + 1)}</span>
-                        <span class="moment-badge ${play.evaluation}">${evalLabel}</span>
-                    </div>
-                    <div class="moment-played">
-                        ${t('debrief.played', play.tile ? play.tile.toString() : 'unknown', play.end)}
-                    </div>
-                    ${play.aiRecommendation ? `
-                        <div class="moment-recommended">
-                            ${t('debrief.aiRecommended', play.aiRecommendation.tile?.toString() || 'unknown', play.aiRecommendation.reasoning)}
-                        </div>
-                    ` : ''}
+    /**
+     * One key moment: the lesson, where it happened, the board, then why the
+     * other tile was stronger (with the ISMCTS win rates when available).
+     * @private
+     */
+    _renderMoment(m) {
+        const play = m.play;
+        const ta = play.turnAnalysis || {};
+        const rec = play.aiRecommendation;
+        const title = m.factor ? t(`debrief.lesson.${m.factor}.title`) : t('debrief.lesson.generic.title');
+        // Resolve the reason now (not the play-time string) so it follows the UI language.
+        const reason = m.factor ? t(`explain.contrast.${m.factor}`) : (ta.recReason || null);
+        const opening = play.stateSnapshot && play.stateSnapshot.chainSize === 0;
+        const verb = t(opening ? 'debrief.verb.opened' : 'debrief.verb.played');
+        const played = play.tile.toString();
+        const pick = rec?.tile ? rec.tile.toString() : '?';
+
+        let sentence;
+        if (reason && ta.recWinRate != null && ta.playedWinRate != null) {
+            sentence = t('debrief.moment.why', verb, played, pick, reason,
+                Math.round(ta.recWinRate * 100), Math.round(ta.playedWinRate * 100));
+        } else if (reason) {
+            sentence = t('debrief.moment.principle', verb, played, pick, reason);
+        } else {
+            sentence = t('debrief.moment.bare', verb, played, pick);
+        }
+
+        return `
+            <div class="moment-item ${play.evaluation}">
+                <div class="moment-header">
+                    <span class="moment-lesson">${title}</span>
+                    <span class="moment-badge ${play.evaluation}">${t(`debrief.stat.${play.evaluation}`)}</span>
                 </div>
-            `;
+                <div class="moment-meta">${t('debrief.handYourPlay', m.handNumber, m.humanN)}</div>
+                ${this._renderMiniBoard(play)}
+                <div class="moment-sentence">${sentence}</div>
+            </div>
+        `;
+    }
+
+    /**
+     * Mini board for a moment: the open ends (or empty board), the suits in
+     * play, and the hand held — with the played tile and Genín's pick marked.
+     * @private
+     */
+    _renderMiniBoard(play) {
+        const ta = play.turnAnalysis;
+        if (!ta || !Array.isArray(ta.handBefore)) return '';
+        const snap = play.stateSnapshot || {};
+        const rec = play.aiRecommendation;
+
+        const ends = snap.chainSize > 0
+            ? `<span class="mini-label">${t('debrief.board.ends')}</span>
+               <span class="end-face">${createDominoHalf(snap.leftEnd)}</span>
+               <span class="end-sep">…</span>
+               <span class="end-face">${createDominoHalf(snap.rightEnd)}</span>`
+            : `<span class="mini-label">${t('debrief.board.opening')}</span>`;
+
+        const chips = [];
+        if (ta.signals?.partner != null) chips.push(t('debrief.board.partnerSuit', ta.signals.partner));
+        if (ta.signals?.own != null) chips.push(t('debrief.board.ownSuit', ta.signals.own));
+        const opps = ta.signals?.opps || [];
+        if (opps.length === 1) chips.push(t('debrief.board.oppSuit', opps[0]));
+        else if (opps.length > 1) chips.push(t('debrief.board.oppSuits', opps.join(', ')));
+        const chipsHtml = chips.map(c => `<span class="signal-chip">${c}</span>`).join('');
+
+        const isTile = (tile, h, l) => tile && tile.high === h && tile.low === l;
+        const handHtml = ta.handBefore.map(([h, l]) => {
+            const el = createDominoElement(h, l, 'vertical', h === l);
+            if (isTile(play.tile, h, l)) el.classList.add('mini-played');
+            if (isTile(rec?.tile, h, l)) el.classList.add('mini-pick');
+            return el.outerHTML;
         }).join('');
+
+        return `
+            <div class="mini-board">
+                <div class="mini-row">${ends}${chipsHtml}</div>
+                <div class="mini-row">
+                    <span class="mini-label">${t('debrief.board.yourHand')}</span>
+                    <div class="mini-hand">${handHtml}</div>
+                </div>
+                <div class="mini-legend">
+                    <span class="legend-played">${t('debrief.board.played')}</span>
+                    <span class="legend-pick">${t('debrief.board.pick')}</span>
+                </div>
+            </div>
+        `;
     }
 
     /**
@@ -301,18 +411,28 @@ export class DebriefUI {
             return;
         }
 
+        // "Your play N" within each hand counts tile plays only (passes aren't
+        // numbered), matching the hand-end card and the key moments.
+        const humanN = {};
         this.yourPlaysList.innerHTML = plays.map(item => {
             const play = item.play;
             const isPass = play.tile === null;
+            const isForced = MatchHistory.isForced(play);
             const evalLabel = play.evaluation ? t(`debrief.stat.${play.evaluation}`) : t('na');
+            if (!isPass) humanN[item.handNumber] = (humanN[item.handNumber] || 0) + 1;
+            const label = isPass
+                ? t('debrief.handPass', item.handNumber)
+                : t('debrief.handYourPlay', item.handNumber, humanN[item.handNumber]);
 
             return `
-                <div class="play-item">
+                <div class="play-item${isForced ? ' forced' : ''}">
                     <div class="play-header">
-                        <span class="play-info">${t('debrief.handPlay', item.handNumber, item.playIndex + 1)}</span>
+                        <span class="play-info">${label}</span>
                         ${isPass
                             ? `<span class="play-badge pass">${t('pass')}</span>`
-                            : `<span class="play-badge ${play.evaluation || ''}">${evalLabel}</span>`
+                            : isForced
+                                ? `<span class="play-badge forced">${t('debrief.forced')}</span>`
+                                : `<span class="play-badge ${play.evaluation || ''}">${evalLabel}</span>`
                         }
                     </div>
                     <div class="play-tile">
@@ -368,6 +488,10 @@ export class DebriefUI {
 
             let badgeClass = isHuman ? (play.evaluation || '') : 'ai';
             let badgeText = isHuman ? (play.evaluation ? t(`debrief.stat.${play.evaluation}`) : t('na')) : t('ai');
+            if (isHuman && MatchHistory.isForced(play)) {
+                badgeClass = 'forced';
+                badgeText = t('debrief.forced');
+            }
             if (isPass) {
                 badgeClass = 'pass';
                 badgeText = t('pass');
