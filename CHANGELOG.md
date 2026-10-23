@@ -3,6 +3,21 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.8.0] – 2026-10-23
+
+### Added
+- **Visual effects for key moments (UX-A).** Short, subtle table effects (about 1.5 s) for any player, in team color — cyan for your team, red for the opponents:
+  - **Capicú** — when the winning tile joins two *different* puntas (so it could go on either end), it slams in gold, both puntas pulse gold, and a **"¡Capicú!"** banner pops over the table. Equal puntas never make a capicú. In testing, about 1 hand in 12.
+  - **Cerrado** — the closing tile slams and both locked puntas pulse in the closing team's color, with a **"Closed on 4s!" / "¡Cerrado a 4s!"** banner; the end-of-hand modal now waits 1.5 s so you see the locked board first.
+  - **Domino** — the existing slam (also on any [6|6]) now glows in the player's team color.
+  - **Zapato** and **comeback** on the match-end screen when your team wins: a gold **"¡Zapato! 118–0"** (opponents at 0) or a green **"¡Remontada! Ibas perdiendo por 88"** (won after trailing by 50+).
+  - Respects the system "reduce motion" setting: no scaling or pulsing, just color and a fade.
+
+### Changed (internal)
+- `docs/js/coach/MatchMoments.js` — pure detection: `isCapicu`, `maxDeficit`, `matchHighlights` (`COMEBACK_MIN_DEFICIT = 50`).
+- `main.js`: `_prepareHandEndEffect` sets the effect inside `onHandEnd` (before the engine's re-render); the two puntas are marked during `renderChain`; one `_handEndDelay(reason)` is shared by the hand-end and match-end timers (they must stay equal so the final hand's stats land before the match's).
+- Backlog: UX-E (tile slam) was already built; marked shipped with the team colors added here.
+
 ## [1.7.0] – 2026-10-22
 
 ### Added

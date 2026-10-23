@@ -809,19 +809,141 @@ button:disabled {
 .domino.show-player.played-by-2::after { background: rgba(59, 130, 246, 0.28); }
 .domino.show-player.played-by-3::after { background: rgba(234, 179, 8, 0.28); }
 
-/* Tile slam animation — [6|6] or domino */
+/* Tile slam animation — [6|6], domino, or the closing tile of a cerrado.
+   Glow color by team (UX-A): cyan for your team, red for the opponents,
+   gold for a capicú. */
 .tile-slam {
+    --slam-glow: #00d4ff;
     animation: tile-slam 500ms ease-out forwards;
     position: relative;
     z-index: 10;
 }
 
+.tile-slam.slam-team-0 { --slam-glow: #00d4ff; }
+.tile-slam.slam-team-1 { --slam-glow: #ff6b6b; }
+.tile-slam.slam-gold   { --slam-glow: #f0c040; }
+
 @keyframes tile-slam {
     0%   { transform: scale(1);    box-shadow: none; }
-    20%  { transform: scale(1.45); box-shadow: 0 0 22px #00d4ff; }
-    55%  { transform: scale(0.92); box-shadow: 0 0 6px rgba(0, 212, 255, 0.4); }
+    20%  { transform: scale(1.45); box-shadow: 0 0 22px var(--slam-glow); }
+    55%  { transform: scale(0.92); box-shadow: 0 0 6px var(--slam-glow); }
     80%  { transform: scale(1.08); box-shadow: none; }
     100% { transform: scale(1);    box-shadow: none; }
+}
+
+/* The two puntas pulse when a hand ends on a cerrado or a capicú */
+.end-glow {
+    --end-glow: #f0c040;
+    animation: end-glow 700ms ease-in-out 2;
+    position: relative;
+    z-index: 9;
+}
+
+.end-glow.ends-team-0 { --end-glow: #00d4ff; }
+.end-glow.ends-team-1 { --end-glow: #ff6b6b; }
+.end-glow.ends-gold   { --end-glow: #f0c040; }
+
+/* A punta that is also the slammed tile: slam first, then pulse */
+.tile-slam.end-glow {
+    animation: tile-slam 500ms ease-out forwards, end-glow 700ms ease-in-out 500ms 2;
+}
+
+@keyframes end-glow {
+    0%, 100% { box-shadow: none; }
+    50%      { box-shadow: 0 0 14px 3px var(--end-glow); }
+}
+
+/* Key-moment banner over the table (capicú, cerrado) */
+.moment-banner {
+    --banner-color: #f0c040;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+    pointer-events: none;
+    opacity: 0;
+    padding: 8px 18px;
+    border-radius: 999px;
+    border: 2px solid var(--banner-color);
+    background: rgba(10, 22, 40, 0.88);
+    color: var(--banner-color);
+    font-size: 20px;
+    font-weight: bold;
+    white-space: nowrap;
+    box-shadow: 0 0 18px rgba(0, 0, 0, 0.5);
+}
+
+.moment-banner.team-0 { --banner-color: #00d4ff; }
+.moment-banner.team-1 { --banner-color: #ff6b6b; }
+.moment-banner.gold   { --banner-color: #f0c040; }
+
+.moment-banner.visible {
+    animation: moment-banner 1700ms ease-out forwards;
+}
+
+@keyframes moment-banner {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+    15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+    25%  { transform: translate(-50%, -50%) scale(1); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Match-end highlight: zapato / comeback on your team's win */
+.match-highlight {
+    display: inline-block;
+    margin: 0 auto 10px;
+    padding: 6px 14px;
+    border-radius: 14px; /* stays tidy if the text wraps on a narrow modal */
+    font-weight: bold;
+    font-size: 16px;
+    animation: match-highlight 900ms ease-out;
+}
+
+.match-highlight.zapato {
+    color: #f0c040;
+    border: 2px solid #f0c040;
+    background: rgba(240, 192, 64, 0.12);
+}
+
+.match-highlight.comeback {
+    color: #22c55e;
+    border: 2px solid #22c55e;
+    background: rgba(34, 197, 94, 0.12);
+}
+
+@keyframes match-highlight {
+    0%   { opacity: 0; transform: scale(0.8); }
+    60%  { opacity: 1; transform: scale(1.06); }
+    100% { transform: scale(1); }
+}
+
+/* Reduced motion: no scaling or pulsing — the colors and banner just fade */
+@media (prefers-reduced-motion: reduce) {
+    .tile-slam,
+    .tile-slam.end-glow {
+        animation: none;
+        box-shadow: 0 0 10px var(--slam-glow);
+    }
+
+    .end-glow {
+        animation: none;
+        box-shadow: 0 0 10px 2px var(--end-glow);
+    }
+
+    .moment-banner.visible {
+        animation: moment-banner-fade 1700ms linear forwards;
+    }
+
+    .match-highlight {
+        animation: none;
+    }
+}
+
+@keyframes moment-banner-fade {
+    0%, 100% { opacity: 0; }
+    10%, 80% { opacity: 1; }
 }
 
 /* Player legend */

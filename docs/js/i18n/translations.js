@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.7.0',
+        'app.version': 'v1.8.0',
         'app.createdBy': 'Created by',
 
         // Players
@@ -97,6 +97,11 @@ export const translations = {
         'result.finalScore': 'Final: {0} - {1}',
         // Mano-level coaching feedback (per-hand)
         'coach.label': 'Genín',
+        // Key-moment effects (UX-A)
+        'moment.capicu': 'Capicú!',
+        'moment.cerrado': 'Closed on {0}s!',
+        'moment.zapato': 'Zapato! {0}–0',
+        'moment.comeback': 'Comeback! You were down by {0}',
         'coach.why': 'Why?',
         'coach.outcome.won': 'Won +{0}',
         'coach.outcome.lost': 'Lost −{0}',
@@ -505,7 +510,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.7.0',
+        'app.version': 'v1.8.0',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -595,6 +600,11 @@ export const translations = {
         'result.finalScore': 'Final: {0} - {1}',
         // Retroalimentación por mano (coaching)
         'coach.label': 'Genín',
+        // Efectos de momentos clave (UX-A)
+        'moment.capicu': '¡Capicú!',
+        'moment.cerrado': '¡Cerrado a {0}s!',
+        'moment.zapato': '¡Zapato! {0}–0',
+        'moment.comeback': '¡Remontada! Ibas perdiendo por {0}',
         'coach.why': '¿Por qué?',
         'coach.outcome.won': 'Ganada +{0}',
         'coach.outcome.lost': 'Perdida −{0}',

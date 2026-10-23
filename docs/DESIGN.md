@@ -533,7 +533,10 @@ The current debrief references specific moves from hands that the player no long
 
 ---
 
-### UX-A. Visual Effects for Key Moments
+### ~~UX-A. Visual Effects for Key Moments~~ *(completed v1.8.0, Oct 2026)*
+
+**As built (definitions confirmed with Mario):** **capicú** = the winning tile joins two *different* puntas (equal puntas never count); **zapato** = your team wins the match with the opponents at 0 (match shutout — not the "partner still has tiles" wording below); **comeback** = your team wins after trailing by 50+. Effects play for any player in team color; zapato/comeback show on the match-end screen for your wins. See CHANGELOG 1.8.0.
+
 **Priority:** High
 **Complexity:** Low–Medium
 
@@ -572,7 +575,7 @@ Give the three computer players distinct names and visual identities.
 
 ---
 
-### UX-E. Tile Slam Effect
+### ~~UX-E. Tile Slam Effect~~ *(built earlier; team-colored glow added v1.8.0)*
 **Priority:** Medium
 **Complexity:** Low
 

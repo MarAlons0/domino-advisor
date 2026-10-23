@@ -1,10 +1,9 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-22 (UX-0 complete — debrief timeline + hand-by-hand recap shipped as v1.7.0)_
+_Last updated: 2026-10-23 (UX-A key-moment effects shipped as v1.8.0; UX-E slam already built)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## 🔴 High
-- [ ] **Visual effects for key moments (UX-A)** — highlight zapatos, cerrados, comebacks. `[feature]`
 - [ ] **Grade plays by simulated win rate at Master** — at Master, Genín's pick comes from ISMCTS, but play grades (optimal/good/questionable/mistake) use the static score gap, and the two often disagree (in testing, the biggest "mistake" by static score had a 0-point win-rate difference; 3 of 10 "costly" plays were under 3 points). Grade by the simulated win-rate drop when available (with a minimum-visits check for noisy estimates), so the stat strip, patterns, hand-end card verdict and lifetime stats agree with the "~X% vs ~Y%" explanations. The v1.6.0 debrief already ranks key moments this way. `[feature]`
 
 ## 🟡 Medium
@@ -20,7 +19,6 @@ _Last updated: 2026-10-22 (UX-0 complete — debrief timeline + hand-by-hand rec
 - [ ] **Position analyzer (3)** — analyze a board position for the best plays. `[feature]`
 - [ ] **Pass indicators on UI (5)** — show when a player passed. `[feature]`
 - [ ] **Named AI players (UX-B)** — give the AI opponents names. `[feature]`
-- [ ] **Tile slam effect (UX-E)** — satisfying tile-play animation. `[feature]`
 - [ ] **AI thinking indicator (UX-D)** — show the AI "thinking" before it plays. `[feature]`
 - [ ] **Re-run the max-cerrado harness numbers** — before v1.5.1 the harness dropped every match-ending hand, so the empirical maxima in [docs/MAX_CERRADO.md](docs/MAX_CERRADO.md) and the white paper (≈92 rigged / ≈78 natural) were sampled without the hands most likely to carry big hauls. Re-run `--max-cerrado` (with `--max-disparity-deals`, `--cooperative-losers`, `--random-losers --force-cerrar`) and update both docs if the maxima move. The exhaustive 103-pip ceiling (`tools/cerrado-search.js`) is unaffected. `[chore]`
 
@@ -41,6 +39,8 @@ _Last updated: 2026-10-22 (UX-0 complete — debrief timeline + hand-by-hand rec
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Visual effects for key moments (UX-A)** — capicú (gold), cerrado (locked puntas + banner), team-colored slam; zapato / comeback (50+) on the match-end screen — v1.8.0
+- [x] **Tile slam effect (UX-E)** — slam on any [6|6] and on every domino (built earlier; team-colored glow added in v1.8.0)
 - [x] **Streamlined post-game feedback (UX-0)** — lessons-first Overview (patterns, top-3 moments with mini board, forced moves excluded) — v1.6.0; one-timeline Full Match, hand-by-hand recap, Spanish fixes — v1.7.0
 - [x] **Player stats, achievements & badges (STATS-1)** — lifetime stats page, 12 badges with toasts, `StorageService` — v1.0.3; final-hand recording + cerrado stat labels fixed — v1.5.1
 - [x] **Score-gap mano feedback explains why + how** — the "Why?" detail now gives the strategic principle (factor contrast: the dimension where the recommended tile most out-scores the one played) plus the ISMCTS win-rate comparison at Master, replacing the misleading static "N points more" number — v1.5.0

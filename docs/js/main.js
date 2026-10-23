@@ -15,6 +15,7 @@ import { Tile } from './models/Tile.js';
 import { ProbabilityAnalyzer } from './ai/ProbabilityAnalyzer.js';
 import { buildHandFeedback } from './coach/HandFeedback.js';
 import { feedbackTexts } from './ui/feedbackText.js';
+import { isCapicu, matchHighlights } from './coach/MatchMoments.js';
 import { PIP_POSITIONS, createDominoElement, createDominoFromTile } from './ui/dominoRender.js';
 import { t, i18n } from './i18n/i18n.js';
 
@@ -140,6 +141,8 @@ class DominoApp {
         this.messageTitle = document.getElementById('message-title');
         this.messageText = document.getElementById('message-text');
         this.messageGenin = document.getElementById('message-genin');
+        this.matchHighlight = document.getElementById('match-highlight');
+        this.momentBanner = document.getElementById('moment-banner');
         this.continueBtn = document.getElementById('continue-btn');
         this.reviewBtn = document.getElementById('review-btn');
         // Mano-level feedback card (per-hand coaching)
@@ -448,12 +451,15 @@ class DominoApp {
         };
 
         this.game.onHandEnd = (data) => {
+            // Table effect for how the hand ended (capicú / cerrado / domino).
+            // Must run now: the engine re-renders right after this callback.
+            this._prepareHandEndEffect(data);
             // Analyze probability accuracy before showing results (debug mode)
             if (this.probAnalyzer) {
                 this.probAnalyzer.analyzeAndLog(this.game.getState().hands);
             }
-            // Delay modal on domino so the slam animation has time to play
-            const delay = data.reason === 'domino' ? 1800 : 0;
+            // Hold the modal so the table effect has time to play
+            const delay = this._handEndDelay(data.reason);
             setTimeout(() => {
                 // Record stats for every hand — including the match-ending one,
                 // which gets no hand-end modal. This timer was queued before
@@ -467,10 +473,11 @@ class DominoApp {
         };
 
         this.game.onMatchEnd = (data) => {
-            // Delay the modal when the match ends on a domino so the slam animation
-            // has time to finish and the touch event that played the tile clears
-            // before the modal appears (prevents accidental "New Match" tap on iPad)
-            const delay = data.reason === 'domino' ? 1800 : 0;
+            // Delay the modal so the table effect finishes and the touch event that
+            // played the tile clears before the modal appears (prevents an accidental
+            // "New Match" tap on iPad). Same delay as onHandEnd, whose timer must
+            // fire first so the final hand's stats land before the match's.
+            const delay = this._handEndDelay(data.reason);
             setTimeout(() => {
                 // If the match ended on a cerrar hand, showHandEndMessage (which
                 // normally finalizes it) was skipped, so finalize the pending
@@ -600,7 +607,13 @@ class DominoApp {
         }
         if (this._slamTile && pt.tile === this._slamTile) {
             domino.classList.add('tile-slam');
+            if (this._slamClass) domino.classList.add(this._slamClass);
             this._slamTile = null;
+            this._slamClass = null;
+        }
+        // Mark the two puntas (the chain's outermost tiles) for end effects.
+        if (this._chainEnds && (pt === this._chainEnds[0] || pt === this._chainEnds[1])) {
+            domino.dataset.end = 'true';
         }
         return domino;
     }
@@ -608,9 +621,64 @@ class DominoApp {
     _checkSlamCondition(tile) {
         const state = this.game.getState();
         const hand = state.hands[state.currentPlayer];
-        if (tile.isDoubleSix() || hand.getTiles().length === 1) {
+        const lastTile = hand.getTiles().length === 1;
+        if (tile.isDoubleSix() || lastTile) {
             this._slamTile = tile;
+            // Glow in the player's team color: cyan for yours, red for the opponents.
+            this._slamClass = `slam-team-${GameState.getTeam(state.currentPlayer)}`;
         }
+        // Capicú: the winning tile joins two different puntas. Checked here,
+        // before the tile is placed, while the puntas are still the old ones.
+        this._capicu = lastTile && isCapicu(tile, state.chain.leftEnd, state.chain.rightEnd);
+    }
+
+    /**
+     * Set up the table effect for a hand that just ended (UX-A). Called from
+     * onHandEnd, before the engine's state-change render, so renderChain applies it.
+     * @private
+     */
+    _prepareHandEndEffect(data) {
+        const capicu = this._capicu;
+        this._capicu = false;
+        if (data.reason === 'domino') {
+            if (capicu) {
+                this._slamClass = 'slam-gold';
+                this._chainEffect = 'ends-gold';
+                this._showMomentBanner(t('moment.capicu'), 'gold');
+            }
+        } else if (data.reason === 'closed' && data.closingPlayer != null) {
+            const team = GameState.getTeam(data.closingPlayer);
+            const plays = this.game.getMatchHistory()?.currentHand?.plays || [];
+            const closing = [...plays].reverse().find(p => p.tile);
+            if (closing) {
+                this._slamTile = closing.tile;
+                this._slamClass = `slam-team-${team}`;
+            }
+            this._chainEffect = `ends-team-${team}`;
+            this._showMomentBanner(t('moment.cerrado', this.game.getState().chain.leftEnd), `team-${team}`);
+        }
+    }
+
+    /** Pause before the end-of-hand / end-of-match modal so the table effect plays. @private */
+    _handEndDelay(reason) {
+        if (reason === 'domino') return 1800;
+        if (reason === 'closed') return 1500;
+        return 0;
+    }
+
+    /** Brief banner over the table (capicú, cerrado). @private */
+    _showMomentBanner(text, variant) {
+        const el = this.momentBanner;
+        if (!el) return;
+        el.textContent = text;
+        el.className = `moment-banner ${variant}`;
+        void el.offsetWidth; // restart the animation if a banner is already showing
+        el.classList.add('visible');
+        clearTimeout(this._bannerTimer);
+        this._bannerTimer = setTimeout(() => {
+            el.classList.remove('visible');
+            el.textContent = ''; // don't leave stale text for screen readers
+        }, 1700);
     }
 
     renderChain(chain) {
@@ -626,6 +694,7 @@ class DominoApp {
         }
 
         const placedTiles = chain.getPlacedTiles();
+        this._chainEnds = [placedTiles[0], placedTiles[placedTiles.length - 1]];
         const F = chain.firstTileIndex;
         const tilesPerRow = this._calculateTilesPerRow();
         const halfCap = Math.floor((tilesPerRow - 1) / 2); // arm slots in 3-col anchor row
@@ -713,6 +782,11 @@ class DominoApp {
         }
 
         this.chainContainer.appendChild(chainDiv);
+        this._chainEnds = null;
+        if (this._chainEffect) {
+            chainDiv.querySelectorAll('[data-end]').forEach(el => el.classList.add('end-glow', this._chainEffect));
+            this._chainEffect = null;
+        }
     }
 
     _buildConnectorRow(side) {
@@ -974,6 +1048,7 @@ class DominoApp {
         this.modalOverlay.classList.add('visible');
 
         // Always reset to hand-end button state (may be stale from a prior match-end)
+        if (this.matchHighlight) this.matchHighlight.style.display = 'none';
         this.continueBtn.textContent = t('btn.continue');
         this.reviewBtn.style.display = 'none';
         if (this.messageGenin) this.messageGenin.style.display = 'none';
@@ -1088,6 +1163,26 @@ class DominoApp {
         this.feedbackDetail.style.display = showing ? 'none' : 'block';
     }
 
+    /**
+     * Match-end highlight for your team's win: a zapato (opponents at 0) or a
+     * comeback (won after trailing by 50+). Hidden otherwise.
+     * @private
+     */
+    _renderMatchHighlight(data) {
+        if (!this.matchHighlight) return;
+        const hands = this.game.getMatchHistory()?.hands || [];
+        const [hl] = matchHighlights(hands, data.winner, data.finalScores);
+        if (!hl) {
+            this.matchHighlight.style.display = 'none';
+            return;
+        }
+        this.matchHighlight.textContent = hl.type === 'zapato'
+            ? t('moment.zapato', hl.us)
+            : t('moment.comeback', hl.deficit);
+        this.matchHighlight.className = `match-highlight ${hl.type}`;
+        this.matchHighlight.style.display = 'inline-block';
+    }
+
     showMatchEndMessage(data) {
         const winnerName = GameState.getTeamName(data.winner);
         const isYourTeam = data.winner === 0;
@@ -1102,6 +1197,9 @@ class DominoApp {
         if (this.messageGenin) {
             this.messageGenin.style.display = isYourTeam ? 'block' : 'none';
         }
+
+        // Zapato / comeback highlight on your team's win (UX-A)
+        this._renderMatchHighlight(data);
 
         // Per-hand feedback card is a hand-end concept — never show it at match-end.
         if (this.messageFeedback) this.messageFeedback.style.display = 'none';
