@@ -2037,27 +2037,200 @@ button:disabled {
     border-left: 2px solid #0f3460;
 }
 
-/* Hand Selector */
-.hand-selector {
+/* Full Match timeline: every hand in one scroll */
+.timeline-hand {
+    margin-bottom: 16px;
+}
+
+.timeline-divider {
+    position: sticky;
+    /* Sticky offsets are measured inside .debrief-content's padding; cancel it
+       so the divider pins to the visible top edge instead of sliding over the
+       hand's first lines. Keep in sync with .debrief-content padding. */
+    top: -20px;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    background: #16213e;
+    padding: 8px 2px;
+    border-bottom: 1px solid #0f3460;
+}
+
+.tl-hand {
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.tl-outcome {
+    color: #888;
+    font-size: 12px;
+    text-align: right;
+}
+
+.timeline-divider.won .tl-outcome { color: #22c55e; }
+.timeline-divider.lost .tl-outcome { color: #ff6b6b; }
+
+.timeline-recap {
+    margin: 6px 0;
+    font-size: 12px;
+    color: #ccc;
+}
+
+.timeline-recap summary {
+    cursor: pointer;
+    color: #f0c040;
+}
+
+.timeline-recap p {
+    margin: 6px 0 0;
+    line-height: 1.45;
+}
+
+.timeline-rows {
+    display: flex;
+    flex-direction: column;
+}
+
+.timeline-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-
-.hand-selector label {
-    color: #888;
-    font-size: 13px;
-}
-
-.hand-selector select {
-    background: #0a1628;
-    border: 1px solid #0f3460;
-    color: #fff;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 13px;
+    gap: 8px;
+    padding: 5px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 12px;
     cursor: pointer;
+}
+
+.timeline-row.human {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 4px;
+}
+
+.tl-player {
+    flex: 0 0 84px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #aaa;
+}
+
+.seat-0 .tl-player { color: #fff; font-weight: bold; }
+.seat-1 .tl-player { color: #ef4444; }
+.seat-2 .tl-player { color: #3b82f6; }
+.seat-3 .tl-player { color: #eab308; }
+
+.tl-tile {
+    color: #fff;
+    white-space: nowrap;
+}
+
+.tl-end,
+.tl-pass {
+    color: #888;
+    white-space: nowrap;
+}
+
+.tl-reason {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: #7f8ea3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.timeline-row.expanded .tl-reason {
+    white-space: normal;
+}
+
+.timeline-row .play-badge {
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+
+/* Weak plays wrap to a second line with Genín's pick and why */
+.timeline-row.weak {
+    flex-wrap: wrap;
+}
+
+.tl-pick {
+    flex: 1 0 100%;
+    padding-left: 92px;
+    color: #22c55e;
+}
+
+.timeline-result {
+    margin-top: 6px;
+    padding: 6px 8px;
+    border-left: 3px solid #00d4ff;
+    background: #0a1628;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #ddd;
+}
+
+/* Overview: hand by hand (each row opens that hand in the timeline) */
+.hand-recap-section {
+    margin-bottom: 20px;
+}
+
+.hand-recap-section h3 {
+    margin: 0 0 10px 0;
+    color: #fff;
+    font-size: 14px;
+}
+
+.hand-recap-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.recap-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: #0a1628;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 12px;
+    color: #ddd;
+    text-align: left;
+    cursor: pointer;
+}
+
+.recap-row:hover {
+    background: #0f1f38;
+}
+
+.recap-hand {
+    flex: 0 0 56px;
+    color: #fff;
+    font-weight: bold;
+}
+
+.recap-outcome {
+    flex: 0 0 auto;
+    min-width: 72px;
+    white-space: nowrap;
+}
+
+.recap-row.won .recap-outcome { color: #22c55e; }
+.recap-row.lost .recap-outcome { color: #ff6b6b; }
+
+.recap-verdict {
+    flex: 1 1 auto;
+    color: #bbb;
+}
+
+.recap-go {
+    color: #666;
 }
 
 /* Debrief Footer */
@@ -3050,6 +3223,14 @@ button:disabled {
 
     .debrief-content {
         padding: 15px;
+    }
+
+    .timeline-divider {
+        top: -15px;
+    }
+
+    .tl-pick {
+        padding-left: 0;
     }
 
     .stat-cards {

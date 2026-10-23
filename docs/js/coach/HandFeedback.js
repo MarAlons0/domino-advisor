@@ -16,7 +16,9 @@
 // Returns { outcome:{result,margin,reason}, verdict:{key,args}, moment:{key,args}|null }.
 // `key`s are i18n keys; `args` are POSITIONAL substitution values ({0},{1},…)
 // matching each template's placeholder order (contract owned here, next to the
-// strings in translations.js) — so the UI just calls t(key, ...args).
+// strings in translations.js). An arg may itself be an i18n reference
+// { i18n, args } that the UI resolves at render time (ui/feedbackText.js), so
+// phrases follow the current language instead of the one active at play time.
 
 const EDGE_THRESHOLD = 3; // |inferred edge| below this is "ambiguous" (matches AI MIN_EDGE)
 
@@ -108,23 +110,31 @@ function scoreGapMoment(humanPlays) {
     const ta = worst.play.turnAnalysis || {};
     const playedTile = tileStr(worst.play.tile);
     const altTile = rec ? tileStr(rec.tile) : '?';
+    // The salida (first tile on an empty board) is "you opened with" / "saliste
+    // con"; any later tile is "on your play N you played" / "en tu jugada N tiraste".
+    const lead = worst.play.stateSnapshot?.chainSize === 0
+        ? { i18n: 'coach.lead.opened' }
+        : { i18n: 'coach.lead.play', args: [worst.humanN] };
+    // Prefer the factor key (resolved in the current language) over the
+    // play-time phrase.
+    const reason = ta.recFactor ? { i18n: `explain.contrast.${ta.recFactor}` } : ta.recReason;
 
     // Richest form: strategic reason (the "why") + ISMCTS win-rate comparison (the
     // "how", only at Master). Degrade to principle-only, then to a bare statement.
-    if (ta.recReason && ta.recWinRate != null && ta.playedWinRate != null) {
+    if (reason && ta.recWinRate != null && ta.playedWinRate != null) {
         return {
             key: 'coach.moment.scoreGapWhy',
-            args: [worst.humanN, playedTile, altTile, ta.recReason,
+            args: [lead, playedTile, altTile, reason,
                    Math.round(ta.recWinRate * 100), Math.round(ta.playedWinRate * 100)],
         };
     }
-    if (ta.recReason) {
+    if (reason) {
         return {
             key: 'coach.moment.scoreGapPrinciple',
-            args: [worst.humanN, playedTile, altTile, ta.recReason],
+            args: [lead, playedTile, altTile, reason],
         };
     }
-    return { key: 'coach.moment.scoreGap', args: [worst.humanN, playedTile, altTile] };
+    return { key: 'coach.moment.scoreGap', args: [lead, playedTile, altTile] };
 }
 
 /** Positive highlight (an optimal play), or null. */

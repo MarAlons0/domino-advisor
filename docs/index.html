@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>7 Fichas v1.6.0</title>
+    <title>7 Fichas v1.7.0</title>
     <meta name="theme-color" content="#00d4ff">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-    <link rel="stylesheet" href="css/styles.css?v=40">
+    <link rel="stylesheet" href="css/styles.css?v=41">
 </head>
 <body>
     <header class="app-header">
         <div class="brand">
-            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.6.0</span></h1>
+            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.7.0</span></h1>
             <p class="subtitle" data-i18n="app.subtitle">Partnership Dominoes vs. AI</p>
         </div>
         <p class="attribution"><span data-i18n="app.createdBy">Created by</span> <a href="https://looking4nature.com" target="_blank" rel="noopener">Mario Alonso</a></p>
@@ -511,6 +511,10 @@
                     <div id="key-moments-list" class="moments-list"></div>
                 </div>
 
+                <div class="hand-recap-section">
+                    <h3 data-i18n="debrief.recap.title">Hand by hand</h3>
+                    <div id="hand-recap-list" class="hand-recap-list"></div>
+                </div>
                 <div class="llm-analysis-section">
                     <h3 data-i18n="debrief.analysis.title">Play Style Analysis</h3>
                     <div id="llm-analysis-container">
@@ -534,11 +538,7 @@
 
             <!-- Full Match Tab -->
             <div class="tab-content" id="tab-full-match">
-                <div class="hand-selector">
-                    <label data-i18n="debrief.selectHand">Select Hand:</label>
-                    <select id="hand-select"></select>
-                </div>
-                <div id="full-match-plays" class="plays-list"></div>
+                <div id="full-match-plays" class="timeline"></div>
             </div>
 
             <!-- Predictions Tab -->
@@ -586,7 +586,7 @@
 
     <div id="badge-toast-container"></div>
 
-    <script type="module" src="js/main.js?v=29"></script>
+    <script type="module" src="js/main.js?v=30"></script>
     <script>
       if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         window.addEventListener('load', () => {

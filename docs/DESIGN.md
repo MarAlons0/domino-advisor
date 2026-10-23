@@ -8,7 +8,7 @@
 
 ## Pending Features
 
-### STATS-1. Player Stats, Achievements & Badges
+### ~~STATS-1. Player Stats, Achievements & Badges~~ *(completed v1.0.3, Mar 2026; final-hand + cerrado-label fixes v1.5.1)*
 **Priority:** High
 **Complexity:** Medium
 
@@ -508,7 +508,7 @@ Teach traditional terminology through the UI.
 
 ---
 
-### UX-0. Streamlined Post-Game Feedback
+### ~~UX-0. Streamlined Post-Game Feedback~~ *(completed v1.6.0 + v1.7.0, Oct 2026)*
 **Priority:** High
 **Complexity:** Medium
 

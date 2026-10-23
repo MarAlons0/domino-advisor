@@ -3,6 +3,24 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.7.0] – 2026-10-22
+
+### Added
+- **Match debrief, part 2 (UX-0 complete).**
+  - **Full Match is one scrollable timeline** of every hand, replacing the one-hand-at-a-time dropdown. Each hand opens with a sticky divider showing that hand's hand-end verdict ("Hand 3 · Won +26 · Won, but watch one play") and a collapsible **Why?** with its key moment, then one compact line per play (who · tile · end, or *salida* / *passed* · your grade or the AI's reason — tap a line for the full reason), then the result. Your weak plays get a second line with Genín's pick and why it's better.
+  - **Hand by hand** on the Overview: one row per hand with its result and verdict (including the match-ending hand, which never got a hand-end card during play); tapping a row opens that hand in the timeline.
+- **Your Plays reads naturally:** "You played [6|1] on the right" / "You opened with [6|6]" / "You passed", with Genín's view underneath — "Genín agrees — Double with cover", or "Genín: [4|4] on the left — it backs your partner's suit" (the reason his tile beats yours, as in the key moments).
+
+### Fixed
+- **Spanish:**
+  - The hand-end card now says **"Saliste con…"** when the moment was your salida, and "En tu jugada N tiraste…" otherwise.
+  - The debrief no longer mixes in English: ends are *a la izquierda / a la derecha*, and the AI's reasons that were hard-coded English ("Only valid move", "High-confidence block…", "Supporting partner's 3s (la salida)", cerrar and darle pase reasons…) are now translated in both languages.
+- The hand-end card's reason follows the current language, even if you switched languages during the hand.
+
+### Changed (internal)
+- `docs/js/ui/feedbackText.js` — shared `feedbackTexts(fb)` used by the hand-end card and the debrief; HandFeedback moment args may be nested i18n references (`{ i18n, args }`) resolved at render time.
+- SmartAI's priority-shortcut reasons use new `reason.*` i18n keys. Removed the hand-selector UI and seven debrief strings nothing uses anymore.
+
 ## [1.6.0] – 2026-10-22
 
 ### Added

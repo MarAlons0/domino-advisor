@@ -2,6 +2,8 @@ import { ClaudeService } from '../services/ClaudeService.js';
 import { GameState } from '../models/GameState.js';
 import { MatchHistory } from '../models/MatchHistory.js';
 import { buildMatchLessons } from '../coach/MatchLessons.js';
+import { buildHandFeedback } from '../coach/HandFeedback.js';
+import { feedbackTexts } from './feedbackText.js';
 import { createDominoElement, createDominoHalf } from './dominoRender.js';
 import { t, i18n } from '../i18n/i18n.js';
 
@@ -37,6 +39,9 @@ function renderAnalysisMarkdown(text) {
         .filter(Boolean)
         .join('');
 }
+
+/** explainBrief tags that caution about a move rather than recommend it. */
+const CAUTION_TAGS = ['brief.playsOppSuit', 'brief.killsOwnSuit', 'brief.spendFirme', 'brief.ahorcado'];
 
 /**
  * DebriefUI - Modal interface for post-match review.
@@ -81,7 +86,7 @@ export class DebriefUI {
         this.keyMomentsList = document.getElementById('key-moments-list');
         this.yourPlaysList = document.getElementById('your-plays-list');
         this.fullMatchPlays = document.getElementById('full-match-plays');
-        this.handSelect = document.getElementById('hand-select');
+        this.handRecapList = document.getElementById('hand-recap-list');
 
         // LLM elements
         this.analyzeBtn = document.getElementById('analyze-btn');
@@ -137,9 +142,20 @@ export class DebriefUI {
             btn.addEventListener('click', () => this._switchTab(btn.dataset.tab));
         });
 
-        // Hand selector
-        if (this.handSelect) {
-            this.handSelect.addEventListener('change', () => this._renderFullMatch());
+        // Hand-by-hand recap: a row opens Full Match at that hand
+        if (this.handRecapList) {
+            this.handRecapList.addEventListener('click', (e) => {
+                const row = e.target.closest('.recap-row');
+                if (row) this._showHandInTimeline(row.dataset.hand);
+            });
+        }
+
+        // Timeline: tap a row to show its full reason (one line by default)
+        if (this.fullMatchPlays) {
+            this.fullMatchPlays.addEventListener('click', (e) => {
+                const row = e.target.closest('.timeline-row');
+                if (row) row.classList.toggle('expanded');
+            });
         }
 
         // LLM analysis
@@ -181,8 +197,8 @@ export class DebriefUI {
         this._updateStats();
         this._updateLessons();
         this._updateKeyMoments();
+        this._updateHandRecap();
         this._updateYourPlays();
-        this._updateHandSelector();
         this._updateLLMSection();
         this._updatePredictionsTab();
     }
@@ -435,109 +451,172 @@ export class DebriefUI {
                                 : `<span class="play-badge ${play.evaluation || ''}">${evalLabel}</span>`
                         }
                     </div>
-                    <div class="play-tile">
-                        ${isPass ? t('debrief.passed') : t('debrief.played', play.tile.toString(), play.end)}
-                    </div>
-                    ${!isPass && play.aiRecommendation ? `
-                        <div class="play-recommendation">
-                            ${t('ai')}: ${play.aiRecommendation.tile?.toString() || 'unknown'} on ${play.aiRecommendation.end} - "${play.aiRecommendation.reasoning}"
-                        </div>
+                    <div class="play-tile">${this._yourMoveText(play)}</div>
+                    ${!isPass && !isForced && play.aiRecommendation ? `
+                        <div class="play-recommendation">${this._geninLine(play)}</div>
                     ` : ''}
                 </div>
             `;
         }).join('');
     }
 
+    /** "Tiraste [6|1] a la derecha" / "Saliste con [6|6]" / "Pasaste…" @private */
+    _yourMoveText(play) {
+        if (play.tile === null) return t('debrief.you.passed');
+        if (play.stateSnapshot?.chainSize === 0) return t('debrief.you.opened', play.tile.toString());
+        return t('debrief.you.played', play.tile.toString(), t(`debrief.end.${play.end}`));
+    }
+
+    /** Genín's view of a human play: agreement, or the pick and why. @private */
+    _geninLine(play) {
+        const rec = play.aiRecommendation;
+        const reason = rec.reasoning || t('reason.best');
+        if (rec.tile && play.tile.equals(rec.tile) && play.end === rec.end) {
+            // The AI's one-line tag can be a caution about its own move ("plays
+            // the opponent's suit"); as the reason for agreeing it reads backwards.
+            const caution = CAUTION_TAGS.some(key => reason === t(key));
+            return caution ? t('debrief.geninAgreesPlain') : t('debrief.geninAgrees', reason);
+        }
+        // When you played something else, give the contrast reason (why Genín's
+        // tile beats yours) rather than the AI's own tag, which can be a caveat.
+        const factor = play.turnAnalysis?.recFactor;
+        const why = factor ? t(`explain.contrast.${factor}`) : reason;
+        const pick = rec.tile ? rec.tile.toString() : '?';
+        if (play.stateSnapshot?.chainSize === 0) return t('debrief.geninPickOpening', pick, why);
+        return t('debrief.geninPick', pick, t(`debrief.end.${rec.end}`), why);
+    }
+
     /**
-     * Update the hand selector dropdown
+     * The hand-end card (outcome, verdict, key moment) rebuilt for a finished hand.
      * @private
      */
-    _updateHandSelector() {
-        if (!this.handSelect || !this.matchHistory) return;
-
-        const handCount = this.matchHistory.getHandCount();
-
-        this.handSelect.innerHTML = '';
-        for (let i = 1; i <= handCount; i++) {
-            const option = document.createElement('option');
-            option.value = i;
-            option.textContent = t('debrief.hand', i);
-            this.handSelect.appendChild(option);
+    _handFeedback(hand) {
+        if (!hand?.result) return null;
+        try {
+            const r = hand.result;
+            return buildHandFeedback(hand, { reason: r.reason, winningTeam: r.winner, points: r.points }, 0);
+        } catch (e) {
+            console.warn('Debrief: hand feedback failed', e);
+            return null;
         }
     }
 
     /**
-     * Render the full match play-by-play
+     * Overview "hand by hand": one row per hand with its hand-end verdict;
+     * a row opens that hand in the Full Match timeline.
+     * @private
+     */
+    _updateHandRecap() {
+        if (!this.handRecapList || !this.matchHistory) return;
+        const hands = this.matchHistory.hands || [];
+        if (hands.length === 0) {
+            this.handRecapList.innerHTML = `<div class="empty-state">${t('debrief.noPlays')}</div>`;
+            return;
+        }
+        this.handRecapList.innerHTML = hands.map(hand => {
+            const fb = this._handFeedback(hand);
+            if (!fb) return '';
+            const text = feedbackTexts(fb);
+            return `
+                <button type="button" class="recap-row ${fb.outcome.result}" data-hand="${hand.handNumber}">
+                    <span class="recap-hand">${t('debrief.hand', hand.handNumber)}</span>
+                    <span class="recap-outcome">${text.outcome}</span>
+                    <span class="recap-verdict">${text.verdict}</span>
+                    <span class="recap-go" aria-hidden="true">›</span>
+                </button>
+            `;
+        }).join('');
+    }
+
+    /** Switch to Full Match and scroll to a hand. @private */
+    _showHandInTimeline(handNumber) {
+        this._switchTab('full-match');
+        const el = document.getElementById(`timeline-hand-${handNumber}`);
+        if (el) el.scrollIntoView({ block: 'start' });
+    }
+
+    /**
+     * Full Match: every hand in one scrollable timeline. Each hand opens with a
+     * sticky divider (its hand-end verdict) and a collapsible "Why?" (the
+     * hand-end card's key moment), then one line per play, then the result.
      * @private
      */
     _renderFullMatch() {
-        if (!this.fullMatchPlays || !this.handSelect || !this.matchHistory) return;
-
-        const handNumber = parseInt(this.handSelect.value, 10);
-        const hand = this.matchHistory.getHand(handNumber);
-
-        if (!hand) {
-            this.fullMatchPlays.innerHTML = `<div class="empty-state">${t('debrief.noPlaysHand')}</div>`;
+        if (!this.fullMatchPlays || !this.matchHistory) return;
+        const hands = this.matchHistory.hands || [];
+        if (hands.length === 0) {
+            this.fullMatchPlays.innerHTML = `<div class="empty-state">${t('debrief.noPlays')}</div>`;
             return;
         }
+        this.fullMatchPlays.innerHTML = hands.map(hand => this._renderTimelineHand(hand)).join('');
+    }
 
-        this.fullMatchPlays.innerHTML = hand.plays.map((play, index) => {
-            const playerName = GameState.getPlayerName(play.player);
-            const isHuman = play.isHuman;
-            const isPass = play.tile === null;
+    /** @private */
+    _renderTimelineHand(hand) {
+        const fb = this._handFeedback(hand);
+        const text = fb ? feedbackTexts(fb) : null;
 
-            let badgeClass = isHuman ? (play.evaluation || '') : 'ai';
-            let badgeText = isHuman ? (play.evaluation ? t(`debrief.stat.${play.evaluation}`) : t('na')) : t('ai');
-            if (isHuman && MatchHistory.isForced(play)) {
-                badgeClass = 'forced';
-                badgeText = t('debrief.forced');
-            }
-            if (isPass) {
-                badgeClass = 'pass';
-                badgeText = t('pass');
-            }
+        const divider = `
+            <div class="timeline-divider ${fb ? fb.outcome.result : ''}">
+                <span class="tl-hand">${t('debrief.hand', hand.handNumber)}</span>
+                ${text ? `<span class="tl-outcome">${text.outcome} · ${text.verdict}</span>` : ''}
+            </div>`;
+        const recap = text?.detail
+            ? `<details class="timeline-recap"><summary>${t('coach.why')}</summary><p>${text.detail}</p></details>`
+            : '';
+        const rows = hand.plays.map(play => this._renderTimelineRow(play)).join('');
 
-            return `
-                <div class="play-item">
-                    <div class="play-header">
-                        <span class="play-info">${playerName} - Play ${index + 1}</span>
-                        <span class="play-badge ${badgeClass}">${badgeText}</span>
-                    </div>
-                    <div class="play-tile">
-                        ${isPass ? t('pass') : t('debrief.played', play.tile.toString(), play.end)}
-                    </div>
-                    ${!isPass && play.actualReasoning && !isHuman ? `
-                        <div class="play-recommendation">${play.actualReasoning}</div>
-                    ` : ''}
-                    ${!isPass && isHuman && play.aiRecommendation ? `
-                        <div class="play-recommendation">
-                            ${t('debrief.aiRecommended', play.aiRecommendation.tile?.toString() || 'unknown', play.aiRecommendation.reasoning)}
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-        }).join('');
-
-        // Add result if available
+        let result = '';
         if (hand.result) {
-            const reasonText = hand.result.reason === 'domino' ? t('debrief.dominoResult') :
-                               hand.result.reason === 'closed' ? t('debrief.closedResult') : t('debrief.blockedResult');
-            const resultInfo = hand.result.winner >= 0
-                ? t('debrief.wins', GameState.getTeamName(hand.result.winner), hand.result.points)
-                : t('debrief.tieResult');
-
-            const resultHtml = `
-                <div class="play-item" style="border-left: 3px solid #00d4ff;">
-                    <div class="play-header">
-                        <span class="play-info">${t('debrief.handResult')}</span>
-                    </div>
-                    <div class="play-tile">
-                        ${reasonText} - ${resultInfo}
-                    </div>
-                </div>
-            `;
-            this.fullMatchPlays.innerHTML += resultHtml;
+            const r = hand.result;
+            const reasonText = r.reason === 'domino' ? t('debrief.dominoResult')
+                : r.reason === 'closed' ? t('debrief.closedResult') : t('debrief.blockedResult');
+            const info = r.winner >= 0 ? t('debrief.wins', GameState.getTeamName(r.winner), r.points) : t('debrief.tieResult');
+            result = `<div class="timeline-result">${reasonText} — ${info}</div>`;
         }
+
+        return `
+            <section class="timeline-hand" id="timeline-hand-${hand.handNumber}">
+                ${divider}${recap}
+                <div class="timeline-rows">${rows}</div>
+                ${result}
+            </section>`;
+    }
+
+    /** One compact line: who · tile · end (or salida / passed) · grade or reason. @private */
+    _renderTimelineRow(play) {
+        const isPass = play.tile === null;
+        const move = isPass
+            ? `<span class="tl-pass">${t('debrief.timeline.passed')}</span>`
+            : `<span class="tl-tile">${play.tile.toString()}</span>
+               <span class="tl-end">${play.stateSnapshot?.chainSize === 0
+                    ? t('debrief.timeline.salida') : t(`debrief.endShort.${play.end}`)}</span>`;
+
+        let tail = '';
+        let weak = false;
+        if (!isPass && play.isHuman) {
+            const forced = MatchHistory.isForced(play);
+            weak = !forced && (play.evaluation === 'mistake' || play.evaluation === 'questionable');
+            const cls = forced ? 'forced' : (play.evaluation || '');
+            const label = forced ? t('debrief.forced') : (play.evaluation ? t(`debrief.stat.${play.evaluation}`) : '');
+            if (label) tail += `<span class="play-badge ${cls}">${label}</span>`;
+            // A weak play gets a second line: Genín's pick and why it's better.
+            if (weak && play.aiRecommendation?.tile) {
+                const pick = play.aiRecommendation.tile.toString();
+                const factor = play.turnAnalysis?.recFactor;
+                tail += `<span class="tl-pick">${factor
+                    ? t('debrief.timeline.pickWhy', pick, t(`explain.contrast.${factor}`))
+                    : t('debrief.timeline.pick', pick)}</span>`;
+            }
+        } else if (!isPass && play.actualReasoning) {
+            tail = `<span class="tl-reason">${play.actualReasoning}</span>`;
+        }
+
+        return `
+            <div class="timeline-row seat-${play.player}${play.isHuman ? ' human' : ''}${weak ? ' weak' : ''}">
+                <span class="tl-player">${GameState.getPlayerName(play.player)}</span>
+                ${move}${tail}
+            </div>`;
     }
 
     /**

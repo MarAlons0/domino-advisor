@@ -1,12 +1,9 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-22 (UX-0 part 1 — lessons-first debrief Overview — shipped as v1.6.0)_
+_Last updated: 2026-10-22 (UX-0 complete — debrief timeline + hand-by-hand recap shipped as v1.7.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## 🔴 High
-- [ ] 🚧 **Streamlined post-game feedback (UX-0)** — tighten the debrief flow. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
-  - Part 1 shipped in v1.6.0: lessons-first Overview (patterns, top-3 moments with mini board, forced moves excluded from accuracy).
-  - Part 2: Full Match as one scrollable timeline, hand-by-hand recap of the hand-end cards, Your Plays / Full Match translation gaps ("en right", "Only valid move").
 - [ ] **Visual effects for key moments (UX-A)** — highlight zapatos, cerrados, comebacks. `[feature]`
 - [ ] **Grade plays by simulated win rate at Master** — at Master, Genín's pick comes from ISMCTS, but play grades (optimal/good/questionable/mistake) use the static score gap, and the two often disagree (in testing, the biggest "mistake" by static score had a 0-point win-rate difference; 3 of 10 "costly" plays were under 3 points). Grade by the simulated win-rate drop when available (with a minimum-visits check for noisy estimates), so the stat strip, patterns, hand-end card verdict and lifetime stats agree with the "~X% vs ~Y%" explanations. The v1.6.0 debrief already ranks key moments this way. `[feature]`
 
@@ -44,6 +41,7 @@ _Last updated: 2026-10-22 (UX-0 part 1 — lessons-first debrief Overview — sh
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Streamlined post-game feedback (UX-0)** — lessons-first Overview (patterns, top-3 moments with mini board, forced moves excluded) — v1.6.0; one-timeline Full Match, hand-by-hand recap, Spanish fixes — v1.7.0
 - [x] **Player stats, achievements & badges (STATS-1)** — lifetime stats page, 12 badges with toasts, `StorageService` — v1.0.3; final-hand recording + cerrado stat labels fixed — v1.5.1
 - [x] **Score-gap mano feedback explains why + how** — the "Why?" detail now gives the strategic principle (factor contrast: the dimension where the recommended tile most out-scores the one played) plus the ISMCTS win-rate comparison at Master, replacing the misleading static "N points more" number — v1.5.0
 - [x] **Mano-level feedback (per-hand coaching)** — compact Genín card at hand-end: outcome+verdict with expandable "Why?"; local/rule-based; process-first cerrar coaching (inferable pip edge from observed fallas vs ground-truth outcome) — v1.4.0

@@ -14,6 +14,7 @@ import { StorageService } from './stats/StorageService.js';
 import { Tile } from './models/Tile.js';
 import { ProbabilityAnalyzer } from './ai/ProbabilityAnalyzer.js';
 import { buildHandFeedback } from './coach/HandFeedback.js';
+import { feedbackTexts } from './ui/feedbackText.js';
 import { PIP_POSITIONS, createDominoElement, createDominoFromTile } from './ui/dominoRender.js';
 import { t, i18n } from './i18n/i18n.js';
 
@@ -1066,13 +1067,11 @@ class DominoApp {
             return;
         }
 
-        const outKey = `coach.outcome.${fb.outcome.result}`;
-        const outcomeText = fb.outcome.result === 'tie' ? t(outKey) : t(outKey, fb.outcome.margin);
-        const verdictText = t(fb.verdict.key, ...fb.verdict.args);
-        this.feedbackVerdict.textContent = `${outcomeText} · ${verdictText}`;
+        const text = feedbackTexts(fb);
+        this.feedbackVerdict.textContent = `${text.outcome} · ${text.verdict}`;
 
         if (fb.moment) {
-            this.feedbackDetail.textContent = t(fb.moment.key, ...fb.moment.args);
+            this.feedbackDetail.textContent = text.detail;
             this.feedbackWhy.style.display = '';
             this.feedbackWhy.textContent = t('coach.why');
         } else {

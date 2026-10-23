@@ -1,6 +1,8 @@
 import { Rules } from '../engine/Rules.js';
 import { GameState } from '../models/GameState.js';
 import { StrategicExplainer } from './StrategicExplainer.js';
+// Imported as `tr`: `t` is a common local tile variable in this file.
+import { t as tr } from '../i18n/i18n.js';
 import { MonteCarloEvaluator } from './MonteCarloEvaluator.js';
 import { Hand } from '../models/Hand.js';
 import { ismcts } from './ISMCTSEvaluator.js';
@@ -447,7 +449,7 @@ export class SmartAI {
         }
 
         if (validMoves.length === 1) {
-            const move = { ...validMoves[0], reasoning: 'Only valid move' };
+            const move = { ...validMoves[0], reasoning: tr('reason.onlyMove') };
             if (DEBUG_AI) {
                 debugInfo.chosen = validMoves[0].tile.toString();
                 debugInfo.chosenReason = 'Only valid move';
@@ -473,7 +475,7 @@ export class SmartAI {
                 this._logDebug(debugInfo, activeView);
             }
             this._emitDecision({ playerIndex, priority: 'winning', validMovesCount: validMoves.length, handSize: hand.size(), playCount: this.playCount });
-            return { ...winningMove, reasoning: 'Winning move - domino!' };
+            return { ...winningMove, reasoning: tr('reason.winning') };
         }
 
         // Pure-ISMCTS mode (0g.4): skip P2/P3/P4 so the tree search sees every
@@ -611,7 +613,7 @@ export class SmartAI {
                         // randomization band, leaving band empty and
                         // bestMove = undefined. v1.2.1 hotfix.
                         move.finalScore = 1e6;
-                        move.reasoning = `ISMCTS (${this.ismctsIterations} iter)`;
+                        move.reasoning = tr('reason.simulation');
                         // Attach the root visit distribution so debug mode
                         // can render the ISMCTS confidence breakdown.
                         move.ismctsStats = ismctsResult.rootStats;
@@ -858,7 +860,7 @@ export class SmartAI {
         const chain = gameState.chain;
         const validMoves = Rules.getValidMoves(hand, chain);
         if (!validMoves.length) return null;
-        if (validMoves.length === 1) return { ...validMoves[0], reasoning: 'Only valid move' };
+        if (validMoves.length === 1) return { ...validMoves[0], reasoning: tr('reason.onlyMove') };
 
         let best = validMoves[0], bestScore = -Infinity;
         for (const move of validMoves) {
@@ -871,7 +873,7 @@ export class SmartAI {
             const score = connecting + move.tile.pipCount() * 0.1;
             if (score > bestScore) { bestScore = score; best = move; }
         }
-        return { ...best, reasoning: 'Beginner: keep strongest suit open' };
+        return { ...best, reasoning: tr('reason.beginner') };
     }
 
     /**
@@ -1127,7 +1129,7 @@ export class SmartAI {
             const best = cerrarMoves[0];
             this._pendingCerrar = { playerIndex, expectedPipEdge: pipAdvantage, defensive: false };
             return {
-                move: { ...best, reasoning: `Cerrar — expected pip edge +${Math.round(pipAdvantage)}` },
+                move: { ...best, reasoning: tr('reason.cerrar', Math.round(pipAdvantage)) },
                 excludeCerrar: false
             };
         }
@@ -1138,7 +1140,7 @@ export class SmartAI {
                 const best = cerrarMoves[0];
                 this._pendingCerrar = { playerIndex, expectedPipEdge: pipAdvantage, defensive: true };
                 return {
-                    move: { ...best, reasoning: `Defensive cerrar — opponent at ${minOppTiles} tile(s) (pip edge ${Math.round(pipAdvantage)})` },
+                    move: { ...best, reasoning: tr('reason.cerrarDefensive', minOppTiles, Math.round(pipAdvantage)) },
                     excludeCerrar: false
                 };
             }
@@ -1361,13 +1363,13 @@ export class SmartAI {
             // We have fewer pips - blocking is profitable
             bestBlockMove.blockType = 'offensive';
             bestBlockMove.pipAdvantage = pipAdvantage;
-            bestBlockMove.reasoning = `High-confidence block (${Math.round(bestBlockMove.blockProb * 100)}%) - pip advantage ~${Math.round(pipAdvantage)} pts`;
+            bestBlockMove.reasoning = tr('reason.block', Math.round(bestBlockMove.blockProb * 100), Math.round(pipAdvantage));
             return bestBlockMove;
         } else if (minOppTiles <= this.defensiveCloseThreshold[playerIndex]) {
             // Opponent about to win - block defensively even with pip disadvantage
             bestBlockMove.blockType = 'defensive';
             bestBlockMove.pipAdvantage = pipAdvantage;
-            bestBlockMove.reasoning = `Defensive block (${Math.round(bestBlockMove.blockProb * 100)}%) - opponent about to domino (pip disadvantage ~${Math.round(-pipAdvantage)})`;
+            bestBlockMove.reasoning = tr('reason.blockDefensive', Math.round(bestBlockMove.blockProb * 100), Math.round(-pipAdvantage));
             return bestBlockMove;
         } else {
             // We have more pips - blocking would give opponents points
@@ -1412,7 +1414,7 @@ export class SmartAI {
         if (partnerSupportMoves.length === 1) {
             return {
                 ...partnerSupportMoves[0],
-                reasoning: `Supporting partner's ${partnerSuit}s (la salida)`
+                reasoning: tr('reason.partnerSalida', partnerSuit)
             };
         }
 
@@ -1425,7 +1427,7 @@ export class SmartAI {
 
         return {
             ...scoredMoves[0],
-            reasoning: `Supporting partner's ${partnerSuit}s (la salida)`
+            reasoning: tr('reason.partnerSalida', partnerSuit)
         };
     }
 
@@ -1493,7 +1495,7 @@ export class SmartAI {
         return {
             tile: move.tile,
             end: move.end,
-            reasoning: move.reasoning || 'Best move',
+            reasoning: move.reasoning || tr('reason.best'),
             score: score.total,
         };
     }
@@ -1539,7 +1541,7 @@ export class SmartAI {
             recommendation = {
                 tile: recMove.tile,
                 end: recMove.end,
-                reasoning: recMove.reasoning || 'Best move',
+                reasoning: recMove.reasoning || tr('reason.best'),
                 score: recScoreObj.total,
             };
             ismctsStats = recMove.ismctsStats || null;
