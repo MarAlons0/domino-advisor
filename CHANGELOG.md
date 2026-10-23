@@ -3,6 +3,12 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.10.1] – 2026-10-23
+
+### Fixed
+- **The first visit after an update could run a mix of old and new code.** Only `main.js` and `styles.css` carry a `?v=` cache-buster; the other ~40 modules were served from the previous version's service-worker cache until the new worker took over, so the page could load the new `main.js` with old modules. Seen in Safari on v1.10.0 as raw labels in the multiplayer window (`mp.title`, `mp.name`, …) and a `v1.5.0` version chip; a mismatch like this could also break a release outright. Now, when a new version's service worker takes over a page the previous one served, the page reloads itself once (only within 30 s of loading — never mid-game, and not on a first-ever visit). Reproduced and verified in headless Chrome: v1.5.0 cached → new release → one automatic reload → all v1.10.x.
+- The service worker now bypasses the browser's HTTP cache (GitHub Pages sends `max-age=600`) when pre-caching and when caching new files, so a new version can't store leftovers from the previous one.
+
 ## [1.10.0] – 2026-10-23
 
 ### Added

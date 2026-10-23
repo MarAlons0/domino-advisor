@@ -1,11 +1,11 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-23 (multiplayer part 1 — rooms and play — shipped as v1.10.0)_
+_Last updated: 2026-10-23 (stale files on the first visit after an update — fixed in v1.10.1)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## 🔴 High
 - [ ] 🚧 **Multiplayer game** — Enable multiple humans to play, either as part of the same team or opposing teams. Anywhere from 2 to 4 humans should be able to play `[feature]`
-  - 🚧 Design: [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) — networked (chosen over hot-seat), **free Cloudflare plan only**: a Durable Object per room keeps hands secret and runs the AI seats; Genín runs in each player's browser (proven to need only their own information). Next: P0 spike to measure the free-plan CPU cap.
+  - 🚧 Design: [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) — networked (chosen over hot-seat), **free Cloudflare plan only**: a Durable Object per room keeps hands secret and runs the AI seats; Genín runs in each player's browser (proven to need only their own information). P0 spike done: the free plan is enough.
   - Seat choice at match start: same team vs. opposing teams; AI fills empty seats.
   - ✅ P1 shipped in v1.10.0: rooms, invite link, lobby + seats, AI seats (all levels), secret hands, reconnect, 60 s seat hand-off. Next — P2: Genín in multiplayer (advice, hand-end card, debrief).
 
@@ -40,6 +40,7 @@ _Last updated: 2026-10-23 (multiplayer part 1 — rooms and play — shipped as 
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Fix mixed old/new files on the first visit after an update** — the app reloads itself once when a new version takes over (raw `mp.*` labels and an old version chip seen in Safari) — v1.10.1
 - [x] **Grade plays by simulated win rate at Master** — good ≤ 5 / questionable ≤ 15 / mistake > 15 points of win rate (static fallback under 30 visits), 2,000-iteration grading search, shown advice as the reference — v1.9.0
 - [x] **Visual effects for key moments (UX-A)** — capicú (gold), cerrado (locked puntas + banner), team-colored slam; zapato / comeback (50+) on the match-end screen — v1.8.0
 - [x] **Tile slam effect (UX-E)** — slam on any [6|6] and on every domino (built earlier; team-colored glow added in v1.8.0)

@@ -1,5 +1,5 @@
 // Update CACHE_NAME whenever the app version bumps (keep in sync with index.html and translations.js)
-const CACHE_NAME = '7fichas-v1.10.0';
+const CACHE_NAME = '7fichas-v1.10.1';
 
 const CORE_ASSETS = [
     './',
@@ -17,7 +17,9 @@ const CORE_ASSETS = [
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(cache => cache.addAll(CORE_ASSETS))
+            // 'reload' skips the browser's HTTP cache (Pages sends max-age=600), so a new
+            // version never pre-caches files left over from the previous one.
+            .then(cache => cache.addAll(CORE_ASSETS.map(url => new Request(url, { cache: 'reload' }))))
             .then(() => self.skipWaiting())
     );
 });
@@ -38,7 +40,9 @@ self.addEventListener('activate', event => {
 // Fetch strategy:
 //  - Navigations (the HTML document): NETWORK-FIRST, so returning users always get
 //    the latest app shell on the first load; fall back to the cached shell offline.
-//  - Other assets (CSS/JS/images, cache-busted via ?v=): cache-first for speed.
+//  - Other assets (CSS/JS/images): cache-first for speed. Only main.js and styles.css
+//    carry ?v=; the other modules rely on CACHE_NAME changing every release (old caches
+//    are dropped on activate) and on index.html reloading once when this worker takes over.
 self.addEventListener('fetch', event => {
     const { request } = event;
 
@@ -67,7 +71,8 @@ self.addEventListener('fetch', event => {
         caches.match(request).then(cached => {
             if (cached) return cached;
 
-            return fetch(request).then(response => {
+            // 'no-cache' revalidates with the server instead of trusting the HTTP cache.
+            return fetch(request, { cache: 'no-cache' }).then(response => {
                 // Only cache valid responses
                 if (!response || response.status !== 200 || response.type !== 'basic') {
                     return response;
