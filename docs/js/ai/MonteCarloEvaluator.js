@@ -4,7 +4,7 @@ import { Tile } from '../models/Tile.js';
 import { Hand } from '../models/Hand.js';
 
 // Check for debug mode via URL parameter (?debug=ai)
-const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'ai';
+const DEBUG_AI = typeof window !== 'undefined' && new URLSearchParams(window.location?.search || '').get('debug') === 'ai';
 
 /**
  * MonteCarloEvaluator - Probability-weighted look-ahead simulation

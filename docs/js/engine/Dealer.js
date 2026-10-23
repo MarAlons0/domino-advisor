@@ -31,10 +31,11 @@ export const Dealer = {
 
     /**
      * Deal tiles and return the player who has the double-six.
+     * @param {Tile[]} [tiles] - optional 28 tiles in deal order; omitted → shuffle
      * @returns {{hands: Hand[], starterPlayer: number}}
      */
-    dealForFirstHand() {
-        const tiles = TileSet.createShuffled();
+    dealForFirstHand(tiles = null) {
+        tiles = tiles || TileSet.createShuffled();
         const hands = this.deal(tiles);
 
         // Find who has the double-six

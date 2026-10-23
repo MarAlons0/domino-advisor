@@ -3,6 +3,23 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.10.0] – 2026-10-23
+
+### Added
+- **Play with friends (networked multiplayer, part 1).** 2–4 people, each on their own phone or computer, at one table — partners, opponents, or a full table of four — with the AI filling any empty seat at Beginner, Experienced or Master.
+  - **Create or join a room** from the new 👥 button: a 6-character room code and an invite link (`…/domino-advisor/?room=K7Q2XM`). Opening the link asks for your name once, then seats you.
+  - **Lobby:** the four seats drawn like the table from your point of view (your team cyan, opponents red); anyone can move to a free seat; the host (room creator) sets AI levels and starts the match, and can rematch with the same seats.
+  - **At the table you are always at the bottom**; other people show by name, AI seats show their level. AI moves are paced so everyone can follow; your own move appears as soon as the room confirms it.
+  - **Your hand stays secret:** the room server holds every hand and sends each player only their own — other hands are revealed at the end of each hand, as in single player.
+  - **Dropped connection or reload:** you rejoin the same seat with the same hand. If someone stays away for 60 s the host can give their seat to the AI; it comes back to them when they reconnect.
+  - Multiplayer matches count in your lifetime stats and badges, from your seat. Genín's advice, the hand-end card and the debrief are not in multiplayer yet (next part).
+  - Runs entirely on Cloudflare's free plan (one Durable Object per room); design and measurements in [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md).
+
+### Changed (internal)
+- New `server/` (Cloudflare Worker `domino-rooms`): `RoomEngine` (pure room logic — rules, lobby, AI seats, per-player views, save/replay of the deal + plays record), `GameRoom` Durable Object (WebSocket Hibernation API, storage, alarms), Worker routes; Node tests (`server/test/`: room engine incl. a 25-match soak with reloads and a hidden-tile leak check, the browser adapter mirroring the server, an end-to-end WebSocket match).
+- Client: `multiplayer/RemoteGame.js` (stand-in for `Game` — seat rotation, hidden hands, AI pacing), `multiplayer/MultiplayerSession.js`, `ui/LobbyUI.js`; `main.js` enters multiplayer mode only when the page URL has `?room=`.
+- The engine runs outside a browser: `Game.newMatch(tiles)` / `newHand(tiles)` accept a fixed deal; `i18n` and the `?debug=ai` flags no longer assume `localStorage` / `window` / `document`. `GameState.nameOverrides` shows player names. Single player is unchanged.
+
 ## [1.9.0] – 2026-10-23
 
 ### Changed

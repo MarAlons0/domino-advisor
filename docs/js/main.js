@@ -18,6 +18,9 @@ import { feedbackTexts } from './ui/feedbackText.js';
 import { isCapicu, matchHighlights } from './coach/MatchMoments.js';
 import { PIP_POSITIONS, createDominoElement, createDominoFromTile } from './ui/dominoRender.js';
 import { t, i18n } from './i18n/i18n.js';
+import { RemoteGame } from './multiplayer/RemoteGame.js';
+import { MultiplayerSession } from './multiplayer/MultiplayerSession.js';
+import { LobbyUI } from './ui/LobbyUI.js';
 
 // Check for debug mode via URL parameter (?debug=ai)
 const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'ai';
@@ -51,7 +54,11 @@ function createTileCountDisplay(count, orientation = 'horizontal') {
  */
 class DominoApp {
     constructor() {
-        this.game = new Game();
+        // Multiplayer when the page was opened with an invite link (…/?room=CODE);
+        // otherwise single player, exactly as before.
+        this.roomCode = MultiplayerSession.roomFromUrl();
+        this.multiplayer = null;
+        this.game = this.roomCode ? new RemoteGame() : new Game();
         this.ai = new SmartAI();
         this.handTracker = new HandTracker();
         this.quizStorage = new QuizStorage();
@@ -92,6 +99,102 @@ class DominoApp {
         this.initGameCallbacks();
         this.initUIModules();
         this.initQuizElements();
+
+        this.lobbyUI = new LobbyUI(this);
+        document.getElementById('mp-btn')?.addEventListener('click', () =>
+            (this.multiplayer ? this.lobbyUI.openRoom() : this.lobbyUI.openEntry()));
+        if (this.roomCode) this._startMultiplayer();
+    }
+
+    // ==================== Multiplayer (docs/MULTIPLAYER.md) ====================
+
+    /** Connect to the room in the URL and adapt the table to remote play. @private */
+    _startMultiplayer() {
+        const s = new MultiplayerSession(this.roomCode, this.game);
+        this.multiplayer = s;
+        document.body.classList.add('multiplayer');
+        this.newGameBtn.removeAttribute('data-i18n');
+        this.newGameBtn.textContent = t('mp.roomBtn');
+
+        s.onLobby = () => { this.lobbyUI.render(); this._applyTableLabels(); };
+        s.onStatus = () => { if (this.lobbyUI.isOpen()) this.lobbyUI.render(); };
+        s.onError = (code) => this.log(t('mp.error', code), 'system');
+        this.game.onBeforePlay = (tile) => this._checkSlamCondition(tile);
+        this.game.onNewHand = (info) => this._onRemoteHand(info);
+        this.game.onThinking = (seat) => (seat === null ? this.hideThinkingIndicator() : this.showThinkingIndicator(seat));
+        i18n.onLanguageChange(() => {
+            this.newGameBtn.textContent = t('mp.roomBtn');
+            this._applyTableLabels();
+            if (this.lobbyUI.isOpen()) this.lobbyUI.render();
+        });
+
+        this.lobbyUI.openRoom();
+        if (MultiplayerSession.savedName) s.connect();
+    }
+
+    /** Names and AI-level badges at each seat, from your point of view. @private */
+    _applyTableLabels() {
+        const lobby = this.multiplayer?.lobby;
+        if (!lobby) return;
+        const me = this.multiplayer.mySeat() ?? 0;
+        const names = [null, null, null, null];
+        for (let local = 0; local < 4; local++) {
+            const seat = lobby.seats[(local + me) % 4];
+            if (local !== 0 && seat.kind === 'human') names[local] = seat.name;
+            const el = this.playerNames[local];
+            if (el && local !== 0) {
+                if (el.dataset.i18nOrig === undefined) el.dataset.i18nOrig = el.getAttribute('data-i18n') || '';
+                if (names[local]) {
+                    el.removeAttribute('data-i18n');
+                    el.textContent = names[local];
+                } else if (el.dataset.i18nOrig) {
+                    el.setAttribute('data-i18n', el.dataset.i18nOrig);
+                    el.textContent = t(el.dataset.i18nOrig);
+                }
+            }
+            const badge = document.getElementById(`diff-badge-${local}`);
+            if (badge) {
+                if (seat.kind === 'ai') {
+                    badge.textContent = t(`settings.difficulty.${seat.level}`);
+                    badge.className = `diff-badge diff-badge-${seat.level}`;
+                    badge.style.display = '';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+        GameState.nameOverrides = names;
+    }
+
+    /** A hand (or match) started or resumed in the room. @private */
+    _onRemoteHand(info) {
+        this._turnAdvice = null;
+        this.messageBox.classList.remove('visible');
+        this.modalOverlay.classList.remove('visible');
+        if (info.newMatch) {
+            this.clearLog();
+            this.log(t('log.newMatch'), 'system');
+            this.playerStats.resetMatchSession();
+            this.continueBtn.style.display = '';
+            this.continueBtn.textContent = t('btn.continue');
+            this.continueBtn.disabled = false;
+            this.reviewBtn.style.display = 'none';
+        } else if (!info.resumed) {
+            this.logHandSeparator();
+        }
+        this.ai.resetForNewHand();
+        const state = this.game.getState();
+        this.handTracker.initHand(state.hands[0]);
+        for (let i = 0; i < 4; i++) {
+            this.playerViews[i].resetAffinities();
+            this.playerViews[i].initOwnHand(state.hands[i]);
+        }
+        if (info.newMatch && info.isFirstHand) {
+            this.log(t('log.starterHasDouble', GameState.getPlayerName(info.starter)), 'system');
+        }
+        // Back to the table — a new hand, or a reconnect mid-hand (reload / lost signal).
+        if (this.lobbyUI.isOpen()) this.lobbyUI.close();
+        this.updateUI(state);
     }
 
     initElements() {
@@ -379,7 +482,7 @@ class DominoApp {
     updateQuizButton() {
         const state = this.game.getState();
         // Enable quiz button during gameplay (after at least one play)
-        const canQuiz = state.gamePhase === 'playing' && !state.chain.isEmpty();
+        const canQuiz = !this.multiplayer && state.gamePhase === 'playing' && !state.chain.isEmpty();
         if (this.quizBtn) {
             this.quizBtn.disabled = !canQuiz;
         }
@@ -503,6 +606,7 @@ class DominoApp {
     }
 
     startNewGame() {
+        if (this.multiplayer) { this.lobbyUI.openRoom(); return; }
         this._turnAdvice = null;
         // Restore button states that may have been changed by the match-end modal
         this.continueBtn.style.display = '';
@@ -622,7 +726,7 @@ class DominoApp {
     _checkSlamCondition(tile) {
         const state = this.game.getState();
         const hand = state.hands[state.currentPlayer];
-        const lastTile = hand.getTiles().length === 1;
+        const lastTile = hand.size() === 1;
         if (tile.isDoubleSix() || lastTile) {
             this._slamTile = tile;
             // Glow in the player's team color: cyan for yours, red for the opponents.
@@ -885,10 +989,10 @@ class DominoApp {
             // Analyze the turn for mano-level feedback (AI recommendation, the
             // played move's score, and the cerrar decision) BEFORE the play
             // mutates state. Deferred to play time for multi-end tiles below.
-            const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
+            const analysis = this.multiplayer ? null : this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
                 this._shownAdviceMove(this.game.getState()));
             this._checkSlamCondition(tile);
-            this.game.playTurn(tile, end, { aiRecommendation: analysis.recommendation, turnAnalysis: analysis });
+            this.game.playTurn(tile, end, { aiRecommendation: analysis?.recommendation ?? null, turnAnalysis: analysis });
             this.afterHumanPlay();
         } else {
             this.selectedTile = tile;
@@ -910,10 +1014,10 @@ class DominoApp {
         const tile = this.selectedTile;
         // State is unchanged since the tile was selected (still the human's turn,
         // awaiting the end choice), so we analyze now with the full move known.
-        const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
+        const analysis = this.multiplayer ? null : this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
             this._shownAdviceMove(this.game.getState()));
         this._checkSlamCondition(tile);
-        this.game.playTurn(tile, end, { aiRecommendation: analysis.recommendation, turnAnalysis: analysis });
+        this.game.playTurn(tile, end, { aiRecommendation: analysis?.recommendation ?? null, turnAnalysis: analysis });
         this.hideEndSelection();
         this.afterHumanPlay();
     }
@@ -944,6 +1048,7 @@ class DominoApp {
     }
 
     scheduleAITurn() {
+        if (this.multiplayer) return; // the room plays the AI seats
         const state = this.game.getState();
         const oneTileLeft = state.hands[state.currentPlayer].getTiles().length === 1;
         if (state.chain.isEmpty() || this.game.mustPass() || oneTileLeft) {
@@ -1131,6 +1236,7 @@ class DominoApp {
      */
     _renderHandFeedback(data) {
         if (!this.messageFeedback) return;
+        if (this.multiplayer) { this.messageFeedback.style.display = 'none'; return; } // Genín in multiplayer: P2
         if (this.feedbackDetail) this.feedbackDetail.style.display = 'none'; // collapse
 
         const hand = this.game.getMatchHistory()?.currentHand;
@@ -1217,6 +1323,14 @@ class DominoApp {
         // so an accidental tap on it can't skip the analysis screen
         this.newGameBtn.disabled = true;
 
+        // Multiplayer: no debrief yet (P2); Continue opens the room for a rematch.
+        if (this.multiplayer) {
+            this.reviewBtn.style.display = 'none';
+            this.continueBtn.style.display = '';
+            this.continueBtn.textContent = t('mp.roomBtn');
+            this.newGameBtn.disabled = false;
+        }
+
         this.log(t('log.matchOver'), 'system');
         this.log(t('log.teamWins', winnerName), 'system');
 
@@ -1247,6 +1361,16 @@ class DominoApp {
     handleContinue() {
         this.messageBox.classList.remove('visible');
         this.modalOverlay.classList.remove('visible');
+
+        if (this.multiplayer) {
+            if (this.game.getState().gamePhase === 'handOver') {
+                this.game.newHand(); // ready — the room deals when everyone is
+                this.log(t('mp.log.waiting'), 'system');
+            } else {
+                this.lobbyUI.openRoom();
+            }
+            return;
+        }
 
         const state = this.game.getState();
         if (state.gamePhase === 'matchOver') {
@@ -1328,7 +1452,8 @@ class DominoApp {
     updateGeninAdviceVisibility(state) {
         if (!this.geninAdviceContainer) return;
 
-        const shouldShow = state.currentPlayer === 0 &&
+        const shouldShow = !this.multiplayer &&
+                           state.currentPlayer === 0 &&
                            state.gamePhase === 'playing' &&
                            !this.game.mustPass();
 

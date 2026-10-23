@@ -14,7 +14,7 @@ import { ismcts } from './ISMCTSEvaluator.js';
 import { ISMCTSGameState } from './ISMCTSGameState.js';
 
 // Check for debug mode via URL parameter (?debug=ai)
-const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'ai';
+const DEBUG_AI = typeof window !== 'undefined' && new URLSearchParams(window.location?.search || '').get('debug') === 'ai';
 
 /**
  * SmartAI - An AI that follows strategic principles for partnership dominoes.

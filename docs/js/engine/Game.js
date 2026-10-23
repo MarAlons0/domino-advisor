@@ -30,29 +30,32 @@ export class Game {
 
     /**
      * Start a new match.
+     * @param {Tile[]} [tiles] - optional 28 tiles in deal order (multiplayer server
+     *   replays); omitted → a fresh shuffle, as in single player
      */
-    newMatch() {
+    newMatch(tiles = null) {
         this.state.resetForNewMatch();
         this.matchHistory.reset();
         this.handNumber = 0;
-        this.newHand();
+        this.newHand(tiles);
         this._emitStateChange();
     }
 
     /**
      * Start a new hand within the match.
+     * @param {Tile[]} [tiles] - optional 28 tiles in deal order; omitted → shuffle
      */
-    newHand() {
+    newHand(tiles = null) {
         this.state.resetForNewHand();
 
         if (this.state.isFirstHand) {
             // First hand: deal and find double-six holder
-            const { hands, starterPlayer } = Dealer.dealForFirstHand();
+            const { hands, starterPlayer } = Dealer.dealForFirstHand(tiles);
             this.state.hands = hands;
             this.state.currentPlayer = starterPlayer;
         } else {
             // Subsequent hands: deal normally, winner of last hand leads
-            this.state.hands = Dealer.deal();
+            this.state.hands = Dealer.deal(tiles || undefined);
 
             // Starting player is from winning team
             // The player who dominoed, or first player of winning team if blocked

@@ -91,6 +91,9 @@ export class GameState {
      * @param {number} team - Team index (0 or 1)
      * @returns {string}
      */
+    /** @type {(string|null)[]|null} Display names by local seat (multiplayer). */
+    static nameOverrides = null;
+
     static getTeamName(team) {
         return team === 0 ? t('team.teamA') : t('team.teamB');
     }
@@ -101,6 +104,9 @@ export class GameState {
      * @returns {string}
      */
     static getPlayerName(player) {
+        // Multiplayer: other humans show by their chosen names (null → role label).
+        const override = GameState.nameOverrides?.[player];
+        if (override) return override;
         const keys = ['player.you', 'player.opponent1', 'player.partner', 'player.opponent2'];
         return t(keys[player]);
     }

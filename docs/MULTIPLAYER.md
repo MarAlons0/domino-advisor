@@ -1,6 +1,6 @@
 # Multiplayer (networked) — Design
 
-**Status:** P0 spike done (2026-10-23) — the free plan is enough; ready for P1. Backlog: 🔴 High "Multiplayer game".
+**Status:** P1 (rooms and play) built, 2026-10-23 — v1.10.0. Next: P2 (Genín in multiplayer). Backlog: 🔴 High "Multiplayer game".
 
 **Decided:**
 - Networked play — each human on their own device — not hot-seat; 2–4 humans, same or opposing
@@ -155,9 +155,35 @@ each player's browser, from their own seat's perspective).
 | Phase | Scope | Ships as |
 |---|---|---|
 | **P0 — Spike** ✅ done | Throwaway room on the free plan: CPU, WebSockets + hibernation, alarms — all fine (section 5). Remaining P0 item: guard the browser-only lines in the app (an ordinary release, no visible change). | v1.9.x |
-| **P1 — Rooms and play** | `domino-rooms` Worker + `GameRoom`; lobby (create / join / seats / AI levels); `RemoteGame` adapter; seat rotation and names; AI seats at every level; reconnect. | MINOR |
+| **P1 — Rooms and play** ✅ v1.10.0 | `domino-rooms` Worker + `GameRoom`; lobby (create / join / seats / AI levels); `RemoteGame` adapter; seat rotation and names; AI seats at every level; reconnect. | MINOR |
 | **P2 — Genín in multiplayer** | Server-side advice and analysis per player; hand-end card and debrief from each player's own coaching data; stats. | MINOR |
 | **P3 — Polish** | Rematch flow, quick reactions, optional turn timer. | PATCH / MINOR |
+
+## How it's built (P1)
+
+| Piece | File |
+|---|---|
+| Room rules, lobby, AI seats, what each player sees, save/replay | `server/src/RoomEngine.js` (pure — runs in Node) |
+| Durable Object: WebSockets (Hibernation API), storage, alarms | `server/src/GameRoom.js` |
+| Worker routes (`POST /rooms`, `/rooms/CODE/info`, `/rooms/CODE/ws`), allowed origins | `server/src/index.js`, `server/wrangler.toml` |
+| Browser stand-in for `Game` (rotation, hidden hands, AI pacing) | `docs/js/multiplayer/RemoteGame.js` |
+| Connection, reconnect, name + seat token | `docs/js/multiplayer/MultiplayerSession.js` |
+| Lobby window | `docs/js/ui/LobbyUI.js` |
+| Multiplayer mode in the app (only when the URL has `?room=`) | `docs/js/main.js` |
+
+The engine is shared: `Game.newMatch(tiles)` / `newHand(tiles)` accept a fixed deal (for replay),
+and the browser-only lines (`i18n`, `?debug=ai`) are guarded so the same modules run on the server.
+
+### Running it
+```bash
+# from server/ (wrangler 4.61 — `npm install` once, or use any wrangler on the PATH)
+npm run dev      # local rooms server on http://localhost:8798 (app pages on localhost use it)
+npm test         # RoomEngine + RemoteGame tests (Node)
+npm run e2e      # full match over real WebSockets against `npm run dev`
+npm run deploy   # publish to Cloudflare (free plan) — needs `wrangler login`
+```
+Local two-player test on one computer: open the app at `http://localhost:8791/?room=CODE` and at
+`http://127.0.0.1:8791/?room=CODE` (different addresses keep separate saved names and seat tokens).
 
 ## Testing
 - Unit tests for the room logic with fake sockets and fixed deals (Node).

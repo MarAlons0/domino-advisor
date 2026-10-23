@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-23 (Master grading by simulated win rate shipped as v1.9.0; multiplayer items merged)_
+_Last updated: 2026-10-23 (multiplayer part 1 — rooms and play — shipped as v1.10.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -7,6 +7,7 @@ _Last updated: 2026-10-23 (Master grading by simulated win rate shipped as v1.9.
 - [ ] 🚧 **Multiplayer game** — Enable multiple humans to play, either as part of the same team or opposing teams. Anywhere from 2 to 4 humans should be able to play `[feature]`
   - 🚧 Design: [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) — networked (chosen over hot-seat), **free Cloudflare plan only**: a Durable Object per room keeps hands secret and runs the AI seats; Genín runs in each player's browser (proven to need only their own information). Next: P0 spike to measure the free-plan CPU cap.
   - Seat choice at match start: same team vs. opposing teams; AI fills empty seats.
+  - ✅ P1 shipped in v1.10.0: rooms, invite link, lobby + seats, AI seats (all levels), secret hands, reconnect, 60 s seat hand-off. Next — P2: Genín in multiplayer (advice, hand-end card, debrief).
 
 ## 🟡 Medium
 - [ ] **Match-score-aware ISMCTS reward (0g.3b)** — thread match score into `ISMCTSGameState` terminal values (play safe at match point, gamble when far behind). Follow-up to the shipped 0g.3/0g.4 margin reward. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`

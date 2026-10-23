@@ -12,6 +12,10 @@
 import { translations } from './translations.js';
 
 const STORAGE_KEY = '7fichas_language';
+// The game modules also run outside a browser (the multiplayer server, the
+// Node tools), where there is no localStorage, navigator.language or page.
+const HAS_STORAGE = typeof localStorage !== 'undefined' && localStorage !== null;
+const HAS_DOM = typeof document !== 'undefined' && typeof document.querySelectorAll === 'function';
 const DEFAULT_LANGUAGE = 'en';
 const SUPPORTED_LANGUAGES = ['en', 'es'];
 
@@ -30,12 +34,12 @@ class I18n {
         if (this._initialized) return;
 
         // Try to load saved preference
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = HAS_STORAGE ? localStorage.getItem(STORAGE_KEY) : null;
         if (saved && SUPPORTED_LANGUAGES.includes(saved)) {
             this.currentLanguage = saved;
         } else {
             // Detect browser language
-            const browserLang = navigator.language?.split('-')[0];
+            const browserLang = (typeof navigator !== 'undefined') && navigator.language?.split('-')[0];
             if (browserLang && SUPPORTED_LANGUAGES.includes(browserLang)) {
                 this.currentLanguage = browserLang;
             }
@@ -89,7 +93,7 @@ class I18n {
         if (this.currentLanguage === lang) return;
 
         this.currentLanguage = lang;
-        localStorage.setItem(STORAGE_KEY, lang);
+        if (HAS_STORAGE) localStorage.setItem(STORAGE_KEY, lang);
 
         // Update all DOM elements with data-i18n attributes
         this.updateDOM();
@@ -116,6 +120,7 @@ class I18n {
      * Update all DOM elements with data-i18n attributes
      */
     updateDOM() {
+        if (!HAS_DOM) return;
         // Update text content
         document.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.getAttribute('data-i18n');
