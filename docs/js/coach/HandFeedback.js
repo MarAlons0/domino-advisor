@@ -20,6 +20,8 @@
 // { i18n, args } that the UI resolves at render time (ui/feedbackText.js), so
 // phrases follow the current language instead of the one active at play time.
 
+import { impactOf, byImpact } from './MatchLessons.js';
+
 const EDGE_THRESHOLD = 3; // |inferred edge| below this is "ambiguous" (matches AI MIN_EDGE)
 
 const tileStr = (tile) => (tile ? tile.toString() : '');
@@ -93,19 +95,13 @@ function cerrarMoment(humanPlays, actualTeamResult) {
     return { key: 'coach.moment.cerrarDeclinedForgivable', args: [value, score] };
 }
 
-/** Fallback: the worst graded play (biggest score gap), or null. */
+/** Fallback: the weakest graded play by impact (same order as the debrief), or null. */
 function scoreGapMoment(humanPlays) {
-    let worst = null;
-    let worstGap = -Infinity;
-    for (const h of humanPlays) {
-        const ev = h.play.evaluation;
-        if (ev !== 'mistake' && ev !== 'questionable') continue;
-        const rec = h.play.aiRecommendation;
-        const played = h.play.turnAnalysis?.playedScore;
-        const gap = (rec && played != null) ? (rec.score - played) : (ev === 'mistake' ? 999 : 0);
-        if (gap > worstGap) { worstGap = gap; worst = h; }
-    }
-    if (!worst) return null;
+    const weak = humanPlays
+        .filter(h => h.play.evaluation === 'mistake' || h.play.evaluation === 'questionable')
+        .map(h => ({ ...h, ...impactOf(h.play) }));
+    if (weak.length === 0) return null;
+    const worst = weak.sort(byImpact)[0];
     const rec = worst.play.aiRecommendation;
     const ta = worst.play.turnAnalysis || {};
     const playedTile = tileStr(worst.play.tile);
@@ -134,6 +130,15 @@ function scoreGapMoment(humanPlays) {
             args: [lead, playedTile, altTile, reason],
         };
     }
+    // No single strategic factor stands out, but the simulation still ranks the
+    // tiles — show the numbers the grade rests on.
+    if (ta.recWinRate != null && ta.playedWinRate != null) {
+        return {
+            key: 'coach.moment.scoreGapOdds',
+            args: [lead, playedTile, altTile,
+                   Math.round(ta.recWinRate * 100), Math.round(ta.playedWinRate * 100)],
+        };
+    }
     return { key: 'coach.moment.scoreGap', args: [lead, playedTile, altTile] };
 }
 
@@ -160,6 +165,7 @@ function verdictFor(moment, result) {
             'coach.moment.scoreGap': costlyPlay,
             'coach.moment.scoreGapPrinciple': costlyPlay,
             'coach.moment.scoreGapWhy': costlyPlay,
+            'coach.moment.scoreGapOdds': costlyPlay,
             'coach.moment.highlight': 'coach.verdict.wellPlayed',
         };
         return { key: map[moment.key] || 'coach.verdict.wellPlayed', args: [] };

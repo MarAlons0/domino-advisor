@@ -3,6 +3,21 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.9.0] – 2026-10-23
+
+### Changed
+- **At Master, plays are graded by Genín's simulation, not the static score.** Genín's pick at Master comes from ISMCTS, but grades used the static score gap, and the two disagreed often (in testing they agreed on only 43% of deviations; the biggest static "mistake" had a 0-point win-rate difference). Now a play that isn't Genín's exact pick is graded by how much simulated win rate it gave up — **good ≤ 5 points, questionable ≤ 15, mistake > 15** — computed from the same rounded numbers the explanation shows ("~60% vs ~55%"), so a grade never contradicts them. When the search barely explored your move (< 30 visits) or there is no simulation (priority shortcuts like a forced domino or cerrar, and all other levels), the static score is used as before. This flows into the hand-end card, the debrief (stat strip, patterns, key moments), lifetime Genín agreement, and the Claude analysis.
+- **The grading search is twice as large (2,000 iterations)** for steadier grades — about +15 ms per play. Measured over 40 Master matches: a grade now jumps between "good" and "mistake" on re-analysis ~2% of the time (vs 6–7% for static grades).
+- **Genín's advice is the reference when you asked for it.** He computes advice once per turn: reopening his bubble shows the same tile, following his advice is always graded optimal, and if you play something else the explanation compares against the tile he showed you (a fresh search could prefer a near-tied different tile about a third of the time).
+- The hand-end card now picks its key moment by the same impact ranking as the debrief (simulated cost first).
+
+### Added
+- When no single strategic factor explains why Genín's tile is better, the explanation still shows the simulation's numbers ("… was stronger. Simulating many possible opponent hands, the AI won ~52% with [2|1] vs ~46% with [3|2]") instead of a bare statement.
+
+### Changed (internal)
+- `MatchHistory`: `WR_GOOD_PTS`, `WR_QUESTIONABLE_PTS`, `WR_MIN_VISITS`, `winRateDropPts()`; `_evaluatePlay` grades by simulation first. `SmartAI.analyzeHumanTurn(…, adviceMove)` with a `GRADING_ITERATIONS = 2000` search, plus `recVisits` / `playedVisits`; `getRecommendation()` also returns the chosen `move`. `MatchLessons.impactOf` / `byImpact` shared with `HandFeedback`.
+- Backlog: merged the duplicate Medium "Multi-human play" into the High "Multiplayer game" item (networked play chosen).
+
 ## [1.8.0] – 2026-10-23
 
 ### Added

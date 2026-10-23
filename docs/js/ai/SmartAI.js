@@ -3,6 +3,11 @@ import { GameState } from '../models/GameState.js';
 import { StrategicExplainer } from './StrategicExplainer.js';
 // Imported as `tr`: `t` is a common local tile variable in this file.
 import { t as tr } from '../i18n/i18n.js';
+
+// ISMCTS budget for the search that GRADES a human's play at Master — larger than
+// the AI's own (1000) so the win-rate grade is steadier (measured: fewer grade
+// changes on re-analysis) at ~+15 ms typical per play. See CHANGELOG 1.9.0.
+const GRADING_ITERATIONS = 2000;
 import { MonteCarloEvaluator } from './MonteCarloEvaluator.js';
 import { Hand } from '../models/Hand.js';
 import { ismcts } from './ISMCTSEvaluator.js';
@@ -1497,7 +1502,25 @@ export class SmartAI {
             end: move.end,
             reasoning: move.reasoning || tr('reason.best'),
             score: score.total,
+            // The underlying chosen move (with .score / .reasoning / .ismctsStats),
+            // so the UI can hand the advice it showed to analyzeHumanTurn.
+            move,
         };
+    }
+
+    /**
+     * chooseMove with the larger grading budget (GRADING_ITERATIONS). Only the
+     * ISMCTS (Master) path reads ismctsIterations; other levels are unaffected.
+     * @private
+     */
+    _chooseMoveForGrading(gameState, playerIndex) {
+        const saved = this.ismctsIterations;
+        this.ismctsIterations = Math.max(saved, GRADING_ITERATIONS);
+        try {
+            return this.chooseMove(gameState, playerIndex);
+        } finally {
+            this.ismctsIterations = saved;
+        }
     }
 
     /**
@@ -1510,6 +1533,9 @@ export class SmartAI {
      * @param {GameState} gameState - state BEFORE the move is applied
      * @param {number} playerIndex - the human seat (typically 0)
      * @param {{tile: Tile, end: string}|null} playedMove - move about to be played, or null for a pass
+     * @param {object|null} [adviceMove] - the move Genín showed the player this turn (from
+     *   getRecommendation().move), if any. It becomes the reference "Genín's pick" so that
+     *   following the advice you were shown is never graded against a different tile.
      * @returns {{
      *   recommendation: {tile,end,reasoning,score}|null,
      *   playedScore: number|null,
@@ -1518,23 +1544,30 @@ export class SmartAI {
      *   closeOutcome: {myRemaining:number, oppRemaining:number, scoreIfClosed:number}|null,
      *   recReason: string|null, recFactor: string|null,
      *   recWinRate: number|null, playedWinRate: number|null,
+     *   recVisits: number, playedVisits: number,
      *   forced: boolean, legalMoves: number,
      *   handBefore: Array<[number, number]>, signals: {own: number|null, partner: number|null, opps: number[]}
      * }}
      */
-    analyzeHumanTurn(gameState, playerIndex, playedMove) {
+    analyzeHumanTurn(gameState, playerIndex, playedMove, adviceMove = null) {
         const hand = gameState.hands[playerIndex];
         const chain = gameState.chain;
         const view = this.playerViews?.[playerIndex] || this.handTracker;
         const mustPlayDoubleSix = gameState.isFirstHand && chain.isEmpty();
         const validMoves = Rules.getValidMoves(hand, chain, mustPlayDoubleSix);
 
-        // The AI's recommendation via chooseMove (full master pipeline). We call
-        // chooseMove directly rather than getRecommendation so we can also capture
-        // the chosen move's ISMCTS root stats (per-move win estimates at Master).
-        const recMove = this.chooseMove(gameState, playerIndex);
+        // Grading search via chooseMove (full master pipeline) — called directly
+        // rather than getRecommendation so we capture the ISMCTS root stats
+        // (per-move win estimates at Master), with a larger budget for steadier grades.
+        const gradingMove = this._chooseMoveForGrading(gameState, playerIndex);
+        // Reference "Genín's pick": the advice the player was shown this turn if it
+        // is still a legal move here; otherwise the grading search's own choice.
+        const adviceOk = adviceMove && adviceMove.tile
+            && validMoves.some(m => m.tile.equals(adviceMove.tile) && m.end === adviceMove.end);
+        const recMove = adviceOk ? adviceMove : gradingMove;
         let recommendation = null;
-        let ismctsStats = null;
+        // Win rates always come from the grading search (it covers every legal move).
+        const ismctsStats = gradingMove?.ismctsStats || null;
         let recScoreObj = null;
         if (recMove) {
             recScoreObj = recMove.score || this.scoreMove(recMove, gameState, playerIndex, view);
@@ -1544,7 +1577,6 @@ export class SmartAI {
                 reasoning: recMove.reasoning || tr('reason.best'),
                 score: recScoreObj.total,
             };
-            ismctsStats = recMove.ismctsStats || null;
         }
 
         // Static score of the move the human actually played — lets MatchHistory
@@ -1558,6 +1590,7 @@ export class SmartAI {
         // stronger, plus the ISMCTS win-rate comparison (the "why" and the "how").
         // Only meaningful when the human played a DIFFERENT move than recommended. ---
         let recReason = null, recFactor = null, recWinRate = null, playedWinRate = null;
+        let recVisits = 0, playedVisits = 0;
         const playedDiffers = recommendation && playedMove && playedMove.tile
             && !(playedMove.tile.equals(recommendation.tile) && playedMove.end === recommendation.end);
         if (playedDiffers) {
@@ -1581,6 +1614,10 @@ export class SmartAI {
                 const playedEntry = ismctsStats.find(e => e.move === playedKey);
                 if (recEntry && recEntry.visits > 0) recWinRate = recEntry.winRate;
                 if (playedEntry && playedEntry.visits > 0) playedWinRate = playedEntry.winRate;
+                // Visits tell how well the search explored each move — grading
+                // falls back to the static score when the played move got few.
+                recVisits = recEntry?.visits || 0;
+                playedVisits = playedEntry?.visits || 0;
             }
         }
 
@@ -1631,7 +1668,7 @@ export class SmartAI {
 
         return {
             recommendation, playedScore, cerrarAvailable, cerrarTaken, closeOutcome,
-            recReason, recFactor, recWinRate, playedWinRate,
+            recReason, recFactor, recWinRate, playedWinRate, recVisits, playedVisits,
             // Debrief context: a forced move (one legal option) is not a decision
             // and is excluded from accuracy; handBefore + signals + the ends in the
             // play's stateSnapshot let the debrief redraw the moment.

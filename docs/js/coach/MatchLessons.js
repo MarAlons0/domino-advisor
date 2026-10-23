@@ -10,14 +10,40 @@
 //
 // Pure: no DOM, no i18n. Returns factor keys and numbers; DebriefUI renders them.
 
-import { MatchHistory } from '../models/MatchHistory.js';
+import { MatchHistory, WR_GOOD_PTS, winRateDropPts } from '../models/MatchHistory.js';
 
 const MAX_PATTERNS = 2;
 const MIN_PATTERN_COUNT = 2; // one miss is a moment; two of the same kind is a pattern
 const MAX_MOMENTS = 3;
-// A win-rate drop below this (3 percentage points) is within simulation noise:
-// the search found the two tiles about equally good.
-const WR_NEGLIGIBLE = 0.03;
+
+/**
+ * Impact measures for one of the human's plays: the static score gap and the
+ * simulated win-rate drop (Master only), each null when unavailable.
+ */
+export function impactOf(play) {
+    const ta = play.turnAnalysis || {};
+    const recScore = play.aiRecommendation?.score;
+    const gap = (recScore != null && ta.playedScore != null) ? recScore - ta.playedScore : null;
+    const wrGap = (ta.recWinRate != null && ta.playedWinRate != null) ? ta.recWinRate - ta.playedWinRate : null;
+    return { gap, wrGap, dropPts: winRateDropPts(ta) };
+}
+
+/**
+ * Sort weak plays ({play, gap, wrGap}) by impact, biggest first. Shared by the
+ * debrief's key moments and the hand-end card. At Master the ISMCTS win rates
+ * are what chose Genín's move, so they take precedence when present:
+ *   tier 2 — simulation confirms the cost (drop above the "good" band), by drop size
+ *   tier 1 — no simulation data: mistakes first, then the static score gap
+ *   tier 0 — simulation found the tiles about equally good
+ */
+export function byImpact(a, b) {
+    const tier = (w) => (w.wrGap == null ? 1 : (w.dropPts > WR_GOOD_PTS ? 2 : 0));
+    const severity = (w) => (w.play.evaluation === 'mistake' ? 1 : 0);
+    return tier(b) - tier(a)
+        || (tier(a) === 2 ? b.wrGap - a.wrGap : 0)
+        || severity(b) - severity(a)
+        || (b.gap ?? -Infinity) - (a.gap ?? -Infinity);
+}
 
 /**
  * The human's weaker-than-recommended real decisions, in play order, each with
@@ -33,19 +59,12 @@ function collectWeakDecisions(hands) {
             humanN++;
             if (MatchHistory.isForced(play)) continue;
             if (play.evaluation !== 'mistake' && play.evaluation !== 'questionable') continue;
-            const recScore = play.aiRecommendation?.score;
-            const playedScore = play.turnAnalysis?.playedScore;
-            const gap = (recScore != null && playedScore != null) ? recScore - playedScore : null;
-            const ta = play.turnAnalysis || {};
-            const wrGap = (ta.recWinRate != null && ta.playedWinRate != null)
-                ? ta.recWinRate - ta.playedWinRate : null;
             weak.push({
                 handNumber: hand.handNumber,
                 humanN,
                 play,
-                gap,
-                wrGap,
-                factor: ta.recFactor || null,
+                ...impactOf(play),
+                factor: play.turnAnalysis?.recFactor || null,
             });
         }
     }
@@ -85,20 +104,8 @@ export function buildMatchLessons(matchHistory) {
 
     const weak = collectWeakDecisions(hands);
 
-    // Key moments by impact. At Master the ISMCTS win rates are what chose
-    // Genín's move, and they often disagree with the static score gap, so they
-    // take precedence when present:
-    //   tier 2 — simulation confirms the cost (win-rate drop ≥ 3 pts), by drop size
-    //   tier 1 — no simulation data: mistakes first, then the static score gap
-    //   tier 0 — simulation found the tiles about equally good (drop < 3 pts)
-    const tier = (w) => (w.wrGap == null ? 1 : (w.wrGap >= WR_NEGLIGIBLE ? 2 : 0));
-    const severity = (w) => (w.play.evaluation === 'mistake' ? 1 : 0);
-    const ranked = [...weak].sort((a, b) =>
-        tier(b) - tier(a)
-        || (tier(a) === 2 ? b.wrGap - a.wrGap : 0)
-        || severity(b) - severity(a)
-        || (b.gap ?? -Infinity) - (a.gap ?? -Infinity));
-    const moments = ranked.slice(0, MAX_MOMENTS);
+    // Key moments: the biggest impact first (see byImpact).
+    const moments = [...weak].sort(byImpact).slice(0, MAX_MOMENTS);
 
     // Patterns: the same strategic dimension given up at least twice.
     const groups = new Map();

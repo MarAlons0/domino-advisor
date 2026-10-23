@@ -503,6 +503,7 @@ class DominoApp {
     }
 
     startNewGame() {
+        this._turnAdvice = null;
         // Restore button states that may have been changed by the match-end modal
         this.continueBtn.style.display = '';
         this.continueBtn.textContent = t('btn.continue');
@@ -884,7 +885,8 @@ class DominoApp {
             // Analyze the turn for mano-level feedback (AI recommendation, the
             // played move's score, and the cerrar decision) BEFORE the play
             // mutates state. Deferred to play time for multi-end tiles below.
-            const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end });
+            const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
+                this._shownAdviceMove(this.game.getState()));
             this._checkSlamCondition(tile);
             this.game.playTurn(tile, end, { aiRecommendation: analysis.recommendation, turnAnalysis: analysis });
             this.afterHumanPlay();
@@ -908,7 +910,8 @@ class DominoApp {
         const tile = this.selectedTile;
         // State is unchanged since the tile was selected (still the human's turn,
         // awaiting the end choice), so we analyze now with the full move known.
-        const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end });
+        const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
+            this._shownAdviceMove(this.game.getState()));
         this._checkSlamCondition(tile);
         this.game.playTurn(tile, end, { aiRecommendation: analysis.recommendation, turnAnalysis: analysis });
         this.hideEndSelection();
@@ -1251,6 +1254,7 @@ class DominoApp {
             this.reviewBtn.style.display = 'none';
             this.startNewGame();
         } else if (state.gamePhase === 'handOver') {
+            this._turnAdvice = null;
             this.logHandSeparator();
             this.ai.resetForNewHand();
             if (this.probAnalyzer) this.probAnalyzer.reset();
@@ -1342,7 +1346,7 @@ class DominoApp {
         }
 
         const state = this.game.getState();
-        const rec = this.ai.getRecommendation(state, 0);
+        const rec = this._adviceForTurn(state);
 
         // Clear previous content
         this.speechDomino.innerHTML = '';
@@ -1388,6 +1392,30 @@ class DominoApp {
         }
 
         this.showAdviceBubble();
+    }
+
+    /**
+     * Genín's advice for the current turn, computed once and reused: reopening the
+     * bubble shows the same tile, and the play is graded against what was shown
+     * (a fresh Master search can prefer a near-tied different tile).
+     * @private
+     */
+    _adviceForTurn(state) {
+        const key = this._turnKey(state);
+        if (this._turnAdvice?.key !== key) {
+            this._turnAdvice = { key, rec: this.ai.getRecommendation(state, 0) };
+        }
+        return this._turnAdvice.rec;
+    }
+
+    /** The move Genín showed the player this turn, or null if they didn't ask. @private */
+    _shownAdviceMove(state) {
+        return this._turnAdvice?.key === this._turnKey(state) ? (this._turnAdvice.rec?.move || null) : null;
+    }
+
+    /** Identifies the human's current decision point within the hand. @private */
+    _turnKey(state) {
+        return `${state.chain.size()}:${state.currentPlayer}:${state.hands[0].size()}`;
     }
 
     showAdviceBubble() {

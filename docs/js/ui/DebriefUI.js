@@ -347,6 +347,9 @@ export class DebriefUI {
                 Math.round(ta.recWinRate * 100), Math.round(ta.playedWinRate * 100));
         } else if (reason) {
             sentence = t('debrief.moment.principle', verb, played, pick, reason);
+        } else if (ta.recWinRate != null && ta.playedWinRate != null) {
+            sentence = t('debrief.moment.odds', verb, played, pick,
+                Math.round(ta.recWinRate * 100), Math.round(ta.playedWinRate * 100));
         } else {
             sentence = t('debrief.moment.bare', verb, played, pick);
         }

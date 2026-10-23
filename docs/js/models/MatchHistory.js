@@ -1,5 +1,22 @@
 import { GameState } from './GameState.js';
 
+// Grading at Master by the simulated win-rate drop (Genín's pick minus your play,
+// from the ISMCTS grading search). Bands chosen from measured stability (CHANGELOG 1.9.0).
+export const WR_GOOD_PTS = 5;          // drop ≤ 5 points: good
+export const WR_QUESTIONABLE_PTS = 15; // ≤ 15 points: questionable; more: mistake
+export const WR_MIN_VISITS = 30;       // fewer visits to your move → too noisy, use the static score
+
+/**
+ * The simulated win-rate drop in whole points, computed exactly as the
+ * explanations display it ("~60% vs ~55%" → 5), so a grade never disagrees with
+ * the numbers the player sees. Null when either win rate is missing.
+ */
+export function winRateDropPts(turnAnalysis) {
+    const ta = turnAnalysis;
+    if (!ta || ta.recWinRate == null || ta.playedWinRate == null) return null;
+    return Math.round(ta.recWinRate * 100) - Math.round(ta.playedWinRate * 100);
+}
+
 /**
  * MatchHistory - Tracks all plays across the entire match for debrief analysis.
  *
@@ -127,6 +144,17 @@ export class MatchHistory {
         // Same tile and end = optimal
         if (tile.equals(recTile) && end === recEnd) {
             return 'optimal';
+        }
+
+        // Master: grade by the simulated win-rate drop when the search explored
+        // your move enough — so the grade agrees with the "~X% vs ~Y%" shown.
+        // Otherwise (static levels, priority shortcuts, rarely-visited moves)
+        // fall through to the static score below.
+        const drop = winRateDropPts(record.turnAnalysis);
+        if (drop != null && (record.turnAnalysis.playedVisits ?? 0) >= WR_MIN_VISITS) {
+            if (drop <= WR_GOOD_PTS) return 'good';
+            if (drop <= WR_QUESTIONABLE_PTS) return 'questionable';
+            return 'mistake';
         }
 
         // Same tile, different end = good

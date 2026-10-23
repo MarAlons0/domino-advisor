@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.8.0',
+        'app.version': 'v1.9.0',
         'app.createdBy': 'Created by',
 
         // Players
@@ -128,6 +128,7 @@ export const translations = {
         'coach.lead.opened': 'You opened with',
         'coach.moment.scoreGapWhy': '{0} {1}; {2} was stronger — {3}. Simulating many possible opponent hands, the AI won ~{4}% with {2} vs ~{5}% with {1}.',
         'coach.moment.scoreGapPrinciple': '{0} {1}; {2} was stronger — {3}.',
+        'coach.moment.scoreGapOdds': '{0} {1}; {2} was stronger. Simulating many possible opponent hands, the AI won ~{3}% with {2} vs ~{4}% with {1}.',
         'coach.moment.scoreGap': '{0} {1}; {2} was the stronger tile.',
         'coach.moment.highlight': 'Your {1} on play {0} was the AI’s top pick — nicely read.',
 
@@ -239,6 +240,7 @@ export const translations = {
         'debrief.verb.opened': 'You opened with',
         'debrief.moment.why': '{0} {1}; {2} was stronger — {3}. Simulating many possible opponent hands, the AI won ~{4}% with {2} vs ~{5}% with {1}.',
         'debrief.moment.principle': '{0} {1}; {2} was stronger — {3}.',
+        'debrief.moment.odds': '{0} {1}; {2} was stronger. Simulating many possible opponent hands, the AI won ~{3}% with {2} vs ~{4}% with {1}.',
         'debrief.moment.bare': "{0} {1}; Genín's pick was {2}.",
         'debrief.board.ends': 'Open ends',
         'debrief.board.opening': 'Empty board (the salida)',
@@ -510,7 +512,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.8.0',
+        'app.version': 'v1.9.0',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -631,6 +633,7 @@ export const translations = {
         'coach.lead.opened': 'Saliste con',
         'coach.moment.scoreGapWhy': '{0} {1}; {2} era más fuerte — {3}. Simulando muchas manos posibles de los rivales, la IA ganó ~{4}% con {2} frente a ~{5}% con {1}.',
         'coach.moment.scoreGapPrinciple': '{0} {1}; {2} era más fuerte — {3}.',
+        'coach.moment.scoreGapOdds': '{0} {1}; {2} era más fuerte. Simulando muchas manos posibles de los rivales, la IA ganó ~{3}% con {2} frente a ~{4}% con {1}.',
         'coach.moment.scoreGap': '{0} {1}; {2} era la mejor ficha.',
         'coach.moment.highlight': 'Tu {1} en la jugada {0} fue la mejor opción según la IA — bien leído.',
 
@@ -742,6 +745,7 @@ export const translations = {
         'debrief.verb.opened': 'Saliste con',
         'debrief.moment.why': '{0} {1}; {2} era más fuerte — {3}. Simulando muchas manos posibles de los rivales, la IA ganó ~{4}% con {2} frente a ~{5}% con {1}.',
         'debrief.moment.principle': '{0} {1}; {2} era más fuerte — {3}.',
+        'debrief.moment.odds': '{0} {1}; {2} era más fuerte. Simulando muchas manos posibles de los rivales, la IA ganó ~{3}% con {2} frente a ~{4}% con {1}.',
         'debrief.moment.bare': '{0} {1}; Genín prefería {2}.',
         'debrief.board.ends': 'Puntas',
         'debrief.board.opening': 'Mesa vacía (la salida)',
