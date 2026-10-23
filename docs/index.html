@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>7 Fichas v1.10.1</title>
+    <title>7 Fichas v1.11.0</title>
     <meta name="theme-color" content="#00d4ff">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -13,7 +13,7 @@
 <body>
     <header class="app-header">
         <div class="brand">
-            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.10.1</span></h1>
+            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.11.0</span></h1>
             <p class="subtitle" data-i18n="app.subtitle">Partnership Dominoes vs. AI</p>
         </div>
         <p class="attribution"><span data-i18n="app.createdBy">Created by</span> <a href="https://looking4nature.com" target="_blank" rel="noopener">Mario Alonso</a></p>
@@ -291,6 +291,18 @@
                     <li data-i18n="help.howToPlay.playTile" data-i18n-html><strong>Play a tile</strong> - Click a tile in your hand to play it. If it can only connect one way, it plays automatically. If it can connect to either end, you'll choose which end.</li>
                     <li data-i18n="help.howToPlay.pass" data-i18n-html><strong>Pass</strong> - If you can't play, the Pass button enables. Click it to pass your turn.</li>
                 </ol>
+            </section>
+
+            <section class="help-section">
+                <h3 data-i18n="help.multiplayer.title">Play with Friends</h3>
+                <ul>
+                    <li data-i18n="help.multiplayer.create" data-i18n-html><strong>Create a room</strong> - Tap the two-people icon (👥) at the top, enter your name and tap <em>Create a room</em>. You get a 6-character room code and an invite link. The name is yours (what the others see); rooms don't have names.</li>
+                    <li data-i18n="help.multiplayer.invite" data-i18n-html><strong>Invite</strong> - Send the link with <em>Copy invite link</em> (or <em>Share</em> on a phone). Your friends open it on their own phone or computer, enter their name once, and they're in. They can also tap 👥, type the code and tap <em>Join</em>.</li>
+                    <li data-i18n="help.multiplayer.seats" data-i18n-html><strong>Seats</strong> - Your partner sits across from you. Anyone can tap <em>Sit here</em> to move to a free seat — to play as partners or as opponents. The host (who created the room) sets each empty seat to an AI level and taps <em>Start match</em>. Join before the match starts.</li>
+                    <li data-i18n="help.multiplayer.play" data-i18n-html><strong>Playing</strong> - You're always at the bottom, and only you see your tiles. When you can't play, the room passes for you. Genín coaches each player on their own: advice, the hand-end card and the debrief. (The Quiz Me predictions are single player only.)</li>
+                    <li data-i18n="help.multiplayer.reconnect" data-i18n-html><strong>Lost connection</strong> - Open the invite link again to get your seat and your tiles back. If someone is away for more than 60 seconds, the host can tap <em>Give seat to AI</em>; the seat goes back to them when they return.</li>
+                    <li data-i18n="help.multiplayer.rematch" data-i18n-html><strong>Rematch or leave</strong> - After the match, <em>Room</em> takes everyone back to the room, where the host can start a <em>Rematch</em> with the same seats. <em>Leave room</em> takes you back to playing on your own.</li>
+                </ul>
             </section>
 
             <section class="help-section">
@@ -608,7 +620,7 @@
 
     <div id="badge-toast-container"></div>
 
-    <script type="module" src="js/main.js?v=33"></script>
+    <script type="module" src="js/main.js?v=34"></script>
     <script>
       if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         // On the first visit after a release, the previous version's service worker may have

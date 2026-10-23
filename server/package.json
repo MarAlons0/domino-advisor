@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev --port 8798",
     "deploy": "wrangler deploy",
-    "test": "node --test test/room-engine.test.mjs test/remote-game.test.mjs",
+    "test": "node --test test/room-engine.test.mjs test/remote-game.test.mjs test/genin.test.mjs",
     "e2e": "node test/e2e-bots.mjs http://localhost:8798"
   },
   "devDependencies": {

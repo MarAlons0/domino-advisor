@@ -243,6 +243,7 @@ export class RoomEngine {
         const plays = this.meta.log.filter(a => a.h === h).map(a => (a.pass ? { seat: a.seat, pass: true } : { seat: a.seat, tile: a.tile, end: a.end }));
         return {
             ...base,
+            matchNumber: this.meta.matchNumber,                     // lets a client keep its coaching record across a reload
             handNumber: h + 1,
             isFirstHand: h === 0,
             starter: this.game.getMatchHistory().currentHand?.startingPlayer ?? null,
@@ -405,13 +406,15 @@ export class RoomEngine {
     _apply(action, { record = true } = {}) {
         if (record) this.meta.log.push(action);
         const s = this.game.getState();
+        // Announce the move before applying it: the last move of a hand fires handEnd
+        // (and matchEnd) inside the engine, and clients must see the move first.
         if (action.pass) {
-            this.game.pass();
             if (record) this.out.push({ to: 'all', msg: { type: 'passed', seat: action.seat } });
+            this.game.pass();
         } else {
             const tile = s.hands[action.seat].getTiles().find(t => t.toKey() === action.tile);
-            this.game.playTurn(tile, action.end, {});
             if (record) this.out.push({ to: 'all', msg: { type: 'played', seat: action.seat, tile: action.tile, end: action.end } });
+            this.game.playTurn(tile, action.end, {});
         }
     }
 

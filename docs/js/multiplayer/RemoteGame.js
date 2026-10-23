@@ -8,6 +8,9 @@
 //   server reveals every hand — exactly what single player shows at that moment.
 // - Moves by AI seats are paced (AI_DELAY_MS) so people can follow the play.
 // - Your own move is applied when the server confirms it (it is the authority).
+// - Genín's analysis of your move (computed in your browser before you send it)
+//   is attached when the server confirms it, kept through a reconnect, and saved
+//   so a reload keeps the whole match's coaching (MatchHistoryStore).
 //
 // See docs/MULTIPLAYER.md.
 
@@ -31,6 +34,32 @@ export class HiddenHand extends Hand {
     isEmpty() { return this.count === 0; }
     getTiles() { return []; }
     pipCount() { return 0; }
+    // Genín's search copies the state before re-sampling hidden hands; a copy must
+    // keep the size, or a hidden seat would look like it had dominoed.
+    clone() { return new HiddenHand(this.count); }
+}
+
+/**
+ * "What closing would have scored" needs every hand's pips at the moment you could
+ * close, but in multiplayer the other hands are hidden until the hand ends. Once
+ * they're revealed: the pips a seat held before play i = its final pips + the pips
+ * of every tile it played from i on. Fills myRemaining / oppRemaining /
+ * scoreIfClosed of each closeOutcome, by the same rule as SmartAI.analyzeHumanTurn.
+ * @param {object[]} plays - the hand's play records (local seats; you are 0)
+ * @param {number[]} finalPips - each local seat's pips at the end of the hand
+ */
+export function settleCloseOutcomes(plays, finalPips) {
+    const later = [0, 0, 0, 0];
+    for (let i = plays.length - 1; i >= 0; i--) {
+        const p = plays[i];
+        if (p.tile) later[p.player] += p.tile.pipCount();
+        const co = p.turnAnalysis?.closeOutcome;
+        if (!co || co.closeTilePips === undefined) continue;
+        const held = finalPips.map((pips, seat) => pips + later[seat]);
+        co.myRemaining = held[0] + held[2] - co.closeTilePips;
+        co.oppRemaining = held[1] + held[3];
+        co.scoreIfClosed = co.myRemaining <= co.oppRemaining ? co.oppRemaining : -co.myRemaining;
+    }
 }
 
 function handOf(keys) {
@@ -47,6 +76,9 @@ export class RemoteGame {
         this.seatKinds = ['human', 'human', 'human', 'human']; // server seats, for pacing
         this.send = () => {};      // set by the session
         this.pending = false;      // our move sent, awaiting the server's echo
+        this.pendingMeta = null;   // Genín's analysis of that move, until the echo
+        this.matchNumber = null;   // the room's match this history belongs to
+        this.store = null;         // MatchHistoryStore (set by the session)
         this.queue = [];
         this.running = false;
         // Game-compatible callbacks (set by main.js)
@@ -87,9 +119,15 @@ export class RemoteGame {
             && !this.pending && !this.running && this.queue.length === 0;
     }
 
-    playTurn(tile, end) {
+    /** @param {object} [options] - {aiRecommendation, turnAnalysis}, as for Game.playTurn */
+    playTurn(tile, end, options = {}) {
         if (!this.isHumanTurn()) return false;
         this.pending = true;
+        this.pendingMeta = {
+            tile: tile.toKey(), end,
+            aiRecommendation: options.aiRecommendation || null,
+            turnAnalysis: options.turnAnalysis || null,
+        };
         this.send({ type: 'play', tile: tile.toKey(), end });
         return true;
     }
@@ -140,6 +178,7 @@ export class RemoteGame {
                 return this._changed();
             case 'error':
                 this.pending = false;
+                this.pendingMeta = null;
                 this.onError?.(msg.code);
                 return this._changed();
         }
@@ -150,6 +189,18 @@ export class RemoteGame {
         this.mySeat = msg.you.seat;
         this.seatKinds = msg.lobby.seats.map(s => s.kind);
         this.pending = false;
+        // First sync of this match on this page: bring back the coaching record
+        // saved before a reload (the room only knows the public plays).
+        if (msg.matchNumber !== undefined && msg.matchNumber !== this.matchNumber) {
+            this.matchNumber = msg.matchNumber;
+            const hands = this.store?.load(msg.matchNumber, this.mySeat);
+            if (hands?.length) {
+                this.matchHistory.hands = hands;
+                this.matchHistory.currentHand = hands[hands.length - 1];
+            } else {
+                this.matchHistory.reset();
+            }
+        }
         const s = this.state;
         if (msg.handNumber === 1 && msg.plays.length === 0) {
             s.resetForNewMatch();
@@ -163,16 +214,22 @@ export class RemoteGame {
         s.hands = [0, 1, 2, 3].map(l => (l === 0 ? handOf(msg.yourHand) : new HiddenHand(7)));
         const starter = this.toLocal(msg.starter);
         s.currentPlayer = starter;
-        // A hand start resets history; a reconnect mid-hand rebuilds it.
+        // A hand start resets history; a reconnect mid-hand rebuilds it, keeping
+        // Genín's analysis of your plays already made.
+        let before = [];
         if (!this.matchHistory.currentHand || this.matchHistory.currentHand.handNumber !== msg.handNumber) {
             this.matchHistory.startHand(msg.handNumber, starter);
         } else {
+            before = this.matchHistory.currentHand.plays;
             this.matchHistory.currentHand.plays = [];
         }
         s.gamePhase = 'playing';
         // Replay this hand's public plays (reconnect); your own played tiles are
         // already gone from yourHand, so don't remove them twice.
-        for (const p of msg.plays) (p.pass ? this._passed(p, { replay: true }) : this._played(p, { replay: true }));
+        msg.plays.forEach((p, i) => (p.pass
+            ? this._passed(p, { replay: true })
+            : this._played(p, { replay: true, meta: this._keptMeta(before[i], p) })));
+        this.pendingMeta = null;
         s.hands.forEach((h, l) => { if (l !== 0) h.count = msg.counts[this.toServer(l)]; });
         s.currentPlayer = this.toLocal(msg.currentPlayer);
         s.gamePhase = msg.phase === 'playing' ? 'playing' : msg.phase;
@@ -189,7 +246,16 @@ export class RemoteGame {
         };
     }
 
-    _played(msg, { replay = false } = {}) {
+    /** Genín's analysis to keep for a replayed play of yours, if it is the same move. @private */
+    _keptMeta(prev, p) {
+        if (this.toLocal(p.seat) !== 0) return null;
+        if (prev && prev.player === 0 && prev.tile && prev.tile.toKey() === p.tile && prev.end === p.end) return prev;
+        // Sent just before the connection dropped, and the room applied it.
+        const m = this.pendingMeta;
+        return m && m.tile === p.tile && m.end === p.end ? m : null;
+    }
+
+    _played(msg, { replay = false, meta = null } = {}) {
         const s = this.state;
         const local = this.toLocal(msg.seat);
         const tile = tileOf(msg.tile);
@@ -202,8 +268,16 @@ export class RemoteGame {
         else s.hands[local].count = Math.max(0, s.hands[local].count - 1);
         s.chain.play(tile, msg.end, local);
         s.recordPlay(tile, msg.end);
-        this.matchHistory.recordPlay({ player: local, tile, end: msg.end, stateSnapshot: snapshot, isHuman: local === 0 });
+        if (local === 0 && !replay) {
+            meta = this.pendingMeta?.tile === msg.tile ? this.pendingMeta : null;
+            this.pendingMeta = null;
+        }
+        this.matchHistory.recordPlay({
+            player: local, tile, end: msg.end, stateSnapshot: snapshot, isHuman: local === 0,
+            aiRecommendation: meta?.aiRecommendation || null, turnAnalysis: meta?.turnAnalysis || null,
+        });
         if (local === 0) this.pending = false;
+        if (local === 0 && !replay) this._save();
         s.currentPlayer = (local + 1) % 4;
         if (!replay) {
             this.onPlay?.({ player: local, tile, end: msg.end, chain: s.chain.toString(), openEndsBefore, reasoning: null });
@@ -233,10 +307,12 @@ export class RemoteGame {
         s.isFirstHand = false;
         const winningTeam = this.localTeam(msg.winningTeam);
         if (winningTeam >= 0) s.scores.hand[winningTeam] = msg.points;
+        this._settleCloseOutcomes();
         this.matchHistory.endHand({
             reason: msg.reason, winner: winningTeam, points: msg.points,
             finalHands: s.hands.map(h => ({ tiles: h.getTiles().map(t => t.toString()), pipCount: h.pipCount() })),
         });
+        this._save();
         this.onHandEnd?.({
             reason: msg.reason,
             dominoPlayer: msg.dominoPlayer == null ? null : this.toLocal(msg.dominoPlayer),
@@ -246,6 +322,15 @@ export class RemoteGame {
             isMatchEnding: msg.isMatchEnding,
         });
         this._changed();
+    }
+
+    /** Closing pips can be settled now that every hand is revealed. @private */
+    _settleCloseOutcomes() {
+        settleCloseOutcomes(this.matchHistory.currentHand?.plays || [], this.state.hands.map(h => h.pipCount()));
+    }
+
+    _save() {
+        if (this.matchNumber !== null) this.store?.save(this.matchNumber, this.mySeat, this.matchHistory);
     }
 
     _changed() { this.onStateChange?.(this.state); }

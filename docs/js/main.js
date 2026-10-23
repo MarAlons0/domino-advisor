@@ -12,6 +12,7 @@ import { BadgeSystem } from './stats/BadgeSystem.js';
 import { QuizStorage } from './services/QuizStorage.js';
 import { StorageService } from './stats/StorageService.js';
 import { Tile } from './models/Tile.js';
+import { Hand } from './models/Hand.js';
 import { ProbabilityAnalyzer } from './ai/ProbabilityAnalyzer.js';
 import { buildHandFeedback } from './coach/HandFeedback.js';
 import { feedbackTexts } from './ui/feedbackText.js';
@@ -113,8 +114,11 @@ class DominoApp {
         const s = new MultiplayerSession(this.roomCode, this.game);
         this.multiplayer = s;
         document.body.classList.add('multiplayer');
-        this.newGameBtn.removeAttribute('data-i18n');
-        this.newGameBtn.textContent = t('mp.roomBtn');
+        const debriefRoomBtn = document.getElementById('debrief-new-match-btn');
+        for (const btn of [this.newGameBtn, debriefRoomBtn]) {
+            btn?.removeAttribute('data-i18n');
+            if (btn) btn.textContent = t('mp.roomBtn');
+        }
 
         s.onLobby = () => { this.lobbyUI.render(); this._applyTableLabels(); };
         s.onStatus = () => { if (this.lobbyUI.isOpen()) this.lobbyUI.render(); };
@@ -124,6 +128,7 @@ class DominoApp {
         this.game.onThinking = (seat) => (seat === null ? this.hideThinkingIndicator() : this.showThinkingIndicator(seat));
         i18n.onLanguageChange(() => {
             this.newGameBtn.textContent = t('mp.roomBtn');
+            if (debriefRoomBtn) debriefRoomBtn.textContent = t('mp.roomBtn');
             this._applyTableLabels();
             if (this.lobbyUI.isOpen()) this.lobbyUI.render();
         });
@@ -184,10 +189,21 @@ class DominoApp {
         }
         this.ai.resetForNewHand();
         const state = this.game.getState();
-        this.handTracker.initHand(state.hands[0]);
+        // Genín starts from your hand as dealt; on a reconnect mid-hand, that is the
+        // tiles you hold plus the ones you've played, and he relearns the plays so far.
+        const plays = info.resumed ? (this.game.getMatchHistory().currentHand?.plays || []) : [];
+        const dealt = new Hand();
+        for (const tile of state.hands[0].getTiles()) dealt.add(tile);
+        for (const p of plays) if (p.player === 0 && p.tile) dealt.add(p.tile);
+        this.handTracker.initHand(dealt);
         for (let i = 0; i < 4; i++) {
             this.playerViews[i].resetAffinities();
-            this.playerViews[i].initOwnHand(state.hands[i]);
+            this.playerViews[i].initOwnHand(i === 0 ? dealt : state.hands[i]);
+        }
+        for (const p of plays) {
+            const ends = p.stateSnapshot?.chainSize ? [p.stateSnapshot.leftEnd, p.stateSnapshot.rightEnd] : [null, null];
+            if (p.tile) this._trackPlay(p.player, p.tile, p.end, ...ends);
+            else this._trackPass(p.player, ...ends);
         }
         if (info.newMatch && info.isFirstHand) {
             this.log(t('log.starterHasDouble', GameState.getPlayerName(info.starter)), 'system');
@@ -513,18 +529,8 @@ class DominoApp {
                 this.probAnalyzer.captureSnapshot(this.game.getState(), event, data.player, data.tile);
             }
 
-            // Record this play for AI tracking (suit counts, play choice inference)
-            const leftEnd = data.openEndsBefore?.left ?? null;
-            const rightEnd = data.openEndsBefore?.right ?? null;
-            this.ai.recordPlay(data.player, data.tile, data.end, leftEnd, rightEnd);
-
-            // Record for hand tracker (probability tracking)
-            this.handTracker.recordPlay(data.player, data.tile);
-
-            // Feed play observation to all player views (Bayesian affinity updates)
-            for (const view of this.playerViews) {
-                view.recordPlayObservation(data.player, data.tile, data.end, leftEnd, rightEnd);
-            }
+            this._trackPlay(data.player, data.tile, data.end,
+                data.openEndsBefore?.left ?? null, data.openEndsBefore?.right ?? null);
 
             // Update quiz button state
             this.updateQuizButton();
@@ -546,11 +552,7 @@ class DominoApp {
                 this.probAnalyzer.captureSnapshot(this.game.getState(), event, data.player, null);
             }
 
-            // Record this pass for AI tracking (inferred dead suits)
-            this.ai.recordPass(data.player, leftEnd, rightEnd);
-
-            // Record for hand tracker (probability tracking)
-            this.handTracker.recordPass(data.player, leftEnd, rightEnd);
+            this._trackPass(data.player, leftEnd, rightEnd);
         };
 
         this.game.onHandEnd = (data) => {
@@ -603,6 +605,24 @@ class DominoApp {
             console.error('Game error:', msg);
             this.log(t('log.error', msg), 'system');
         };
+    }
+
+    /** What Genín and the AI learn from a play (suits, passes, probabilities). @private */
+    _trackPlay(player, tile, end, leftEnd, rightEnd) {
+        // AI tracking (suit counts, play choice inference)
+        this.ai.recordPlay(player, tile, end, leftEnd, rightEnd);
+        // Hand tracker (probability tracking)
+        this.handTracker.recordPlay(player, tile);
+        // All player views (Bayesian affinity updates)
+        for (const view of this.playerViews) {
+            view.recordPlayObservation(player, tile, end, leftEnd, rightEnd);
+        }
+    }
+
+    /** What Genín and the AI learn from a pass (inferred dead suits). @private */
+    _trackPass(player, leftEnd, rightEnd) {
+        this.ai.recordPass(player, leftEnd, rightEnd);
+        this.handTracker.recordPass(player, leftEnd, rightEnd);
     }
 
     startNewGame() {
@@ -989,7 +1009,7 @@ class DominoApp {
             // Analyze the turn for mano-level feedback (AI recommendation, the
             // played move's score, and the cerrar decision) BEFORE the play
             // mutates state. Deferred to play time for multi-end tiles below.
-            const analysis = this.multiplayer ? null : this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
+            const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
                 this._shownAdviceMove(this.game.getState()));
             this._checkSlamCondition(tile);
             this.game.playTurn(tile, end, { aiRecommendation: analysis?.recommendation ?? null, turnAnalysis: analysis });
@@ -1014,7 +1034,7 @@ class DominoApp {
         const tile = this.selectedTile;
         // State is unchanged since the tile was selected (still the human's turn,
         // awaiting the end choice), so we analyze now with the full move known.
-        const analysis = this.multiplayer ? null : this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
+        const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
             this._shownAdviceMove(this.game.getState()));
         this._checkSlamCondition(tile);
         this.game.playTurn(tile, end, { aiRecommendation: analysis?.recommendation ?? null, turnAnalysis: analysis });
@@ -1236,7 +1256,6 @@ class DominoApp {
      */
     _renderHandFeedback(data) {
         if (!this.messageFeedback) return;
-        if (this.multiplayer) { this.messageFeedback.style.display = 'none'; return; } // Genín in multiplayer: P2
         if (this.feedbackDetail) this.feedbackDetail.style.display = 'none'; // collapse
 
         const hand = this.game.getMatchHistory()?.currentHand;
@@ -1323,9 +1342,8 @@ class DominoApp {
         // so an accidental tap on it can't skip the analysis screen
         this.newGameBtn.disabled = true;
 
-        // Multiplayer: no debrief yet (P2); Continue opens the room for a rematch.
+        // Multiplayer: Review Game as in single player, plus the room (rematch).
         if (this.multiplayer) {
-            this.reviewBtn.style.display = 'none';
             this.continueBtn.style.display = '';
             this.continueBtn.textContent = t('mp.roomBtn');
             this.newGameBtn.disabled = false;
@@ -1452,10 +1470,12 @@ class DominoApp {
     updateGeninAdviceVisibility(state) {
         if (!this.geninAdviceContainer) return;
 
-        const shouldShow = !this.multiplayer &&
-                           state.currentPlayer === 0 &&
+        // Multiplayer: the room passes for you, so ask for a playable tile instead of
+        // mustPass (getValidMoves is also empty while your move is in flight).
+        const canPlay = this.multiplayer ? this.game.getValidMoves().length > 0 : !this.game.mustPass();
+        const shouldShow = state.currentPlayer === 0 &&
                            state.gamePhase === 'playing' &&
-                           !this.game.mustPass();
+                           canPlay;
 
         this.geninAdviceContainer.style.display = shouldShow ? 'flex' : 'none';
 

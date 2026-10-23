@@ -3,6 +3,27 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.11.0] – 2026-10-23
+
+### Added
+- **Genín in multiplayer (play with friends, part 2).** Everything Genín does in single player now works at a multiplayer table, for each person separately:
+  - **Advice:** tap Genín on your turn for his pick and the reason, at Master strength.
+  - **Hand-end card:** after each hand, the outcome, a verdict and your key moment — "why" and the simulated win rates included.
+  - **Debrief:** **Review Game** at the end of the match opens the full debrief (summary, lessons, key moments, every play, your grades); its button takes you back to the room for a rematch.
+  - Your plays are graded and count toward your lifetime Genín agreement, as in single player.
+- **Genín runs in your own browser** and uses only what you can see: your hand, the plays, and how many tiles each player holds — the free room server does no extra work. Tested against a Genín that sees the whole table: identical advice, grades, win rates and reasons in 825 of 825 decisions.
+- **Help → "Play with Friends"** (en + es): how to create a room and invite friends, choose seats (partners or opponents) and AI levels, what changes at the table (the room passes for you; Genín coaches each player), getting your seat back after a lost connection, and rematch / leave.
+- **Your coaching survives a reload.** Phones often drop a background tab and reload it when you come back; the room restores the table, and your browser now keeps Genín's analysis of your earlier plays, so the hand-end card and the debrief still cover the whole match. (Kept for the current room only; a rematch starts clean.)
+
+### Fixed
+- **The winning (or closing) tile of each hand reached other players after "hand over".** The room announced the end of the hand before the move that ended it, so capicú / cerrado effects were worked out before that tile was on the board. The room now sends the move first. (Server fix; applies to everyone on v1.10.x too.)
+
+### Changed (internal)
+- Prediction quizzes stay single player: grading a prediction needs the other players' hands at that moment.
+- "What closing would have scored" needs everyone's pips; in multiplayer it is settled from the revealed hands when the hand ends (`settleCloseOutcomes`, same rule as before).
+- A hidden hand keeps its size when Genín's search copies the table (otherwise the search would think that player had dominoed and skip the simulation).
+- New `multiplayer/MatchHistoryStore.js`; the room's `sync` now includes the match number. New tests in `server/test/genin.test.mjs` (included in `npm test`).
+
 ## [1.10.1] – 2026-10-23
 
 ### Fixed

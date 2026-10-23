@@ -1659,8 +1659,11 @@ export class SmartAI {
 
             closeOutcome = {
                 closeValue,
-                // outcome (ground truth)
+                // outcome (ground truth) — in multiplayer the other hands are hidden
+                // until the hand ends, so RemoteGame recomputes these three from the
+                // revealed hands (closeTilePips is what closing takes off our total)
                 myRemaining, oppRemaining, scoreIfClosed,
+                closeTilePips: closingMove.tile.pipCount(),
                 // process (information set available to the player)
                 inferredEdge, oppFallas, oppTiles,
             };

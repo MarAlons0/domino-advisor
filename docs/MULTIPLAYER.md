@@ -1,6 +1,6 @@
 # Multiplayer (networked) — Design
 
-**Status:** P1 (rooms and play) built, 2026-10-23 — v1.10.0. Next: P2 (Genín in multiplayer). Backlog: 🔴 High "Multiplayer game".
+**Status:** P1 (rooms and play) — v1.10.0; P2 (Genín in multiplayer) — v1.11.0, 2026-10-23. Next: P3 (polish). Backlog: 🔴 High "Multiplayer game".
 
 **Decided:**
 - Networked play — each human on their own device — not hot-seat; 2–4 humans, same or opposing
@@ -106,15 +106,16 @@ ever tighten.)
  │ main.js UI (largely unchanged)   │  wss://  │ POST /rooms → new room code                │
  │  ├─ RemoteGame adapter ◄─────────┼─────────►│ GET /rooms/CODE/ws → that room             │
  │  │   (same API as Game; you = 0) │          │ Durable Object "GameRoom" (one per room):   │
- │  └─ hand-end card / debrief from │          │   deal · secret hands · rule checks ·       │
- │     your coaching data           │          │   scores · AI seats · Genín per player      │
+ │  ├─ Genín (advice, grading) from │          │   deal · secret hands · rule checks ·       │
+ │  │   your information only       │          │   scores · AI seats                         │
+ │  └─ hand-end card / debrief      │          │                                            │
  └──────────────────────────────────┘          └──────────────────────────────────────────┘
 ```
 
 **Server (Durable Object, one per room)** — the authority: deals, holds every hand, validates
-each play, keeps turn order and scores, runs the AI seats (all levels, as today), runs Genín's
-analysis and advice for each human, and sends each player only their own hand, their own coaching
-and public information.
+each play, keeps turn order and scores, runs the AI seats (all levels, as today), and sends each
+player only their own hand and public information. It announces every move before applying it, so
+a hand's last move always reaches clients before `handEnd`.
 
 **Each player's browser:**
 - `RemoteGame` adapter with the slice of `Game`'s interface that `main.js` already uses
@@ -123,16 +124,25 @@ and public information.
   working.
 - **Seat rotation:** you are always seat 0 at the bottom; rotating keeps partners opposite, so
   "your team / opponents" stays correct. Other humans show by their chosen names.
-- **Genín's results arrive from the server** (your advice, grades and hand-end coaching only);
-  the hand-end card and debrief render them as in single player.
+- **Genín runs in your browser (P2).** The plan was to run him on the server, but section 4
+  proved he needs only your own information, which your browser already has — so he runs there,
+  with the same code as single player and no server cost. Advice, grading, the hand-end card and
+  the debrief all work from `RemoteGame`'s state and match history. Two multiplayer details:
+  "what closing would have scored" needs everyone's pips, so it is settled from the revealed hands
+  at hand end (`settleCloseOutcomes`); and a `HiddenHand` keeps its size when the search copies the
+  table. Your analysis is attached to your play when the room confirms it, kept through a reconnect,
+  and saved in your browser (`MatchHistoryStore`, current room only) so a reload keeps the match's
+  coaching. Prediction quizzes stay single player (grading one needs the hidden hands).
 - AI "thinking" pauses are animated on the client, so the room can hibernate between messages.
 
-### Message protocol (sketch)
-- Client → server: `join {name, token?}`, `takeSeat {seat}`, `setAI {seat, level}` (host),
-  `start` (host), `play {tile, end}`, `pass`, `askGenin`, `nextHand`, `rematch`.
-- Server → client: `lobby {seats, host}`, `state {yourHand, chain, counts, scores, turn, phase}`,
-  `played {seat, tile, end}`, `passed {seat}`, `advice {tile, end, reason}`,
-  `handEnd {result, hands, yourCoaching}`, `matchEnd {scores, yourHistory}`, `error {code}`.
+### Message protocol (as built)
+- Client → server: `hello {name, token?}`, `takeSeat {seat}`, `setSeat {seat, kind, level}` (host),
+  `start` (host; also the rematch), `play {tile, end}`, `pass`, `ready` (next hand),
+  `replaceWithAI {seat}` (host).
+- Server → client: `welcome {playerId, token}`, `lobby {lobby}`, `sync {matchNumber, handNumber,
+  yourHand, plays, counts, currentPlayer, matchScores, …}`, `played {seat, tile, end}`,
+  `passed {seat}`, `handEnd {reason, points, matchScores, hands, …}`, `matchEnd {winner,
+  finalScores}`, `error {code}`. No Genín messages: he runs in the browser.
 
 ### Room lifecycle
 1. **Create** → 6-character room code + invite link (`…/domino-advisor/?room=K7Q2XM`).
@@ -156,10 +166,10 @@ each player's browser, from their own seat's perspective).
 |---|---|---|
 | **P0 — Spike** ✅ done | Throwaway room on the free plan: CPU, WebSockets + hibernation, alarms — all fine (section 5). Remaining P0 item: guard the browser-only lines in the app (an ordinary release, no visible change). | v1.9.x |
 | **P1 — Rooms and play** ✅ v1.10.0 | `domino-rooms` Worker + `GameRoom`; lobby (create / join / seats / AI levels); `RemoteGame` adapter; seat rotation and names; AI seats at every level; reconnect. | MINOR |
-| **P2 — Genín in multiplayer** | Server-side advice and analysis per player; hand-end card and debrief from each player's own coaching data; stats. | MINOR |
+| **P2 — Genín in multiplayer** ✅ v1.11.0 | Advice, grading, hand-end card and debrief for each player, computed in their own browser from their own information; coaching kept across a reload; stats. | MINOR |
 | **P3 — Polish** | Rematch flow, quick reactions, optional turn timer. | PATCH / MINOR |
 
-## How it's built (P1)
+## How it's built (P1 + P2)
 
 | Piece | File |
 |---|---|
@@ -170,6 +180,7 @@ each player's browser, from their own seat's perspective).
 | Connection, reconnect, name + seat token | `docs/js/multiplayer/MultiplayerSession.js` |
 | Lobby window | `docs/js/ui/LobbyUI.js` |
 | Multiplayer mode in the app (only when the URL has `?room=`) | `docs/js/main.js` |
+| Your coaching record across a reload (current room only) | `docs/js/multiplayer/MatchHistoryStore.js` |
 
 The engine is shared: `Game.newMatch(tiles)` / `newHand(tiles)` accept a fixed deal (for replay),
 and the browser-only lines (`i18n`, `?debug=ai`) are guarded so the same modules run on the server.
@@ -178,7 +189,7 @@ and the browser-only lines (`i18n`, `?debug=ai`) are guarded so the same modules
 ```bash
 # from server/ (wrangler 4.61 — `npm install` once, or use any wrangler on the PATH)
 npm run dev      # local rooms server on http://localhost:8798 (app pages on localhost use it)
-npm test         # RoomEngine + RemoteGame tests (Node)
+npm test         # RoomEngine, RemoteGame and Genín-in-multiplayer tests (Node)
 npm run e2e      # full match over real WebSockets against `npm run dev`
 npm run deploy   # publish to Cloudflare (free plan) — needs `wrangler login`
 ```
@@ -189,8 +200,11 @@ Local two-player test on one computer: open the app at `http://localhost:8791/?r
 - Unit tests for the room logic with fake sockets and fixed deals (Node).
 - `wrangler dev` locally with several browser tabs as separate players.
 - An automated 4-client bot run over real WebSockets (full matches, reconnect mid-hand).
-- Scramble/tripwire tests kept as regression checks that Genín and the AI use only the player's own
-  information.
+- Genín in multiplayer (`server/test/genin.test.mjs`): at every decision of a player in a room, a
+  Genín that knows only that browser's information must give the same advice, grades, win rates
+  and reasons as one that sees the whole table (same random seed) — 825 of 825 identical over 20
+  matches; closing figures settled at hand end must equal the live values; every move must arrive
+  before `handEnd`; your analysis must survive a reconnect and a reload.
 - The existing regression scripts, since the engine is shared.
 
 ## Open questions

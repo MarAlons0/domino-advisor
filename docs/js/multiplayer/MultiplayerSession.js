@@ -4,6 +4,7 @@
 // See docs/MULTIPLAYER.md.
 
 import { StorageService } from '../stats/StorageService.js';
+import { MatchHistoryStore } from './MatchHistoryStore.js';
 
 const LOCAL = typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 // The rooms Worker (Cloudflare, free plan). Local pages talk to `wrangler dev`.
@@ -58,6 +59,7 @@ export class MultiplayerSession {
         this.onStatus = null;     // (status)
         this.onError = null;      // (code)
         game.send = (msg) => this.send(msg);
+        game.store = new MatchHistoryStore(code);
     }
 
     get tokenKey() { return `7fichas_mp_token_${this.code}`; }

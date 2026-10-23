@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.10.1',
+        'app.version': 'v1.11.0',
         'app.createdBy': 'Created by',
 
         // Players
@@ -212,6 +212,13 @@ export const translations = {
         'help.howToPlay.newGame': '<strong>New Game</strong> - Click to start a new match. The player with the double-six leads.',
         'help.howToPlay.playTile': '<strong>Play a tile</strong> - Click a tile in your hand to play it. If it can only connect one way, it plays automatically. If it can connect to either end, you\'ll choose which end.',
         'help.howToPlay.pass': '<strong>Pass</strong> - If you can\'t play, the Pass button enables. Click it to pass your turn.',
+        'help.multiplayer.title': 'Play with Friends',
+        'help.multiplayer.create': '<strong>Create a room</strong> - Tap the two-people icon (👥) at the top, enter your name and tap <em>Create a room</em>. You get a 6-character room code and an invite link. The name is yours (what the others see); rooms don\'t have names.',
+        'help.multiplayer.invite': '<strong>Invite</strong> - Send the link with <em>Copy invite link</em> (or <em>Share</em> on a phone). Your friends open it on their own phone or computer, enter their name once, and they\'re in. They can also tap 👥, type the code and tap <em>Join</em>.',
+        'help.multiplayer.seats': '<strong>Seats</strong> - Your partner sits across from you. Anyone can tap <em>Sit here</em> to move to a free seat — to play as partners or as opponents. The host (who created the room) sets each empty seat to an AI level and taps <em>Start match</em>. Join before the match starts.',
+        'help.multiplayer.play': '<strong>Playing</strong> - You\'re always at the bottom, and only you see your tiles. When you can\'t play, the room passes for you. Genín coaches each player on their own: advice, the hand-end card and the debrief. (The Quiz Me predictions are single player only.)',
+        'help.multiplayer.reconnect': '<strong>Lost connection</strong> - Open the invite link again to get your seat and your tiles back. If someone is away for more than 60 seconds, the host can tap <em>Give seat to AI</em>; the seat goes back to them when they return.',
+        'help.multiplayer.rematch': '<strong>Rematch or leave</strong> - After the match, <em>Room</em> takes everyone back to the room, where the host can start a <em>Rematch</em> with the same seats. <em>Leave room</em> takes you back to playing on your own.',
         'help.scoring.title': 'Scoring',
         'help.scoring.domino': '<strong>Domino</strong> - A player plays their last tile. Their team scores the total pips in opponents\' hands.',
         'help.scoring.blocked': '<strong>Blocked game</strong> - No one can play. The team with fewer pips wins the difference.',
@@ -558,7 +565,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.10.1',
+        'app.version': 'v1.11.0',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -763,6 +770,13 @@ export const translations = {
         'help.howToPlay.newGame': '<strong>Nueva Partida</strong> - Haz clic para comenzar una nueva partida. El jugador con el doble seis comienza.',
         'help.howToPlay.playTile': '<strong>Jugar una ficha</strong> - Haz clic en una ficha de tu mano para jugarla. Si solo puede conectar de una manera, se juega automáticamente. Si puede conectar a cualquier punta, elegirás cuál.',
         'help.howToPlay.pass': '<strong>Pasar</strong> - Si no puedes jugar, el botón Paso se activa. Haz clic para pasar tu turno.',
+        'help.multiplayer.title': 'Jugar con amigos',
+        'help.multiplayer.create': '<strong>Crear una sala</strong> - Toca el ícono de dos personas (👥) arriba, escribe tu nombre y toca <em>Crear una sala</em>. Recibes un código de sala de 6 caracteres y un enlace de invitación. El nombre es el tuyo (el que ven los demás); las salas no llevan nombre.',
+        'help.multiplayer.invite': '<strong>Invitar</strong> - Envía el enlace con <em>Copiar enlace de invitación</em> (o <em>Compartir</em> en el teléfono). Tus amigos lo abren en su propio teléfono o computadora, escriben su nombre una vez y ya están dentro. También pueden tocar 👥, escribir el código y tocar <em>Unirse</em>.',
+        'help.multiplayer.seats': '<strong>Asientos</strong> - Tu pareja se sienta frente a ti. Cualquiera puede tocar <em>Sentarme aquí</em> para cambiarse a un asiento libre — para jugar como pareja o como rivales. El anfitrión (quien creó la sala) pone la IA en los asientos vacíos, con su nivel, y toca <em>Empezar la partida</em>. Entra antes de que empiece la partida.',
+        'help.multiplayer.play': '<strong>Jugando</strong> - Siempre estás abajo, y solo tú ves tus fichas. Cuando no llevas, la sala pasa por ti. Genín aconseja a cada jugador por separado: consejos, la tarjeta de fin de mano y el resumen. (Las predicciones de Probar son solo para un jugador.)',
+        'help.multiplayer.reconnect': '<strong>Conexión perdida</strong> - Abre el enlace de invitación otra vez para recuperar tu asiento y tus fichas. Si alguien está ausente más de 60 segundos, el anfitrión puede tocar <em>Pasar el asiento a la IA</em>; el asiento vuelve a esa persona cuando regresa.',
+        'help.multiplayer.rematch': '<strong>Revancha o salir</strong> - Al terminar la partida, <em>Sala</em> los lleva de vuelta a la sala, donde el anfitrión puede empezar una <em>Revancha</em> con los mismos asientos. <em>Salir de la sala</em> te devuelve a jugar solo.',
         'help.scoring.title': 'Puntuación',
         'help.scoring.domino': '<strong>Dominó</strong> - Un jugador juega su última ficha. Su equipo anota el total de puntos en las manos de los oponentes.',
         'help.scoring.blocked': '<strong>Juego cerrado</strong> - Nadie puede jugar. El equipo con menos puntos gana la diferencia.',
