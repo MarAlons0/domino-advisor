@@ -5,6 +5,7 @@ _Last updated: 2026-10-23 (UX-A key-moment effects shipped as v1.8.0; UX-E slam 
 
 ## 🔴 High
 - [ ] **Grade plays by simulated win rate at Master** — at Master, Genín's pick comes from ISMCTS, but play grades (optimal/good/questionable/mistake) use the static score gap, and the two often disagree (in testing, the biggest "mistake" by static score had a 0-point win-rate difference; 3 of 10 "costly" plays were under 3 points). Grade by the simulated win-rate drop when available (with a minimum-visits check for noisy estimates), so the stat strip, patterns, hand-end card verdict and lifetime stats agree with the "~X% vs ~Y%" explanations. The v1.6.0 debrief already ranks key moments this way. `[feature]`
+- [ ] **Multiplayer game** — Enable multiple humans to play, either as part of the same team or opposing teams. Anywhere from 2 to 4 humans should be able to play `[feature]`
 
 ## 🟡 Medium
 - [ ] **Match-score-aware ISMCTS reward (0g.3b)** — thread match score into `ISMCTSGameState` terminal values (play safe at match point, gamble when far behind). Follow-up to the shipped 0g.3/0g.4 margin reward. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
