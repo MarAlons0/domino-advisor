@@ -1,6 +1,6 @@
 # Multiplayer (networked) — Design
 
-**Status:** draft for review, 2026-10-23. Backlog: 🔴 High "Multiplayer game".
+**Status:** P0 spike done (2026-10-23) — the free plan is enough; ready for P1. Backlog: 🔴 High "Multiplayer game".
 
 **Decided:**
 - Networked play — each human on their own device — not hot-seat; 2–4 humans, same or opposing
@@ -58,12 +58,11 @@ Sources: [DO limits](https://developers.cloudflare.com/durable-objects/platform/
   once a daily limit is exceeded, further operations fail until 00:00 UTC.
 - WebSockets: opening a connection is one request; incoming messages bill at 20:1; outgoing
   messages are free. With the **Hibernation API** an idle room isn't billed for duration.
-- **CPU per message is the one unknown.** Workers Free caps CPU at **10 ms per request**; the DO
-  docs say objects share Workers' limits but quote only a 30-second default. A deployed test
-  settles it (phase P0).
+- **CPU per message — measured (P0 spike, below):** the 10 ms Workers Free cap does **not**
+  limit Durable Objects in practice; a full second of CPU per message ran fine, consistent with
+  the DO docs' 30-second default.
 - **Usage at personal scale:** a match is ~7 hands and ~200 moves/passes → roughly 15–25 billable
-  requests (plus ~500 if Master AI seats need time-slicing, below) — a few hundred matches a day
-  would still fit.
+  requests — thousands of matches a day would still fit.
 
 ### 4. Genín can run in each player's own browser — proven
 Two tests on real game positions:
@@ -80,6 +79,23 @@ what each player's browser has. They can run there, costing no server CPU, with 
 as single player. (The hand-end "what if you had closed" check needs everyone's pip totals; the
 server computes that — it's simple arithmetic — once hands are revealed.)
 
+### 5. P0 spike — measured on the free plan (2026-10-23)
+A throwaway Worker (`domino-rooms-spike`, deleted afterwards) bundled the real engine and AI into
+a Durable Object on Mario's free Cloudflare account:
+
+| Test | Result |
+|---|---|
+| Pure CPU over HTTP, up to ~1 s per request (30M loop iterations) | ✅ 5/5 at every size |
+| Real AI moves: Intermediate; Master at 1,000 / 2,000 / 4,000 iterations | ✅ 31/31 (75–210 ms wall incl. network) |
+| The same work as WebSocket messages (Hibernation API) | ✅ 8/8; ping round trip 26 ms |
+| 5 chained alarms of ~34 ms each, in-memory state kept between them | ✅ 5/5 |
+| Bundle size (engine + AI) | 58 KB gzipped |
+
+**Conclusion:** everything — rules, secret hands, AI seats at every level, and Genín's analysis —
+can run on the server on the free plan. No time-slicing is needed. (Measured, not documented by
+Cloudflare for the free plan; client-side Genín, section 4, remains a proven fallback if limits
+ever tighten.)
+
 ---
 
 ## Architecture (free plan)
@@ -90,19 +106,15 @@ server computes that — it's simple arithmetic — once hands are revealed.)
  │ main.js UI (largely unchanged)   │  wss://  │ POST /rooms → new room code                │
  │  ├─ RemoteGame adapter ◄─────────┼─────────►│ GET /rooms/CODE/ws → that room             │
  │  │   (same API as Game; you = 0) │          │ Durable Object "GameRoom" (one per room):   │
- │  └─ Genín: SmartAI on YOUR       │          │   deal · secret hands · rule checks ·       │
- │     information only (local)     │          │   scores · AI seats · cerrar pip facts      │
+ │  └─ hand-end card / debrief from │          │   deal · secret hands · rule checks ·       │
+ │     your coaching data           │          │   scores · AI seats · Genín per player      │
  └──────────────────────────────────┘          └──────────────────────────────────────────┘
 ```
 
 **Server (Durable Object, one per room)** — the authority: deals, holds every hand, validates
-each play, keeps turn order and scores, runs the AI seats, and sends each player only their own
-hand plus public information.
-- **Beginner / Intermediate AI seats:** run directly (Intermediate's slowest moves may need a
-  small optimization if the 10 ms cap applies).
-- **Master AI seats:** if the 10 ms cap applies, the search runs in **slices** — a few hundred
-  iterations per invocation, chained with alarms, the search tree kept in memory between slices —
-  so no single invocation exceeds the cap. If the cap doesn't apply, it runs as today.
+each play, keeps turn order and scores, runs the AI seats (all levels, as today), runs Genín's
+analysis and advice for each human, and sends each player only their own hand, their own coaching
+and public information.
 
 **Each player's browser:**
 - `RemoteGame` adapter with the slice of `Game`'s interface that `main.js` already uses
@@ -111,17 +123,16 @@ hand plus public information.
   working.
 - **Seat rotation:** you are always seat 0 at the bottom; rotating keeps partners opposite, so
   "your team / opponents" stays correct. Other humans show by their chosen names.
-- **Genín locally:** the same `SmartAI` + `HandTracker` / `PlayerView` setup as single player,
-  initialized from your own hand, with placeholder tiles (right counts) for hidden hands — the
-  tests above show that gives identical advice and grades.
+- **Genín's results arrive from the server** (your advice, grades and hand-end coaching only);
+  the hand-end card and debrief render them as in single player.
 - AI "thinking" pauses are animated on the client, so the room can hibernate between messages.
 
 ### Message protocol (sketch)
 - Client → server: `join {name, token?}`, `takeSeat {seat}`, `setAI {seat, level}` (host),
-  `start` (host), `play {tile, end}`, `pass`, `nextHand`, `rematch`.
+  `start` (host), `play {tile, end}`, `pass`, `askGenin`, `nextHand`, `rematch`.
 - Server → client: `lobby {seats, host}`, `state {yourHand, chain, counts, scores, turn, phase}`,
-  `played {seat, tile, end}`, `passed {seat}`, `handEnd {result, hands, cerrarFacts}`,
-  `matchEnd {scores}`, `error {code}`.
+  `played {seat, tile, end}`, `passed {seat}`, `advice {tile, end, reason}`,
+  `handEnd {result, hands, yourCoaching}`, `matchEnd {scores, yourHistory}`, `error {code}`.
 
 ### Room lifecycle
 1. **Create** → 6-character room code + invite link (`…/domino-advisor/?room=K7Q2XM`).
@@ -143,9 +154,9 @@ each player's browser, from their own seat's perspective).
 
 | Phase | Scope | Ships as |
 |---|---|---|
-| **P0 — Spike** (needs `wrangler login` by Mario) | Guard the browser-only lines (an ordinary release, no visible change). Deploy a throwaway room to the free plan; measure the real CPU cap, WebSocket + hibernation, latency from a phone. **Decides whether Master AI seats need slicing.** | v1.9.x + throwaway Worker |
-| **P1 — Rooms and play** | `domino-rooms` Worker + `GameRoom`; lobby (create / join / seats / AI levels); `RemoteGame` adapter; seat rotation and names; Beginner/Intermediate AI seats; reconnect. | MINOR |
-| **P2 — Genín + Master seats** | Local Genín in multiplayer (advice, hand-end card, debrief); server cerrar facts; Master AI seats (sliced if needed). | MINOR |
+| **P0 — Spike** ✅ done | Throwaway room on the free plan: CPU, WebSockets + hibernation, alarms — all fine (section 5). Remaining P0 item: guard the browser-only lines in the app (an ordinary release, no visible change). | v1.9.x |
+| **P1 — Rooms and play** | `domino-rooms` Worker + `GameRoom`; lobby (create / join / seats / AI levels); `RemoteGame` adapter; seat rotation and names; AI seats at every level; reconnect. | MINOR |
+| **P2 — Genín in multiplayer** | Server-side advice and analysis per player; hand-end card and debrief from each player's own coaching data; stats. | MINOR |
 | **P3 — Polish** | Rematch flow, quick reactions, optional turn timer. | PATCH / MINOR |
 
 ## Testing
@@ -157,6 +168,6 @@ each player's browser, from their own seat's perspective).
 - The existing regression scripts, since the engine is shared.
 
 ## Open questions
-1. **Free-plan CPU cap** for Durable Objects (10 ms or 30 s) — answered by P0.
-2. **Disconnect timeout** before the host may give a seat to the AI (proposal: 60 s).
-3. **Names:** free-text display names per room (no accounts) — proposal: yes, max 12 characters.
+1. ~~Free-plan CPU cap for Durable Objects~~ — answered by P0: not a constraint.
+2. ~~Disconnect timeout~~ — decided: **60 s** before the host may give a seat to the AI.
+3. ~~Names~~ — decided: free-text display names per room (no accounts), **max 12 characters**.
