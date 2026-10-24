@@ -3941,3 +3941,143 @@ button:disabled {
     gap: 6px;
     margin-top: 4px;
 }
+
+.mp-timer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 10px 0 0;
+    font-size: 13px;
+    color: #9fb4d9;
+}
+
+/* ---- Multiplayer: quick reactions (P3) ---- */
+.react-btn { display: none; }
+body.multiplayer .react-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    font-size: 18px;
+    line-height: 1;
+    background: #16213e;
+    border: 1px solid #2a3a5e;
+}
+body.multiplayer .react-btn:disabled { opacity: 0.5; }
+
+.controls { position: relative; }
+
+.react-palette {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: grid;
+    grid-template-columns: repeat(6, auto);
+    gap: 6px;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    padding: 10px;
+    background: #16213e;
+    border: 1px solid #2a3a5e;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.react-palette[hidden] { display: none; }
+
+.react-choice {
+    padding: 6px 10px;
+    font-size: 13px;
+    color: #e6edf7;
+    background: #0f1f38;
+    border: 1px solid #2a3a5e;
+    white-space: nowrap;
+}
+.react-choice.emoji { font-size: 22px; padding: 4px 8px; }
+.react-choice:not(.emoji) { grid-column: span 2; }
+.react-choice:hover, .react-choice:focus-visible { border-color: #00d4ff; }
+
+@media (max-width: 520px) {
+    /* Phones: emojis in one row, phrases two per row, so the palette doesn't cover your hand. */
+    .react-palette { grid-template-columns: repeat(6, 1fr); gap: 5px; padding: 8px; }
+    .react-choice { padding: 6px 4px; font-size: 12px; }
+    .react-choice.emoji { font-size: 20px; padding: 3px 0; }
+    .react-choice:not(.emoji) { grid-column: span 3; }
+}
+
+.reaction-bubble {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    padding: 4px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #0b1324;
+    background: #f5f7fb;
+    border-radius: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    animation: reaction-pop 3s ease-out forwards;
+}
+.reaction-bubble.emoji { font-size: 26px; padding: 0; background: none; box-shadow: none; }
+.player-top .reaction-bubble { bottom: auto; top: calc(100% + 4px); }
+/* Side seats sit at the table's edges: anchor bubbles to the inner side so they stay on screen. */
+.player-left .reaction-bubble { left: 0; transform: none; transform-origin: left center; animation-name: reaction-pop-side; }
+.player-right .reaction-bubble { left: auto; right: 0; transform: none; transform-origin: right center; animation-name: reaction-pop-side; }
+
+@keyframes reaction-pop-side {
+    0%   { opacity: 0; transform: scale(0.6); }
+    10%  { opacity: 1; transform: scale(1.1); }
+    20%  { transform: scale(1); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+@keyframes reaction-pop {
+    0%   { opacity: 0; transform: translateX(-50%) scale(0.6); }
+    10%  { opacity: 1; transform: translateX(-50%) scale(1.1); }
+    20%  { transform: translateX(-50%) scale(1); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+.log-entry.reaction-entry { font-style: italic; opacity: 0.85; }
+
+/* ---- Multiplayer: turn timer (a nudge only) ---- */
+.turn-timer {
+    position: absolute;
+    left: calc(100% + 6px);
+    top: 0;
+    padding: 1px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #9fb4d9;
+    background: rgba(15, 31, 56, 0.9);
+    border: 1px solid #2a3a5e;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+.player-right .turn-timer { left: auto; right: calc(100% + 6px); }
+.turn-timer.low { color: #ffd93d; border-color: rgba(255, 217, 61, 0.5); }
+.turn-timer.up {
+    color: #fff;
+    background: rgba(255, 70, 70, 0.9);
+    border-color: transparent;
+    animation: time-up-flash 1s ease-in-out infinite;
+}
+.hand-area.time-up { animation: time-up-glow 1.2s ease-in-out infinite; }
+
+@keyframes time-up-flash { 50% { opacity: 0.45; } }
+@keyframes time-up-glow { 50% { box-shadow: 0 0 0 2px rgba(255, 70, 70, 0.7), 0 0 18px rgba(255, 70, 70, 0.45); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .reaction-bubble { animation: none; }
+    .turn-timer.up, .hand-area.time-up { animation: none; }
+    .hand-area.time-up { box-shadow: 0 0 0 2px rgba(255, 70, 70, 0.7); }
+}

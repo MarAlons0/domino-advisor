@@ -22,6 +22,7 @@ import { t, i18n } from './i18n/i18n.js';
 import { RemoteGame } from './multiplayer/RemoteGame.js';
 import { MultiplayerSession } from './multiplayer/MultiplayerSession.js';
 import { LobbyUI } from './ui/LobbyUI.js';
+import { REACTIONS, reactionText } from './multiplayer/reactions.js';
 
 // Check for debug mode via URL parameter (?debug=ai)
 const DEBUG_AI = new URLSearchParams(window.location.search).get('debug') === 'ai';
@@ -114,13 +115,27 @@ class DominoApp {
         const s = new MultiplayerSession(this.roomCode, this.game);
         this.multiplayer = s;
         document.body.classList.add('multiplayer');
-        const debriefRoomBtn = document.getElementById('debrief-new-match-btn');
-        for (const btn of [this.newGameBtn, debriefRoomBtn]) {
-            btn?.removeAttribute('data-i18n');
-            if (btn) btn.textContent = t('mp.roomBtn');
-        }
+        this.newGameBtn.removeAttribute('data-i18n');
+        this.newGameBtn.textContent = t('mp.roomBtn');
+        // After a match the debrief's button is Rematch (everyone taps it; the room
+        // deals when all have). Back on the match-end card, waiting for the others.
+        this.debriefRematchBtn = document.getElementById('debrief-new-match-btn');
+        this.debriefRematchBtn?.removeAttribute('data-i18n');
+        this.debriefUI.onNewMatch = () => {
+            s.rematch();
+            this.messageBox.classList.add('visible');
+            this.modalOverlay.classList.add('visible');
+            this._renderRematchState();
+        };
+        this._initReactions();
 
-        s.onLobby = () => { this.lobbyUI.render(); this._applyTableLabels(); };
+        s.onLobby = () => {
+            this.lobbyUI.render();
+            this._applyTableLabels();
+            this._renderRematchState();
+            this._updateTurnTimer();
+        };
+        s.onReaction = (msg) => this._showReaction(msg);
         s.onStatus = () => { if (this.lobbyUI.isOpen()) this.lobbyUI.render(); };
         s.onError = (code) => this.log(t('mp.error', code), 'system');
         this.game.onBeforePlay = (tile) => this._checkSlamCondition(tile);
@@ -128,7 +143,8 @@ class DominoApp {
         this.game.onThinking = (seat) => (seat === null ? this.hideThinkingIndicator() : this.showThinkingIndicator(seat));
         i18n.onLanguageChange(() => {
             this.newGameBtn.textContent = t('mp.roomBtn');
-            if (debriefRoomBtn) debriefRoomBtn.textContent = t('mp.roomBtn');
+            this._renderReactionPalette();
+            this._renderRematchState();
             this._applyTableLabels();
             if (this.lobbyUI.isOpen()) this.lobbyUI.render();
         });
@@ -184,6 +200,7 @@ class DominoApp {
             this.continueBtn.textContent = t('btn.continue');
             this.continueBtn.disabled = false;
             this.reviewBtn.style.display = 'none';
+            this.debriefUI.hide();
         } else if (!info.resumed) {
             this.logHandSeparator();
         }
@@ -211,6 +228,119 @@ class DominoApp {
         // Back to the table — a new hand, or a reconnect mid-hand (reload / lost signal).
         if (this.lobbyUI.isOpen()) this.lobbyUI.close();
         this.updateUI(state);
+    }
+
+    /** Rematch buttons (match-end card, debrief): tap once, then wait for the others. @private */
+    _renderRematchState() {
+        const s = this.multiplayer;
+        if (!s || this.game.getState().gamePhase !== 'matchOver') return;
+        const waiting = s.rematchWaitingFor();
+        const tapped = !waiting.some(x => x.playerId === s.playerId);
+        const label = tapped ? t('mp.rematchWaiting', waiting.map(x => x.name).join(', ')) : t('mp.rematch');
+        for (const btn of [this.continueBtn, this.debriefRematchBtn]) {
+            if (!btn) continue;
+            btn.textContent = label;
+            btn.disabled = tapped;
+        }
+    }
+
+    // ---- Quick reactions: fixed emojis and phrases, shown by the sender's seat
+
+    _initReactions() {
+        this.reactBtn = document.getElementById('react-btn');
+        this.reactPalette = document.getElementById('react-palette');
+        if (!this.reactBtn || !this.reactPalette) return;
+        this._renderReactionPalette();
+        this.reactBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._toggleReactionPalette(this.reactPalette.hidden);
+        });
+        this.reactPalette.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-reaction]');
+            if (!btn) return;
+            this.multiplayer?.react(btn.dataset.reaction);
+            this._toggleReactionPalette(false);
+            // The room drops reactions closer than 1.5 s apart; match it here.
+            this.reactBtn.disabled = true;
+            setTimeout(() => { this.reactBtn.disabled = false; }, 1500);
+        });
+        document.addEventListener('click', (e) => {
+            if (!this.reactPalette.hidden && !this.reactPalette.contains(e.target)) this._toggleReactionPalette(false);
+        });
+    }
+
+    _renderReactionPalette() {
+        if (!this.reactPalette) return;
+        this.reactPalette.innerHTML = REACTIONS.map(r =>
+            `<button type="button" role="menuitem" class="react-choice${r.emoji ? ' emoji' : ''}" data-reaction="${r.id}">${reactionText(r.id)}</button>`
+        ).join('');
+        this.reactBtn?.setAttribute('aria-label', t('mp.react'));
+    }
+
+    _toggleReactionPalette(open) {
+        this.reactPalette.hidden = !open;
+        this.reactBtn.setAttribute('aria-expanded', String(open));
+    }
+
+    /** A reaction from the room: a bubble by the sender's seat, and a line in the log. @private */
+    _showReaction({ seat, id }) {
+        const me = this.multiplayer?.mySeat();
+        const text = reactionText(id);
+        if (me === null || me === undefined || !text) return;
+        const local = (seat - me + 4) % 4;
+        const info = document.getElementById(`player-${local}-name`)?.parentElement;
+        if (info) {
+            info.querySelector('.reaction-bubble')?.remove();
+            const bubble = document.createElement('div');
+            bubble.className = `reaction-bubble${REACTIONS.find(r => r.id === id)?.emoji ? ' emoji' : ''}`;
+            bubble.textContent = text;
+            info.appendChild(bubble);
+            setTimeout(() => bubble.remove(), 3000);
+        }
+        this.log(`${GameState.getPlayerName(local)}: ${text}`, `player-${local} reaction-entry`);
+    }
+
+    // ---- Turn timer (host setting): a countdown on the seat whose turn it is, then a
+    // nudge. Nothing is played for anyone. Each screen counts from when the turn shows
+    // there (after the AI's paced moves), so it never eats into anyone's time.
+
+    _updateTurnTimer() {
+        const s = this.multiplayer;
+        const secs = s?.lobby?.turnTimer || 0;
+        const st = this.game.getState();
+        const hand = this.game.getMatchHistory().currentHand;
+        const settled = !this.game.running && this.game.queue.length === 0;
+        const seat = st.gamePhase === 'playing' && settled ? st.currentPlayer : null;
+        const human = seat !== null && s?.lobby?.seats[this.game.toServer(seat)]?.kind === 'human';
+        const key = secs && human && hand ? `${this.game.matchNumber}:${hand.handNumber}:${hand.plays.length}:${secs}` : null;
+        if (key === this._timerKey) return;
+        this._timerKey = key;
+        this._clearTurnTimer();
+        if (!key) return;
+        const info = document.getElementById(`player-${seat}-name`)?.parentElement;
+        if (!info) return;
+        const chip = document.createElement('div');
+        chip.className = 'turn-timer';
+        info.appendChild(chip);
+        const deadline = Date.now() + secs * 1000;
+        const tick = () => {
+            const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+            chip.textContent = left ? `0:${String(left).padStart(2, '0')}` : `⏰ ${t('mp.timeUp')}`;
+            chip.classList.toggle('low', left > 0 && left <= 10);
+            if (!left) {
+                chip.classList.add('up');
+                if (seat === 0) this.handContainer?.closest('.hand-area')?.classList.add('time-up');
+                clearInterval(this._timerInterval);
+            }
+        };
+        tick();
+        this._timerInterval = setInterval(tick, 250);
+    }
+
+    _clearTurnTimer() {
+        clearInterval(this._timerInterval);
+        document.querySelectorAll('.turn-timer').forEach(el => el.remove());
+        document.querySelector('.hand-area.time-up')?.classList.remove('time-up');
     }
 
     initElements() {
@@ -664,6 +794,7 @@ class DominoApp {
     }
 
     updateUI(state) {
+        if (this.multiplayer) this._updateTurnTimer();
         // Update scores
         this.teamAScore.textContent = state.scores.match[0];
         this.teamBScore.textContent = state.scores.match[1];
@@ -1342,11 +1473,12 @@ class DominoApp {
         // so an accidental tap on it can't skip the analysis screen
         this.newGameBtn.disabled = true;
 
-        // Multiplayer: Review Game as in single player, plus the room (rematch).
+        // Multiplayer: Review Game as in single player, plus Rematch (everyone taps it).
+        // Room (header) is still there to change seats first.
         if (this.multiplayer) {
             this.continueBtn.style.display = '';
-            this.continueBtn.textContent = t('mp.roomBtn');
             this.newGameBtn.disabled = false;
+            this._renderRematchState();
         }
 
         this.log(t('log.matchOver'), 'system');
@@ -1381,9 +1513,15 @@ class DominoApp {
         this.modalOverlay.classList.remove('visible');
 
         if (this.multiplayer) {
-            if (this.game.getState().gamePhase === 'handOver') {
+            const phase = this.game.getState().gamePhase;
+            if (phase === 'handOver') {
                 this.game.newHand(); // ready — the room deals when everyone is
                 this.log(t('mp.log.waiting'), 'system');
+            } else if (phase === 'matchOver') {
+                this.multiplayer.rematch(); // the room deals when everyone has tapped it
+                this.messageBox.classList.add('visible');
+                this.modalOverlay.classList.add('visible');
+                this._renderRematchState();
             } else {
                 this.lobbyUI.openRoom();
             }

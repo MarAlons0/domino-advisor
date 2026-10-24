@@ -2,13 +2,16 @@
 //  - Entry view (no room yet): your name, create a room, or join with a code.
 //  - Room view: invite link, the four seats laid out like the table from your
 //    point of view (your team cyan, opponents red), seat and AI-level controls,
-//    Start / Rematch (host), "Give seat to AI" (host, after the grace period).
+//    Start (host), "Give seat to AI" (host, after the grace period), the turn
+//    timer (host), and after a match Rematch for everyone (it deals when all have
+//    tapped it; the host can also start right away).
 // See docs/MULTIPLAYER.md.
 
 import { t } from '../i18n/i18n.js';
 import { MultiplayerSession } from '../multiplayer/MultiplayerSession.js';
 
 const LEVELS = ['beginner', 'experienced', 'master']; // as in Settings
+const TIMERS = [0, 30, 60];                            // seconds; as the room server allows
 
 // Player names come from other people: always escape before inserting as HTML.
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -175,13 +178,30 @@ export class LobbyUI {
         };
 
         let footer = '';
-        if (setup) {
+        if (lobby.phase === 'matchOver') {
+            const waiting = s.rematchWaitingFor();
+            const canVote = me !== null && waiting.some(x => x.playerId === s.playerId);
+            footer = canVote
+                ? `<button class="mp-primary" data-act="rematch">${t('mp.rematch')}</button>`
+                : `<p class="mp-status">${t('mp.rematchWaiting', esc(waiting.map(x => x.name).join(', ')))}</p>`;
+            if (host && waiting.some(x => x.playerId !== s.playerId)) {
+                footer += `<button class="mp-link" data-act="start">${t('mp.startNow')}</button>`;
+            }
+        } else if (setup) {
             footer = host
-                ? `<button class="mp-primary" data-act="start">${t(lobby.phase === 'matchOver' ? 'mp.rematch' : 'mp.start')}</button>`
+                ? `<button class="mp-primary" data-act="start">${t('mp.start')}</button>`
                 : `<p class="mp-status">${t('mp.waitHost', esc(hostName))}</p>`;
         } else {
             footer = `<button class="mp-primary" data-act="back">${t('mp.back')}</button>`;
         }
+
+        const timer = lobby.turnTimer || 0;
+        const timerLabel = (v) => (v ? t('mp.timer.secs', v) : t('mp.timer.off'));
+        const timerRow = host
+            ? `<label class="mp-timer">${t('mp.timer')}
+                   <select class="mp-select" data-act="timer">${TIMERS.map(v => `<option value="${v}"${v === timer ? ' selected' : ''}>${timerLabel(v)}</option>`).join('')}</select>
+               </label>`
+            : (timer ? `<p class="mp-timer">${t('mp.timer')}: ${timerLabel(timer)}</p>` : '');
 
         this.body.innerHTML = `
             <div class="mp-invite">
@@ -191,6 +211,7 @@ export class LobbyUI {
             </div>
             <p class="mp-status" role="status">${status}</p>
             <div class="mp-table">${[2, 3, 1, 0].map(seatCard).join('')}</div>
+            ${timerRow}
             <div class="mp-footer">${footer}
                 <button class="mp-link" data-act="leave">${t('mp.leave')}</button>
             </div>
@@ -212,6 +233,7 @@ export class LobbyUI {
             case 'sit': return s?.takeSeat(seat);
             case 'replace': return s?.replaceWithAI(seat);
             case 'start': return s?.start();
+            case 'rematch': return s?.rematch();
             case 'back': return this.close();
             case 'leave': return s ? s.leave() : this.close();
             case 'copy':
@@ -226,6 +248,8 @@ export class LobbyUI {
     }
 
     _onChange(e) {
+        const timer = e.target.closest('select[data-act="timer"]');
+        if (timer) return this.session?.setTimer(Number(timer.value));
         const sel = e.target.closest('select[data-act="level"]');
         if (!sel) return;
         const seat = Number(sel.dataset.seat);

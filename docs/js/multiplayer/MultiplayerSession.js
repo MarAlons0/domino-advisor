@@ -58,6 +58,7 @@ export class MultiplayerSession {
         this.onLobby = null;      // (lobby) any room change
         this.onStatus = null;     // (status)
         this.onError = null;      // (code)
+        this.onReaction = null;   // ({seat, id}) — shown at once, not queued behind paced AI moves
         game.send = (msg) => this.send(msg);
         game.store = new MatchHistoryStore(code);
     }
@@ -106,6 +107,8 @@ export class MultiplayerSession {
             case 'error':
                 this.game.receive(msg);
                 return this.onError?.(msg.code);
+            case 'reaction':
+                return this.onReaction?.(msg);
             default:
                 return this.game.receive(msg);
         }
@@ -134,6 +137,16 @@ export class MultiplayerSession {
     setSeat(seat, kind, level) { this.send({ type: 'setSeat', seat, kind, level }); }
     start() { this.send({ type: 'start' }); }
     replaceWithAI(seat) { this.send({ type: 'replaceWithAI', seat }); }
+    rematch() { this.send({ type: 'rematch' }); }
+    setTimer(seconds) { this.send({ type: 'setTimer', seconds }); }
+    react(id) { this.send({ type: 'react', id }); }
+
+    /** Players at the table who haven't tapped Rematch yet (connected humans). */
+    rematchWaitingFor() {
+        const l = this.lobby;
+        if (!l) return [];
+        return l.seats.filter(s => s.kind === 'human' && s.connected && !(l.rematch || []).includes(s.playerId));
+    }
 
     /** Leave the room: back to single player (the seat token is kept for rejoining). */
     leave() {

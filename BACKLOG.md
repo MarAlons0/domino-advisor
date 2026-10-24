@@ -1,14 +1,10 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-23 (multiplayer part 2 — Genín in multiplayer — shipped as v1.11.0)_
+_Last updated: 2026-10-24 (multiplayer part 3 — rematch, reactions, turn timer — shipped as v1.12.0; multiplayer complete)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## 🔴 High
-- [ ] 🚧 **Multiplayer game** — Enable multiple humans to play, either as part of the same team or opposing teams. Anywhere from 2 to 4 humans should be able to play `[feature]`
-  - 🚧 Design: [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) — networked (chosen over hot-seat), **free Cloudflare plan only**: a Durable Object per room keeps hands secret and runs the AI seats; Genín runs in each player's browser (proven to need only their own information). P0 spike done: the free plan is enough.
-  - Seat choice at match start: same team vs. opposing teams; AI fills empty seats.
-  - ✅ P1 shipped in v1.10.0: rooms, invite link, lobby + seats, AI seats (all levels), secret hands, reconnect, 60 s seat hand-off.
-  - ✅ P2 shipped in v1.11.0: Genín in multiplayer — advice, hand-end card, debrief, grading — running in each player's browser. Next — P3 polish (rematch flow, quick reactions, optional turn timer).
+_Nothing open — next items come from Medium._
 
 ## 🟡 Medium
 - [ ] **Match-score-aware ISMCTS reward (0g.3b)** — thread match score into `ISMCTSGameState` terminal values (play safe at match point, gamble when far behind). Follow-up to the shipped 0g.3/0g.4 margin reward. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
@@ -41,6 +37,7 @@ _Last updated: 2026-10-23 (multiplayer part 2 — Genín in multiplayer — ship
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Multiplayer game** — play with friends, 2–4 people on their own devices, partners or opponents, AI in empty seats, on Cloudflare's free plan ([design](docs/MULTIPLAYER.md)): rooms, invite link, secret hands, reconnect (v1.10.0); Genín for each player (v1.11.0); everyone-taps rematch, quick reactions, optional turn timer — v1.12.0
 - [x] **Genín in multiplayer (part 2)** — advice, hand-end card and debrief at a multiplayer table, from each player's own information; coaching kept across a reload — v1.11.0
 - [x] **Fix mixed old/new files on the first visit after an update** — the app reloads itself once when a new version takes over (raw `mp.*` labels and an old version chip seen in Safari) — v1.10.1
 - [x] **Grade plays by simulated win rate at Master** — good ≤ 5 / questionable ≤ 15 / mistake > 15 points of win rate (static fallback under 30 visits), 2,000-iteration grading search, shown advice as the reference — v1.9.0

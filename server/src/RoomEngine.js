@@ -22,6 +22,11 @@ export const MAX_NAME = 12;
 export const DISCONNECT_GRACE_MS = 60_000;
 export const LEVELS = ['beginner', 'experienced', 'master']; // the app's level names
 const DEFAULT_LEVEL = 'experienced';
+export const TURN_TIMERS = [0, 30, 60];     // seconds; 0 = off. A nudge only — clients count down.
+// Quick reactions: fixed choices (no free text), shown in each viewer's language.
+export const REACTIONS = ['thumbs', 'clap', 'laugh', 'wow', 'grimace', 'fire',
+    'nice', 'lucky', 'yourMove', 'wellPlayed', 'ouch', 'toldYou'];
+export const REACTION_GAP_MS = 1500;        // per player; faster taps are dropped
 
 const TILE_BY_KEY = new Map(TileSet.create().map(t => [t.toKey(), t]));
 const tileOf = (key) => TILE_BY_KEY.get(key);
@@ -54,6 +59,8 @@ export class RoomEngine {
             deals: [],                     // per hand: 28 tile keys in deal order
             log: [],                       // per action: {h, seat, tile, end} | {h, seat, pass: true}
             ready: [],                     // playerIds ready for the next hand
+            rematch: [],                   // playerIds who tapped Rematch after the match
+            turnTimer: 0,                  // seconds per turn (host setting); 0 = off
             lastActivity: now(),
         };
         this.out = [];
@@ -69,6 +76,8 @@ export class RoomEngine {
     static fromSnapshot(meta, opts = {}) {
         const r = new RoomEngine({ code: meta.code, ...opts });
         r.meta = JSON.parse(JSON.stringify(meta));
+        r.meta.rematch ??= [];                 // rooms saved before v1.12
+        r.meta.turnTimer ??= 0;
         if (r.meta.phase !== 'lobby' && r.meta.deals.length) {
             const { phase, ready } = r.meta;
             r._rebuild();
@@ -155,6 +164,7 @@ export class RoomEngine {
         }
         this._fixHost();
         this._maybeNextHand();
+        this._maybeRematch();
         this._emitLobby();
     }
 
@@ -189,7 +199,6 @@ export class RoomEngine {
                 if (!isHost) return this._error(pid, 'host-only');
                 if (this.meta.phase !== 'lobby' && this.meta.phase !== 'matchOver') return this._error(pid, 'already-playing');
                 if (!this.meta.seats.some(s => s.kind === 'human')) return this._error(pid, 'no-humans');
-                for (const s of this.meta.seats) if (s.kind === 'open') s.kind = 'ai';
                 return this._startMatch();
             }
             case 'play':
@@ -212,6 +221,27 @@ export class RoomEngine {
                 if (!this.meta.ready.includes(pid)) this.meta.ready.push(pid);
                 this._maybeNextHand();
                 return this._emitLobby();
+            }
+            case 'rematch': {
+                // Everyone at the table taps Rematch; the match deals when all have.
+                if (this.meta.phase !== 'matchOver' || p.seat === null) return;
+                if (!this.meta.rematch.includes(pid)) this.meta.rematch.push(pid);
+                if (!this._maybeRematch()) this._emitLobby();
+                return;
+            }
+            case 'setTimer': {
+                if (!isHost) return this._error(pid, 'host-only');
+                if (!TURN_TIMERS.includes(msg.seconds)) return this._error(pid, 'bad-request');
+                this.meta.turnTimer = msg.seconds;
+                return this._emitLobby();
+            }
+            case 'react': {
+                if (p.seat === null || !REACTIONS.includes(msg.id)) return this._error(pid, 'bad-request');
+                const t = this.now();
+                if (t - (p.lastReactAt || 0) < REACTION_GAP_MS) return;
+                p.lastReactAt = t;
+                this.out.push({ to: 'all', msg: { type: 'reaction', seat: p.seat, id: msg.id } });
+                return;
             }
             case 'replaceWithAI': {
                 if (!isHost) return this._error(pid, 'host-only');
@@ -291,6 +321,8 @@ export class RoomEngine {
                 };
             }),
             ready: [...this.meta.ready],
+            rematch: [...this.meta.rematch],
+            turnTimer: this.meta.turnTimer,
         };
     }
 
@@ -335,10 +367,12 @@ export class RoomEngine {
             this.meta.phase = d.isMatchEnding ? 'matchOver' : 'handOver';
             this.meta.ready = [];
             this.out.push({ to: 'all', msg: { type: 'handEnd', ...this._lastHandEnd } });
+            this._emitLobby(); // the room window shows the new phase
         };
         game.onMatchEnd = (d) => {
             this.meta.phase = 'matchOver';
             this.out.push({ to: 'all', msg: { type: 'matchEnd', winner: d.winner, finalScores: d.finalScores, reason: d.reason } });
+            this._emitLobby();
         };
         this.game = game;
         this.ai = ai;
@@ -373,7 +407,9 @@ export class RoomEngine {
     }
 
     _startMatch() {
+        for (const seat of this.meta.seats) if (seat.kind === 'open') seat.kind = 'ai'; // the AI fills empty seats
         this.meta.matchNumber++;
+        this.meta.rematch = [];
         this.meta.deals = [];
         this.meta.log = [];
         this.meta.ready = [];
@@ -400,6 +436,15 @@ export class RoomEngine {
         this._startHand(tiles);
         this._pushSync();
         this._runAI();
+    }
+
+    /** After a match: start the next one once every connected seated human tapped Rematch. */
+    _maybeRematch() {
+        if (this.meta.phase !== 'matchOver' || !this.meta.rematch.length) return false;
+        const present = this.meta.seats.filter(s => s.kind === 'human' && this.meta.players[s.playerId]?.connected);
+        if (present.length === 0 || present.some(s => !this.meta.rematch.includes(s.playerId))) return false;
+        this._startMatch();
+        return true;
     }
 
     /** Apply one recorded action to the live game; optionally append it to the record. */

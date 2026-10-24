@@ -1,6 +1,6 @@
 # Multiplayer (networked) — Design
 
-**Status:** P1 (rooms and play) — v1.10.0; P2 (Genín in multiplayer) — v1.11.0, 2026-10-23. Next: P3 (polish). Backlog: 🔴 High "Multiplayer game".
+**Status:** complete — P1 (rooms and play) v1.10.0; P2 (Genín in multiplayer) v1.11.0; P3 (rematch, reactions, turn timer) v1.12.0, 2026-10-24. Backlog: 🔴 High "Multiplayer game".
 
 **Decided:**
 - Networked play — each human on their own device — not hot-seat; 2–4 humans, same or opposing
@@ -137,19 +137,24 @@ a hand's last move always reaches clients before `handEnd`.
 
 ### Message protocol (as built)
 - Client → server: `hello {name, token?}`, `takeSeat {seat}`, `setSeat {seat, kind, level}` (host),
-  `start` (host; also the rematch), `play {tile, end}`, `pass`, `ready` (next hand),
+  `start` (host; after a match it starts the rematch at once), `play {tile, end}`, `pass`,
+  `ready` (next hand), `rematch` (after a match; deals when every connected seated player has
+  sent it), `setTimer {seconds}` (host: 0 / 30 / 60), `react {id}` (fixed ids, ≥ 1.5 s apart),
   `replaceWithAI {seat}` (host).
 - Server → client: `welcome {playerId, token}`, `lobby {lobby}`, `sync {matchNumber, handNumber,
   yourHand, plays, counts, currentPlayer, matchScores, …}`, `played {seat, tile, end}`,
   `passed {seat}`, `handEnd {reason, points, matchScores, hands, …}`, `matchEnd {winner,
-  finalScores}`, `error {code}`. No Genín messages: he runs in the browser.
+  finalScores}`, `reaction {seat, id}`, `error {code}`. `lobby` carries `rematch` (who has
+  tapped it) and `turnTimer`, and is re-sent at each hand and match end. No Genín messages: he
+  runs in the browser. The turn timer has no server part: each screen counts down from when the
+  turn shows there (after the AI's paced moves), so it never eats into anyone's time.
 
 ### Room lifecycle
 1. **Create** → 6-character room code + invite link (`…/domino-advisor/?room=K7Q2XM`).
 2. **Lobby** → players join with a display name and pick seats (team colors shown); the host sets
    AI levels for empty seats and starts.
 3. **Play** → turn by turn; AI seats move on the server.
-4. **Hand / match end** → the same modals; rematch keeps the seats.
+4. **Hand / match end** → the same modals; everyone taps Rematch (same seats; the host can start now).
 5. **Disconnects** → the seat is held and others see "waiting for Ana…"; the player rejoins via a
    seat token saved in their browser; after a timeout the host can hand the seat to the AI.
 6. **Cleanup** → an alarm deletes the room after a few hours idle.
@@ -167,9 +172,9 @@ each player's browser, from their own seat's perspective).
 | **P0 — Spike** ✅ done | Throwaway room on the free plan: CPU, WebSockets + hibernation, alarms — all fine (section 5). Remaining P0 item: guard the browser-only lines in the app (an ordinary release, no visible change). | v1.9.x |
 | **P1 — Rooms and play** ✅ v1.10.0 | `domino-rooms` Worker + `GameRoom`; lobby (create / join / seats / AI levels); `RemoteGame` adapter; seat rotation and names; AI seats at every level; reconnect. | MINOR |
 | **P2 — Genín in multiplayer** ✅ v1.11.0 | Advice, grading, hand-end card and debrief for each player, computed in their own browser from their own information; coaching kept across a reload; stats. | MINOR |
-| **P3 — Polish** | Rematch flow, quick reactions, optional turn timer. | PATCH / MINOR |
+| **P3 — Polish** ✅ v1.12.0 | Rematch when everyone taps it (host can start now); quick reactions (6 emojis + 6 phrases, fixed choices); optional turn timer (off / 30 / 60 s, a nudge only — counted on each screen, nothing is auto-played). | MINOR |
 
-## How it's built (P1 + P2)
+## How it's built
 
 | Piece | File |
 |---|---|
@@ -181,6 +186,7 @@ each player's browser, from their own seat's perspective).
 | Lobby window | `docs/js/ui/LobbyUI.js` |
 | Multiplayer mode in the app (only when the URL has `?room=`) | `docs/js/main.js` |
 | Your coaching record across a reload (current room only) | `docs/js/multiplayer/MatchHistoryStore.js` |
+| Quick reactions (same ids as the room's `REACTIONS`) | `docs/js/multiplayer/reactions.js` |
 
 The engine is shared: `Game.newMatch(tiles)` / `newHand(tiles)` accept a fixed deal (for replay),
 and the browser-only lines (`i18n`, `?debug=ai`) are guarded so the same modules run on the server.

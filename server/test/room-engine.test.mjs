@@ -3,7 +3,8 @@
 // Run: node --test server/test/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomEngine, DISCONNECT_GRACE_MS, cleanName } from '../src/RoomEngine.js';
+import { RoomEngine, DISCONNECT_GRACE_MS, cleanName, REACTIONS } from '../src/RoomEngine.js';
+import { REACTIONS as APP_REACTIONS } from '../../docs/js/multiplayer/reactions.js';
 import { Chain } from '../../docs/js/models/Chain.js';
 import { Hand } from '../../docs/js/models/Hand.js';
 import { Rules } from '../../docs/js/engine/Rules.js';
@@ -35,6 +36,7 @@ class Bot {
             case 'handEnd': this.handEnds++; this.phase = msg.isMatchEnding ? 'matchOver' : 'handOver'; this.lastHandEnd = msg; break;
             case 'matchEnd': this.phase = 'matchOver'; this.matchEnd = msg; break;
             case 'error': this.errors.push(msg.code); break;
+            case 'reaction': (this.reactions ||= []).push(msg); break;
         }
         // Secrecy: outside a hand-end reveal, nothing names a tile I may not know.
         if (msg.type !== 'handEnd') {
@@ -212,4 +214,75 @@ test('soak: 25 matches, random seatings and AI levels, reload every 2 actions', 
         closed += t.bots[0].lastHandEnd?.reason === 'closed' ? 1 : 0;
     }
     assert.ok(hands > 100 && passes > 50, `coverage: ${hands} hands, ${passes} passes`);
+});
+
+test('rematch: everyone taps Rematch; the host can start now; an empty seat gets the AI', () => {
+    const t = new Table();
+    const ana = t.join('Ana'), ben = t.join('Ben');
+    t.send(ben, { type: 'takeSeat', seat: 2 });
+    for (const seat of [1, 3]) t.send(ana, { type: 'setSeat', seat, kind: 'ai', level: 'beginner' });
+    t.send(ana, { type: 'start' });
+    t.send(ana, { type: 'rematch' });                      // not over yet: ignored
+    assert.deepEqual(t.engine.meta.rematch, []);
+    t.playMatch();
+    assert.equal(t.engine.meta.phase, 'matchOver');
+    assert.equal(ben.lobby.phase, 'matchOver', 'the room status says the match is over');
+
+    t.send(ana, { type: 'rematch' });                      // Ana is in; Ben is still reading his debrief
+    assert.equal(t.engine.meta.phase, 'matchOver');
+    assert.deepEqual(ben.lobby.rematch, [ana.pid], 'everyone sees who tapped Rematch');
+    t.send(ben, { type: 'rematch' });                      // the last one deals the new match
+    assert.equal(t.engine.meta.phase, 'playing');
+    assert.equal(t.engine.meta.matchNumber, 2);
+    assert.deepEqual(t.engine.meta.rematch, []);
+    assert.deepEqual([ana.seat, ben.seat], [0, 2], 'same seats');
+
+    t.playMatch();
+    t.send(ana, { type: 'start' });                        // the host can start without waiting
+    assert.equal(t.engine.meta.matchNumber, 3);
+
+    t.playMatch();
+    t.send(ana, { type: 'setSeat', seat: 3, kind: 'open' });
+    t.send(ana, { type: 'rematch' });
+    ben.connected = false; t.engine.disconnect(ben.pid); t.deliver();   // only connected players count
+    assert.equal(t.engine.meta.matchNumber, 4);
+    assert.equal(t.engine.meta.seats[3].kind, 'ai', 'an empty seat is filled by the AI');
+    assert.deepEqual([...new Set([...ana.errors, ...ben.errors])], []);
+});
+
+test('reactions: fixed choices, sent to everyone with the sender\'s seat, rate-limited', () => {
+    const t = new Table();
+    const ana = t.join('Ana'), ben = t.join('Ben');
+    t.send(ana, { type: 'react', id: 'thumbs' });
+    assert.deepEqual(ben.reactions, [{ type: 'reaction', seat: 0, id: 'thumbs' }]);
+    assert.equal(ana.reactions.length, 1, 'the sender sees it too');
+    t.send(ana, { type: 'react', id: 'clap' });            // too soon: dropped
+    assert.equal(ben.reactions.length, 1);
+    t.clock += 1500;
+    t.send(ana, { type: 'react', id: 'wellPlayed' });
+    assert.equal(ben.reactions.at(-1).id, 'wellPlayed');
+    t.send(ben, { type: 'react', id: '<b>hi</b>' });
+    assert.ok(ben.errors.includes('bad-request'), 'free text is refused');
+});
+
+test('turn timer: host-only setting (off / 30 / 60 s), kept in the saved room', () => {
+    const t = new Table();
+    const ana = t.join('Ana'), ben = t.join('Ben');
+    assert.equal(ana.lobby.turnTimer, 0, 'off by default');
+    t.send(ben, { type: 'setTimer', seconds: 30 });
+    assert.ok(ben.errors.includes('host-only'));
+    t.send(ana, { type: 'setTimer', seconds: 45 });
+    assert.ok(ana.errors.includes('bad-request'));
+    t.send(ana, { type: 'setTimer', seconds: 30 });
+    assert.equal(ben.lobby.turnTimer, 30);
+    t.reload();
+    assert.equal(t.engine._lobbyView().turnTimer, 30);
+    // Rooms saved before these settings existed load with them off / empty.
+    const old = t.engine.snapshot(); delete old.turnTimer; delete old.rematch;
+    const r = RoomEngine.fromSnapshot(old);
+    assert.deepEqual([r.meta.turnTimer, r.meta.rematch], [0, []]);
+});
+
+test('the app offers exactly the reactions the room accepts', () => {
+    assert.deepEqual(APP_REACTIONS.map(r => r.id), REACTIONS);
 });

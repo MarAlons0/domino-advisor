@@ -3,6 +3,19 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.12.0] – 2026-10-24
+
+### Added
+- **Rematch, everyone together (play with friends, part 3).** After a match each player taps **Rematch** — on the match-end card or at the bottom of the debrief — and the new match deals, same seats, once everyone at the table has. Until then the button shows who you're waiting for, so nobody is pulled out of their debrief. The host can also **Start now** from the room (for a friend who stepped away), and **Room** (top) still lets you change seats or AI levels first; a seat left empty is filled by the AI.
+- **Quick reactions.** Tap 😀 for 6 emojis (👍 👏 😂 😮 😬 🔥) and 6 table phrases — ¡Buena! / Nice!, ¡Qué suerte! / Lucky!, ¡Dale, juega! / Your move!, ¡Bien jugado, pareja! / Well played, partner!, ¡Ay! / Ouch!, ¡Te lo dije! / Told you!. A reaction pops up by your seat on everyone's screen (phrases in each player's own language) and is noted in the game log. Fixed choices only — no free text; one every 1.5 s.
+- **Turn timer (optional).** The host can set 30 s or 60 s per turn in the room (off by default). A countdown shows on the seat whose turn it is — yellow in the last 10 s — and when it runs out the seat flashes **¡Tiempo!** (your hand glows if it's you). It's a nudge only: nobody plays for you. Each screen counts from when the turn appears there, after the AI's paced moves.
+- Help → Play with Friends explains reactions, the timer and the new rematch.
+
+### Changed (internal)
+- Room messages: `rematch`, `setTimer {seconds}`, `react {id}` → `reaction {seat, id}`; the room status (`lobby`) now carries `rematch` and `turnTimer` and is re-sent at each hand and match end (the room window now shows "Match over" after a match). Rooms saved by earlier versions load with the timer off.
+- Every new match fills open seats with the AI (it used to happen only on the host's Start).
+- New `multiplayer/reactions.js` (must match the room's list — tested). Server tests: rematch, reactions, timer.
+
 ## [1.11.0] – 2026-10-23
 
 ### Added
