@@ -54,7 +54,6 @@ export class DebriefUI {
         this.handTracker = null;  // Set by main.js
         this.isInitialized = false;
         this.onNewMatch = null;
-        this.onOpenSettings = null;
     }
 
     /**
@@ -92,8 +91,6 @@ export class DebriefUI {
         this.analyzeBtn = document.getElementById('analyze-btn');
         this.llmLoading = document.getElementById('llm-loading');
         this.llmResult = document.getElementById('llm-result');
-        this.llmNoKey = document.getElementById('llm-no-key');
-        this.openSettingsLink = document.getElementById('open-settings-link');
 
         // Predictions tab elements
         this.predictionStats = document.getElementById('prediction-stats');
@@ -163,13 +160,6 @@ export class DebriefUI {
             this.analyzeBtn.addEventListener('click', () => this._runAnalysis());
         }
 
-        if (this.openSettingsLink) {
-            this.openSettingsLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.hide();
-                if (this.onOpenSettings) this.onOpenSettings();
-            });
-        }
     }
 
     /**
@@ -627,12 +617,10 @@ export class DebriefUI {
      * @private
      */
     _updateLLMSection() {
-        if (!this.analyzeBtn || !this.llmLoading || !this.llmResult || !this.llmNoKey) return;
+        if (!this.analyzeBtn || !this.llmLoading || !this.llmResult) return;
 
-        const hasKey = this.claudeService.hasApiKey();
-
-        this.analyzeBtn.style.display = hasKey ? 'block' : 'none';
-        this.llmNoKey.style.display = hasKey ? 'none' : 'block';
+        // Always available: the analysis goes through 7 Fichas' own server.
+        this.analyzeBtn.style.display = 'block';
         this.llmLoading.style.display = 'none';
         this.llmResult.style.display = 'none';
     }

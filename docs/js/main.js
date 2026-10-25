@@ -22,6 +22,7 @@ import { t, i18n } from './i18n/i18n.js';
 import { RemoteGame } from './multiplayer/RemoteGame.js';
 import { MultiplayerSession } from './multiplayer/MultiplayerSession.js';
 import { LobbyUI } from './ui/LobbyUI.js';
+import { HelpUI } from './ui/HelpUI.js';
 import { REACTIONS, reactionText } from './multiplayer/reactions.js';
 
 // Check for debug mode via URL parameter (?debug=ai)
@@ -410,12 +411,6 @@ class DominoApp {
         this.attributionToggle = document.getElementById('attribution-toggle');
         this.playerLegend = document.getElementById('player-legend');
 
-        // Help modal
-        this.helpBtn = document.getElementById('help-btn');
-        this.helpModal = document.getElementById('help-modal');
-        this.helpOverlay = document.getElementById('help-overlay');
-        this.closeHelpBtn = document.getElementById('close-help-btn');
-
         // Genín advice
         this.geninAdviceContainer = document.getElementById('genin-advice-container');
         this.geninAdviceBtn = document.getElementById('genin-advice-btn');
@@ -454,14 +449,13 @@ class DominoApp {
         // Initialize debrief UI
         this.debriefUI.init();
         this.debriefUI.onNewMatch = () => this.startNewGame();
-        this.debriefUI.onOpenSettings = () => this.settingsUI.show();
 
         // Pass quiz storage and hand tracker to debrief UI
         this.debriefUI.quizStorage = this.quizStorage;
         this.debriefUI.handTracker = this.handTracker;
 
         // Initialize help modal handlers
-        this._initHelpModal();
+        this.helpUI = new HelpUI();
 
         // Initialize language toggle
         this._initLanguageToggle();
@@ -500,35 +494,6 @@ class DominoApp {
         });
     }
 
-    _initHelpModal() {
-        if (this.helpBtn) {
-            this.helpBtn.addEventListener('click', () => this.showHelp());
-        }
-        if (this.closeHelpBtn) {
-            this.closeHelpBtn.addEventListener('click', () => this.hideHelp());
-        }
-        if (this.helpOverlay) {
-            this.helpOverlay.addEventListener('click', () => this.hideHelp());
-        }
-    }
-
-    showHelp() {
-        if (this.helpModal) {
-            this.helpModal.classList.add('visible');
-        }
-        if (this.helpOverlay) {
-            this.helpOverlay.classList.add('visible');
-        }
-    }
-
-    hideHelp() {
-        if (this.helpModal) {
-            this.helpModal.classList.remove('visible');
-        }
-        if (this.helpOverlay) {
-            this.helpOverlay.classList.remove('visible');
-        }
-    }
 
     initQuizElements() {
         // Quiz modal elements

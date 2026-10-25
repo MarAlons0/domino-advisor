@@ -1388,101 +1388,6 @@ button:disabled {
     line-height: 1.5;
 }
 
-.settings-description.api-key-note {
-    color: #6b7a99;
-    font-style: italic;
-    margin-top: -8px;
-}
-
-.api-key-input-group {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 10px;
-}
-
-.api-key-input-group input {
-    flex: 1;
-    padding: 10px 12px;
-    border: 1px solid #0f3460;
-    border-radius: 6px;
-    background: #0a1628;
-    color: #fff;
-    font-size: 14px;
-}
-
-.api-key-input-group input::placeholder {
-    color: #666;
-}
-
-.save-btn {
-    background: #00d4ff;
-    color: #000;
-}
-
-.key-actions {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 10px;
-}
-
-.test-btn {
-    background: #0a3d62;
-    color: #fff;
-    flex: 1;
-}
-
-.test-btn:hover {
-    background: #00d4ff;
-    color: #000;
-}
-
-.clear-btn {
-    background: #333;
-    color: #fff;
-    flex: 1;
-}
-
-.clear-btn:hover {
-    background: #ff6b6b;
-}
-
-.key-status {
-    font-size: 12px;
-    padding: 8px;
-    border-radius: 4px;
-    text-align: center;
-}
-
-.key-status.configured {
-    background: rgba(0, 212, 255, 0.1);
-    color: #00d4ff;
-}
-
-.key-status.not-configured {
-    background: rgba(255, 107, 107, 0.1);
-    color: #ff6b6b;
-}
-
-.key-status.success {
-    background: rgba(34, 197, 94, 0.1);
-    color: #22c55e;
-}
-
-.key-status.error {
-    background: rgba(255, 107, 107, 0.1);
-    color: #ff6b6b;
-}
-
-.key-status.loading {
-    background: rgba(255, 217, 61, 0.1);
-    color: #ffd93d;
-}
-
-.key-status.info {
-    background: rgba(99, 102, 241, 0.1);
-    color: #6366f1;
-}
-
 .difficulty-row {
     display: flex;
     align-items: center;
@@ -2049,28 +1954,6 @@ button:disabled {
 .llm-result .analysis-paragraph em {
     color: #cbd5f5;
     font-style: italic;
-}
-
-.llm-no-key {
-    background: rgba(99, 102, 241, 0.1);
-    border-radius: 8px;
-    padding: 15px;
-    text-align: center;
-}
-
-.llm-no-key p {
-    margin: 0;
-    color: #888;
-    font-size: 13px;
-}
-
-.llm-no-key a {
-    color: #6366f1;
-    text-decoration: none;
-}
-
-.llm-no-key a:hover {
-    text-decoration: underline;
 }
 
 /* Plays List */
@@ -3431,17 +3314,6 @@ button:disabled {
         padding: 15px;
     }
 
-    .api-key-input-group {
-        flex-direction: column;
-    }
-
-    .key-actions {
-        flex-direction: column;
-    }
-
-    .key-actions button {
-        width: 100%;
-    }
 }
 
 /* Very small screens */
@@ -4080,4 +3952,86 @@ body.multiplayer .react-btn:disabled { opacity: 0.5; }
     .reaction-bubble { animation: none; }
     .turn-timer.up, .hand-area.time-up { animation: none; }
     .hand-area.time-up { box-shadow: 0 0 0 2px rgba(255, 70, 70, 0.7); }
+}
+
+/* ---- Help: "How do I…?" index, section links, context "?" buttons ---- */
+/* Help opens on top of any window (room, debrief, settings) it was asked from. */
+.help-modal { z-index: 1100; }
+#help-overlay { z-index: 1090; }
+
+.help-section h3 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.help-top {
+    font-size: 11px;
+    font-weight: normal;
+    color: #7f93b5;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.help-top:hover, .help-top:focus-visible { color: #00d4ff; }
+
+.help-section a:not(.help-top) { color: #00d4ff; }
+
+.help-index-list {
+    display: grid;
+    gap: 12px;
+}
+.help-index-heading {
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #7f93b5;
+}
+.help-index-list ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.help-index-list li { margin-bottom: 4px; }
+.help-index-list a {
+    color: #00d4ff;
+    text-decoration: none;
+    line-height: 1.4;
+}
+.help-index-list a:hover, .help-index-list a:focus-visible { text-decoration: underline; }
+
+/* The section a question jumped to, briefly */
+.help-section { border-radius: 8px; transition: box-shadow 0.3s, background 0.3s; }
+.help-section.help-highlight {
+    background: rgba(0, 212, 255, 0.06);
+    box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.6);
+}
+.help-section:not(.genin-intro) { padding: 4px 8px; margin-left: -8px; margin-right: -8px; }
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.help-ctx {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    flex-shrink: 0;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 22px;
+    color: #00d4ff;
+    background: transparent;
+    border: 1px solid rgba(0, 212, 255, 0.5);
+}
+.help-ctx:hover, .help-ctx:focus-visible { background: rgba(0, 212, 255, 0.12); }
+.hand-feedback-head .help-ctx { width: 20px; height: 20px; font-size: 11px; line-height: 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .help-section { transition: none; }
 }

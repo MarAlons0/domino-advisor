@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-24 (multiplayer part 3 — rematch, reactions, turn timer — shipped as v1.12.0; multiplayer complete)_
+_Last updated: 2026-10-25 (Help index shipped as v1.13.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -37,6 +37,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Help index** — "How do I…?" question index that jumps to the answer, "?" buttons that open Help at the right section, and the missing / wrong Help content fixed (cerrado scoring, grades, table moments, debrief) — v1.13.0
 - [x] **Multiplayer game** — play with friends, 2–4 people on their own devices, partners or opponents, AI in empty seats, on Cloudflare's free plan ([design](docs/MULTIPLAYER.md)): rooms, invite link, secret hands, reconnect (v1.10.0); Genín for each player (v1.11.0); everyone-taps rematch, quick reactions, optional turn timer — v1.12.0
 - [x] **Genín in multiplayer (part 2)** — advice, hand-end card and debrief at a multiplayer table, from each player's own information; coaching kept across a reload — v1.11.0
 - [x] **Fix mixed old/new files on the first visit after an update** — the app reloads itself once when a new version takes over (raw `mp.*` labels and an old version chip seen in Safari) — v1.10.1

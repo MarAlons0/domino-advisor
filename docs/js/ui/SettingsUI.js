@@ -1,13 +1,11 @@
-import { ClaudeService } from '../services/ClaudeService.js';
-import { t, i18n } from '../i18n/i18n.js';
+import { t } from '../i18n/i18n.js';
 import { StorageService } from '../stats/StorageService.js';
 
 /**
- * SettingsUI - Settings panel for API key configuration.
+ * SettingsUI - Settings panel: each AI player's difficulty.
  */
 export class SettingsUI {
     constructor() {
-        this.claudeService = new ClaudeService();
         this.modal = null;
         this.overlay = null;
         this.isInitialized = false;
@@ -22,12 +20,7 @@ export class SettingsUI {
 
         this.modal = document.getElementById('settings-modal');
         this.overlay = document.getElementById('settings-overlay');
-        this.apiKeyInput = document.getElementById('api-key-input');
-        this.saveKeyBtn = document.getElementById('save-key-btn');
-        this.testKeyBtn = document.getElementById('test-key-btn');
-        this.clearKeyBtn = document.getElementById('clear-key-btn');
         this.closeSettingsBtn = document.getElementById('close-settings-btn');
-        this.keyStatus = document.getElementById('key-status');
         this.settingsBtn = document.getElementById('settings-btn');
 
         if (!this.modal) {
@@ -36,7 +29,6 @@ export class SettingsUI {
         }
 
         this._bindEvents();
-        this._updateKeyStatus();
         this._initDifficulty();
         this.isInitialized = true;
     }
@@ -118,18 +110,6 @@ export class SettingsUI {
         if (this.overlay) {
             this.overlay.addEventListener('click', () => this.hide());
         }
-
-        if (this.saveKeyBtn) {
-            this.saveKeyBtn.addEventListener('click', () => this._saveKey());
-        }
-
-        if (this.testKeyBtn) {
-            this.testKeyBtn.addEventListener('click', () => this._testKey());
-        }
-
-        if (this.clearKeyBtn) {
-            this.clearKeyBtn.addEventListener('click', () => this._clearKey());
-        }
     }
 
     /**
@@ -144,15 +124,6 @@ export class SettingsUI {
         if (this.overlay) {
             this.overlay.classList.add('visible');
         }
-
-        // Clear input and update status
-        if (this.apiKeyInput) {
-            this.apiKeyInput.value = '';
-            this.apiKeyInput.placeholder = this.claudeService.hasApiKey()
-                ? this.claudeService.getMaskedKey()
-                : t('settings.apiKey.placeholder');
-        }
-        this._updateKeyStatus();
     }
 
     /**
@@ -165,99 +136,5 @@ export class SettingsUI {
         if (this.overlay) {
             this.overlay.classList.remove('visible');
         }
-    }
-
-    /**
-     * Save the API key
-     * @private
-     */
-    _saveKey() {
-        const key = this.apiKeyInput?.value?.trim();
-        if (!key) {
-            this._showStatus(t('settings.apiKey.enterKey'), 'error');
-            return;
-        }
-
-        this.claudeService.setApiKey(key);
-        this.apiKeyInput.value = '';
-        this.apiKeyInput.placeholder = this.claudeService.getMaskedKey();
-        this._showStatus(t('settings.apiKey.saved'), 'success');
-        this._updateKeyStatus();
-    }
-
-    /**
-     * Test the API connection
-     * @private
-     */
-    async _testKey() {
-        if (!this.claudeService.hasApiKey()) {
-            this._showStatus(t('settings.apiKey.noKey'), 'error');
-            return;
-        }
-
-        this._showStatus(t('settings.apiKey.testing'), 'loading');
-        this.testKeyBtn.disabled = true;
-
-        const result = await this.claudeService.testConnection();
-
-        this.testKeyBtn.disabled = false;
-        this._showStatus(result.message, result.success ? 'success' : 'error');
-    }
-
-    /**
-     * Clear the API key
-     * @private
-     */
-    _clearKey() {
-        this.claudeService.setApiKey(null);
-        if (this.apiKeyInput) {
-            this.apiKeyInput.value = '';
-            this.apiKeyInput.placeholder = t('settings.apiKey.placeholder');
-        }
-        this._showStatus(t('settings.apiKey.cleared'), 'info');
-        this._updateKeyStatus();
-    }
-
-    /**
-     * Show status message
-     * @private
-     */
-    _showStatus(message, type) {
-        if (!this.keyStatus) return;
-
-        this.keyStatus.textContent = message;
-        this.keyStatus.className = 'key-status ' + type;
-    }
-
-    /**
-     * Update the key status display
-     * @private
-     */
-    _updateKeyStatus() {
-        if (!this.keyStatus) return;
-
-        if (this.claudeService.hasApiKey()) {
-            this.keyStatus.textContent = t('settings.apiKey.configured', this.claudeService.getMaskedKey());
-            this.keyStatus.className = 'key-status configured';
-        } else {
-            this.keyStatus.textContent = t('settings.apiKey.notConfigured');
-            this.keyStatus.className = 'key-status not-configured';
-        }
-    }
-
-    /**
-     * Check if API key is configured
-     * @returns {boolean}
-     */
-    hasApiKey() {
-        return this.claudeService.hasApiKey();
-    }
-
-    /**
-     * Get the Claude service instance
-     * @returns {ClaudeService}
-     */
-    getClaudeService() {
-        return this.claudeService;
     }
 }

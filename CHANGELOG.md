@@ -3,6 +3,24 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.13.0] – 2026-10-25
+
+### Added
+- **Help has a "How do I…?" index.** Help now opens with 25 plain questions in 7 groups — Getting started, Playing a hand, Scoring, Genín's coaching, After the match, Playing with friends, Playing better. Each one jumps to its answer and highlights it for a moment; every section has an "↑ Index" link back. In English and Spanish.
+- **"?" where you need it.** A small "?" opens Help at the right section from the room window (Play with Friends), Settings, the match debrief, and the hand-end card (Genín's advice). Help opens on top, and the window you came from stays open behind it.
+- **New Help sections** for what it didn't cover: who leads each hand, the puntas, the cerrado and how it scores, table moments (capicú, cerrado, slam, zapato, comeback), asking Genín, the hand-end card and Why?, how plays are graded (including the win-rate bands and what isn't graded), Quiz Me, each debrief tab, and the language switch.
+
+### Fixed
+- **Help said a blocked game's winners score "the difference".** They score the other team's remaining pips (and a cerrado tie goes to the team that closed) — now explained under Scoring as the cerrado, which is how a game is blocked here.
+- **Help listed the wrong colors for "Show who played"** (cyan / purple); they are white (you), blue (partner), red (Opp 1) and yellow (Opp 2).
+- Help no longer says the Play Style Analysis needs your own Claude API key — it works through 7 Fichas' own server.
+
+### Removed
+- **The "Claude API Key" section in Settings.** It asked players for their own key, but the Play Style Analysis has gone through 7 Fichas' own server for a while and never used it — so Settings now has just Player Difficulty. A key saved there by an earlier version is deleted from your browser the next time the app opens. The debrief's "configure your key" note (which could no longer appear) is gone too, and the README no longer says a personal key is required.
+
+### Changed (internal)
+- New `ui/HelpUI.js` (index, jump + highlight, `data-help="<section>"` context buttons); Help moved out of `main.js`. `ClaudeService` keeps only the analysis call; `SettingsUI` only the difficulty buttons. Icon-only buttons with a translated tooltip now get the same translated screen-reader label.
+
 ## [1.12.0] – 2026-10-24
 
 ### Added

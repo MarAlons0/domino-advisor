@@ -7,76 +7,9 @@ export class ClaudeService {
         // Secure worker endpoint (API key is stored server-side)
         this.workerUrl = 'https://domino-api.mario-alonso-account.workers.dev';
 
-        // Fallback for local development with personal key
-        this.storageKey = 'dominoAdvisor_claudeApiKey';
-        this.directApiUrl = 'https://api.anthropic.com/v1/messages';
-    }
-
-    /**
-     * Check if the service is available (always true with worker)
-     * @returns {boolean}
-     */
-    hasApiKey() {
-        return true; // Worker handles the API key
-    }
-
-    /**
-     * Store API key in localStorage (for local dev only)
-     * @param {string} key
-     */
-    setApiKey(key) {
-        if (key && key.trim()) {
-            localStorage.setItem(this.storageKey, key.trim());
-        } else {
-            localStorage.removeItem(this.storageKey);
-        }
-    }
-
-    /**
-     * Get stored API key (for local dev only)
-     * @returns {string|null}
-     */
-    getApiKey() {
-        return localStorage.getItem(this.storageKey);
-    }
-
-    /**
-     * Get masked version of API key for display
-     * @returns {string}
-     */
-    getMaskedKey() {
-        return 'Using secure server';
-    }
-
-    /**
-     * Test the API connection
-     * @returns {Promise<{success: boolean, message: string}>}
-     */
-    async testConnection() {
-        try {
-            const response = await fetch(this.workerUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    max_tokens: 10,
-                    messages: [{ role: 'user', content: 'Hi' }]
-                })
-            });
-
-            if (response.ok) {
-                return { success: true, message: 'Connection successful!' };
-            }
-
-            const error = await response.json();
-            if (response.status === 429) {
-                return { success: false, message: error.error || 'Rate limit exceeded' };
-            }
-            return { success: false, message: error.error || 'API error' };
-        } catch (error) {
-            return { success: false, message: 'Network error: ' + error.message };
-        }
+        // Earlier versions asked players for their own Claude API key in Settings and
+        // kept it in this browser, though nothing used it. Don't keep it around.
+        try { localStorage.removeItem('dominoAdvisor_claudeApiKey'); } catch { /* storage unavailable */ }
     }
 
     /**

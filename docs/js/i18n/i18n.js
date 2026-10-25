@@ -144,6 +144,8 @@ class I18n {
         document.querySelectorAll('[data-i18n-title]').forEach(el => {
             const key = el.getAttribute('data-i18n-title');
             el.title = this.t(key);
+            // Icon-only buttons carry the same text as their screen-reader label.
+            if (el.hasAttribute('aria-label')) el.setAttribute('aria-label', el.title);
         });
 
         // Update the document language attribute

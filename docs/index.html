@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>7 Fichas v1.12.0</title>
+    <title>7 Fichas v1.13.0</title>
     <meta name="theme-color" content="#00d4ff">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-    <link rel="stylesheet" href="css/styles.css?v=44">
+    <link rel="stylesheet" href="css/styles.css?v=45">
 </head>
 <body>
     <header class="app-header">
         <div class="brand">
-            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.12.0</span></h1>
+            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.13.0</span></h1>
             <p class="subtitle" data-i18n="app.subtitle">Partnership Dominoes vs. AI</p>
         </div>
         <p class="attribution"><span data-i18n="app.createdBy">Created by</span> <a href="https://looking4nature.com" target="_blank" rel="noopener">Mario Alonso</a></p>
@@ -213,6 +213,7 @@
                 <img src="img/genin-advising.png" alt="Genín" class="feedback-genin">
                 <span class="feedback-verdict" id="feedback-verdict"></span>
                 <button type="button" class="feedback-why" id="feedback-why" data-i18n="coach.why">Why?</button>
+                <button type="button" class="help-ctx" data-help="help-genin" title="Help" data-i18n-title="help.ctx" aria-label="Help">?</button>
             </div>
             <p class="feedback-detail" id="feedback-detail" style="display: none;"></p>
         </div>
@@ -273,7 +274,7 @@
         <div class="help-header">
             <div class="help-header-content">
                 <img src="img/genin-advising.png" alt="Genín" class="genin-avatar">
-                <h2 data-i18n="help.title">How to Play</h2>
+                <h2 data-i18n="help.title">Help</h2>
             </div>
             <button id="close-help-btn" class="close-btn">&times;</button>
         </div>
@@ -282,22 +283,94 @@
                 <p data-i18n="help.genin.intro" data-i18n-html>Hi! I'm <strong>Genín</strong>, your domino coach. I'll help you learn the strategies of partnership dominoes and improve your game. Let's play!</p>
             </section>
 
-            <section class="help-section">
-                <h3 data-i18n="help.about.title">About the Game</h3>
-                <p data-i18n="help.about.text" data-i18n-html>7 Fichas simulates <strong>4-player partnership dominoes</strong> (Cuban/Puerto Rican style). You and your partner (across the table) play against two opponents. First team to 100 points wins the match.</p>
+            <section class="help-section help-index" id="help-index">
+                <h3 data-i18n="help.index.title">How do I…?</h3>
+                <div id="help-index-list" class="help-index-list"></div>
             </section>
 
-            <section class="help-section">
-                <h3 data-i18n="help.howToPlay.title">How to Play</h3>
-                <ol>
-                    <li data-i18n="help.howToPlay.newGame" data-i18n-html><strong>New Game</strong> - Click to start a new match. The player with the double-six leads.</li>
-                    <li data-i18n="help.howToPlay.playTile" data-i18n-html><strong>Play a tile</strong> - Click a tile in your hand to play it. If it can only connect one way, it plays automatically. If it can connect to either end, you'll choose which end.</li>
-                    <li data-i18n="help.howToPlay.pass" data-i18n-html><strong>Pass</strong> - If you can't play, the Pass button enables. Click it to pass your turn.</li>
-                </ol>
+            <section class="help-section" id="help-about">
+                <h3><span data-i18n="help.about.title">About the Game</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <p data-i18n="help.about.text" data-i18n-html>7 Fichas simulates <strong>4-player partnership dominoes</strong> (Cuban/Puerto Rican style). You and your partner (across the table) play against two opponents. All 28 tiles are dealt, 7 to each player — hence the name. The first team to 100 points wins the match.</p>
             </section>
 
-            <section class="help-section">
-                <h3 data-i18n="help.multiplayer.title">Play with Friends</h3>
+            <section class="help-section" id="help-start">
+                <h3><span data-i18n="help.start.title">Starting a Game</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <ul>
+                    <li data-i18n="help.start.newGame" data-i18n-html><strong>New Game</strong> - Tap <em>New Game</em> below the table to deal a new match. To play with friends instead, see <a href="#help-friends">Play with Friends</a>.</li>
+                    <li data-i18n="help.start.leads" data-i18n-html><strong>Who leads</strong> - In the first hand, whoever has the double six [6|6] leads with it (the <em>salida</em>). After that, the winner of the last hand leads: the player who dominoed — or, after a cerrado, the player who closed if their team won, otherwise the next player after them.</li>
+                    <li data-i18n="help.start.setup" data-i18n-html><strong>Opponents and language</strong> - Choose how strong each AI player is, and English or Spanish, in <a href="#help-settings">Settings, Language &amp; Stats</a>.</li>
+                </ul>
+            </section>
+
+            <section class="help-section" id="help-play">
+                <h3><span data-i18n="help.play.title">Playing a Hand</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <ul>
+                    <li data-i18n="help.play.tile" data-i18n-html><strong>Play a tile</strong> - On your turn, the tiles you can play light up; tap one. If it fits only one end it plays right away; if it fits both, choose <em>Left</em> or <em>Right</em>.</li>
+                    <li data-i18n="help.play.puntas" data-i18n-html><strong>The puntas</strong> - The two open ends of the chain, where the next tile has to match. They are shown under the table (<em>Open ends</em>).</li>
+                    <li data-i18n="help.play.pass" data-i18n-html><strong>Can't play?</strong> - If no tile fits, the <em>Pass</em> button turns on: tap it to pass. In a room with friends, the room passes for you.</li>
+                    <li data-i18n="help.play.whoPlayed" data-i18n-html><strong>Who played what</strong> - Tick <em>Show who played each tile</em> to tint each tile in the chain: white is you, blue your partner, red Opp 1 (right) and yellow Opp 2 (left). The <em>Game Log</em> lists every play and pass.</li>
+                </ul>
+            </section>
+
+            <section class="help-section" id="help-scoring">
+                <h3><span data-i18n="help.scoring.title">Scoring</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <ul>
+                    <li data-i18n="help.scoring.domino" data-i18n-html><strong>Domino</strong> - When a player plays their last tile, their team scores all the pips left in the two opponents' hands.</li>
+                    <li data-i18n="help.scoring.cerrado" data-i18n-html><strong>Cerrado</strong> - When both puntas show the same number and every tile of that number has been played, nobody can play: the game is closed. Each team adds up the pips left in its two hands; the team with fewer scores the other team's pips. On a tie, the team that closed wins.</li>
+                    <li data-i18n="help.scoring.match" data-i18n-html><strong>Match</strong> - The first team to reach 100 points wins.</li>
+                </ul>
+            </section>
+
+            <section class="help-section" id="help-moments">
+                <h3><span data-i18n="help.moments.title">Table Moments</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <ul>
+                    <li data-i18n="help.moments.capicu" data-i18n-html><strong>Capicú</strong> - Winning the hand with a tile that fits both puntas when they show different numbers — for example [3|5] on a 3 and a 5. It glows gold.</li>
+                    <li data-i18n="help.moments.cerrado" data-i18n-html><strong>Cerrado</strong> - The puntas lock and a banner announces it, for example <em>¡Cerrado a 4s!</em></li>
+                    <li data-i18n="help.moments.slam" data-i18n-html><strong>Slam</strong> - The double six and every winning tile land with a slam, glowing in the color of the team that played it.</li>
+                    <li data-i18n="help.moments.zapato" data-i18n-html><strong>Zapato</strong> - Winning the match while the other team still has 0 points. Shown on the match-end card.</li>
+                    <li data-i18n="help.moments.comeback" data-i18n-html><strong>Comeback</strong> - Winning the match after trailing by 50 points or more.</li>
+                </ul>
+            </section>
+
+            <section class="help-section" id="help-genin">
+                <h3><span data-i18n="help.genin.title">Genín's Advice</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <ul>
+                    <li data-i18n="help.genin.ask" data-i18n-html><strong>Ask Genín</strong> - On your turn, tap Genín next to your hand: he shows the tile he'd play, on which end, and why. He always plays at Master strength — he simulates many possible deals of the tiles you can't see and plays each one out. Asking again shows the same tile, and you're free to play something else.</li>
+                    <li data-i18n="help.genin.card" data-i18n-html><strong>After each hand</strong> - A card shows the result and a short verdict (for example <em>Well played</em> or <em>One costly play</em>). Tap <em>Why?</em> for your key moment: the tile Genín preferred, the reason, and how often each tile won in his simulations (for example ~68% vs ~42%). He also tells you when closing (cerrar) would have paid off.</li>
+                    <li data-i18n="help.genin.friends" data-i18n-html><strong>With friends</strong> - In a room with friends, Genín coaches each player separately, using only what that player can see.</li>
+                </ul>
+            </section>
+
+            <section class="help-section" id="help-grades">
+                <h3><span data-i18n="help.grades.title">How Plays Are Graded</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <ul>
+                    <li data-i18n="help.grades.scale" data-i18n-html><strong>Four grades</strong> - Each of your plays is compared with Genín's pick: <em>Optimal</em> (his pick), <em>Good</em>, <em>Questionable</em> or <em>Mistake</em>.</li>
+                    <li data-i18n="help.grades.how" data-i18n-html><strong>How</strong> - When Genín simulated the position, the grade is how much winning chance your play gave up: up to 5 points is Good, up to 15 Questionable, more than that a Mistake. Otherwise it's based on his score for each move.</li>
+                    <li data-i18n="help.grades.fair" data-i18n-html><strong>What counts</strong> - Forced plays (only one legal tile) aren't graded, and following the advice Genín showed you is always Optimal. Your grades feed the debrief and your lifetime agreement with Genín in Stats.</li>
+                </ul>
+            </section>
+
+            <section class="help-section" id="help-quiz">
+                <h3><span data-i18n="help.quiz.title">Quiz Me</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <ul>
+                    <li data-i18n="help.quiz.text" data-i18n-html><strong>Guess their tiles</strong> - During a hand, tap <em>Quiz Me</em>, pick a player and select the tiles you think they still hold, based on their plays and passes. Your results are in the debrief's <em>Predictions</em> tab. (Single player only.)</li>
+                </ul>
+            </section>
+
+            <section class="help-section" id="help-debrief">
+                <h3><span data-i18n="help.debrief.title">The Match Debrief</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <ul>
+                    <li data-i18n="help.debrief.open" data-i18n-html><strong>Open it</strong> - When a match ends, tap <em>Review Game</em>.</li>
+                    <li data-i18n="help.debrief.overview" data-i18n-html><strong>Overview</strong> - How often you agreed with Genín, your grades, lessons from the match, the key moments to review (with the board as it was) and a hand-by-hand recap.</li>
+                    <li data-i18n="help.debrief.plays" data-i18n-html><strong>Your Plays</strong> - Every decision you made, with its grade and Genín's pick.</li>
+                    <li data-i18n="help.debrief.full" data-i18n-html><strong>Full Match</strong> - Every play by every player, hand by hand.</li>
+                    <li data-i18n="help.debrief.predictions" data-i18n-html><strong>Predictions</strong> - Your <a href="#help-quiz">Quiz Me</a> results.</li>
+                    <li data-i18n="help.debrief.analysis" data-i18n-html><strong>Play Style Analysis</strong> - At the bottom of the Overview, <em>Analyze My Play Style</em> asks Claude for a personal analysis of how you play. Nothing to set up.</li>
+                </ul>
+            </section>
+
+            <section class="help-section" id="help-friends">
+                <h3><span data-i18n="help.multiplayer.title">Play with Friends</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
                 <ul>
                     <li data-i18n="help.multiplayer.create" data-i18n-html><strong>Create a room</strong> - Tap the two-people icon (👥) at the top, enter your name and tap <em>Create a room</em>. You get a 6-character room code and an invite link. The name is yours (what the others see); rooms don't have names.</li>
                     <li data-i18n="help.multiplayer.invite" data-i18n-html><strong>Invite</strong> - Send the link with <em>Copy invite link</em> (or <em>Share</em> on a phone). Your friends open it on their own phone or computer, enter their name once, and they're in. They can also tap 👥, type the code and tap <em>Join</em>.</li>
@@ -309,29 +382,17 @@
                 </ul>
             </section>
 
-            <section class="help-section">
-                <h3 data-i18n="help.scoring.title">Scoring</h3>
+            <section class="help-section" id="help-settings">
+                <h3><span data-i18n="help.settings.title">Settings, Language &amp; Stats</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
                 <ul>
-                    <li data-i18n="help.scoring.domino" data-i18n-html><strong>Domino</strong> - A player plays their last tile. Their team scores the total pips in opponents' hands.</li>
-                    <li data-i18n="help.scoring.blocked" data-i18n-html><strong>Blocked game</strong> - No one can play. The team with fewer pips wins the difference.</li>
-                    <li data-i18n="help.scoring.match" data-i18n-html><strong>Match</strong> - First team to 100 points wins.</li>
+                    <li data-i18n="help.settings.difficulty" data-i18n-html><strong>AI strength</strong> - In Settings (⚙), set each AI player — your partner and both opponents — to Beginner, Experienced or Master. With friends, the host sets the AI seats in the room.</li>
+                    <li data-i18n="help.settings.language" data-i18n-html><strong>Language</strong> - Tap <em>EN / ES</em> at the top to switch between English and Spanish.</li>
+                    <li data-i18n="help.settings.stats" data-i18n-html><strong>Stats &amp; badges</strong> - Tap the trophy for your lifetime results — matches, hands, cerrados, your agreement with Genín — and the badges you've earned. Matches with friends count too.</li>
                 </ul>
             </section>
 
-            <section class="help-section">
-                <h3 data-i18n="help.features.title">Features</h3>
-                <ul>
-                    <li data-i18n="help.features.difficulty" data-i18n-html><strong>AI Difficulty</strong> - In Settings (⚙), set each AI player to Beginner, Experienced, or Master.</li>
-                    <li data-i18n="help.features.stats" data-i18n-html><strong>Stats &amp; Badges</strong> - Tap the trophy icon to see lifetime stats and your earned achievements. Badges unlock as you hit milestones.</li>
-                    <li data-i18n="help.features.quiz" data-i18n-html><strong>Quiz Me</strong> - Test your ability to predict what tiles other players hold based on their plays and passes.</li>
-                    <li data-i18n="help.features.showWho" data-i18n-html><strong>Show who played</strong> - Toggle to see color overlays (cyan/red/purple/yellow) on each chain tile showing who played it.</li>
-                    <li data-i18n="help.features.debrief" data-i18n-html><strong>Match Debrief</strong> - After the match ends, review your plays and get feedback on optimal choices.</li>
-                    <li data-i18n="help.features.analysis" data-i18n-html><strong>Play Style Analysis</strong> - In the debrief, use your Claude API key to get personalized analysis of your playing style.</li>
-                </ul>
-            </section>
-
-            <section class="help-section">
-                <h3 data-i18n="help.strategy.title">Strategy Tips</h3>
+            <section class="help-section" id="help-strategy">
+                <h3><span data-i18n="help.strategy.title">Strategy Tips</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
                 <ul>
                     <li data-i18n="help.strategy.track" data-i18n-html><strong>Track passes</strong> - When someone passes, they lack both open-end values. Remember this!</li>
                     <li data-i18n="help.strategy.support" data-i18n-html><strong>Support your partner</strong> - Notice what suits your partner plays and try to keep those open.</li>
@@ -347,7 +408,7 @@
     <div class="settings-modal" id="settings-modal">
         <div class="settings-header">
             <h2 data-i18n="settings.title">Settings</h2>
-            <button id="close-settings-btn" class="close-btn">&times;</button>
+            <div class="header-actions"><button type="button" class="help-ctx" data-help="help-settings" title="Help" data-i18n-title="help.ctx" aria-label="Help">?</button><button id="close-settings-btn" class="close-btn">&times;</button></div>
         </div>
         <div class="settings-content">
             <div class="settings-section">
@@ -380,25 +441,6 @@
                     </div>
                 </div>
             </div>
-            <div class="settings-section">
-                <h3 data-i18n="settings.apiKey.title">Claude API Key</h3>
-                <p class="settings-description" data-i18n="settings.apiKey.description">
-                    Enter your Claude API key to enable AI-powered play style analysis.
-                    Your key is stored locally and only sent to Anthropic's API.
-                </p>
-                <p class="settings-description api-key-note" data-i18n="settings.apiKey.note">
-                    Requires a personal API key from console.anthropic.com. Each user of the app needs their own key.
-                </p>
-                <div class="api-key-input-group">
-                    <input type="password" id="api-key-input" data-i18n-placeholder="settings.apiKey.placeholder" placeholder="Enter your Claude API key..." />
-                    <button id="save-key-btn" class="save-btn" data-i18n="settings.apiKey.save">Save</button>
-                </div>
-                <div class="key-actions">
-                    <button id="test-key-btn" class="test-btn" data-i18n="settings.apiKey.test">Test Connection</button>
-                    <button id="clear-key-btn" class="clear-btn" data-i18n="settings.apiKey.clear">Clear Key</button>
-                </div>
-                <div id="key-status" class="key-status"></div>
-            </div>
         </div>
     </div>
 
@@ -408,7 +450,7 @@
     <div class="mp-modal" id="mp-modal" role="dialog" aria-modal="true" aria-labelledby="mp-title">
         <div class="stats-header">
             <h2 id="mp-title">Play with friends</h2>
-            <button id="mp-close" class="close-btn" aria-label="Close">&times;</button>
+            <div class="header-actions"><button type="button" class="help-ctx" data-help="help-friends" title="Help" data-i18n-title="help.ctx" aria-label="Help">?</button><button id="mp-close" class="close-btn" aria-label="Close">&times;</button></div>
         </div>
         <div class="mp-body" id="mp-body"></div>
     </div>
@@ -509,7 +551,7 @@
                     <p id="debrief-summary"></p>
                 </div>
             </div>
-            <button id="close-debrief-btn" class="close-btn">&times;</button>
+            <div class="header-actions"><button type="button" class="help-ctx" data-help="help-debrief" title="Help" data-i18n-title="help.ctx" aria-label="Help">?</button><button id="close-debrief-btn" class="close-btn">&times;</button></div>
         </div>
         <div class="debrief-tabs">
             <button class="tab-btn active" data-tab="overview" data-i18n="debrief.tab.overview">Overview</button>
@@ -562,9 +604,6 @@
                             <span data-i18n="debrief.analysis.loading">Analyzing your play style...</span>
                         </div>
                         <div id="llm-result" class="llm-result" style="display: none;"></div>
-                        <div id="llm-no-key" class="llm-no-key" style="display: none;">
-                            <p data-i18n="debrief.analysis.noKey" data-i18n-html>Configure your Claude API key in <a href="#" id="open-settings-link">Settings</a> to enable play style analysis.</p>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -624,7 +663,7 @@
 
     <div id="badge-toast-container"></div>
 
-    <script type="module" src="js/main.js?v=35"></script>
+    <script type="module" src="js/main.js?v=36"></script>
     <script>
       if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         // On the first visit after a release, the previous version's service worker may have
