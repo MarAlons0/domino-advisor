@@ -8,6 +8,7 @@ _Nothing open — next items come from Medium._
 
 ## 🟡 Medium
 - [ ] **Learn the human's style of play and adapt to it (0h)** — build a per-player profile of how each human plays (closing, blocking, suit signaling, doubles timing) across their matches, and have the AI adapt to it instead of assuming a generic opponent. Like 0g.3b, it makes the Master search less one-size-fits-all. See [docs/DESIGN.md](docs/DESIGN.md). `[idea]`
+  - Test personas built in the harness (`--persona`, tools/personas.js); phase 1 itself not built yet. Design: phase 1 = light-touch calibration of how much the human's signals reveal (shrunk, capped, single player); tested against human-like harness "personas" (population → player → match drift → move lapses). Mario's answers recorded at the end of the 0h section in [docs/DESIGN.md](docs/DESIGN.md) (Genín Agreement Rate 73% anchors persona lapses).
 - [ ] **Determinization distribution A/B (0g.5)** — uniform vs. affinity-weighted sampling, now uncontaminated by the v1.2.6 leak fix. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **PWA (installable app)** — service worker + manifest for home-screen install / offline. `[feature]`
 - [ ] 🚧 **Quantify tile-probability predictions at scale (0c)** — Phase 1 (instrumentation) done; Phase 2 (layer attribution) pending. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
@@ -22,6 +23,7 @@ _Nothing open — next items come from Medium._
 
 ## 🟢 Low / Nice to have
 - [ ] **Harness/production parity for master settings** — make `setupMatch` apply the same per-difficulty configuration that main.js does in real play (currently master gets `randomizeTolerance = 5` in production but 0 in the harness). The v1.2.0 → v1.2.1 freeze bug would have been caught by self-play if this parity existed. `[chore]`
+  - Note (2026-10-28): `randomizeTolerance` has no effect at Master — the ISMCTS pick is scored 1e6, so the 5-point band only contains it. The parity gap doesn't change play today; see the side finding in the 0h section of [docs/DESIGN.md](docs/DESIGN.md).
 - [ ] **Suit-consistency vs. opportunistic play** — when both your signaled suit and another value are playable on the open ends, is it better to stay in suit (preserving the signal your partner is reading) or take the locally-optimal move? Example: you opened `[3|3]` and played `[3|0]` (signal: 3s). Later the ends show 1 and 3; you have a 3-tile but also several 1-tiles. Play the 3 to stay consistent, or the 1 to keep your hand flexible? `[idea]`
   - Hypothesis test: add a `suitConsistencyBonus` flag to SmartAI that boosts moves matching the player's signaledSuits, A/B at 500 matches. If neutral → consistency is already adequately captured by `partnerSupport` + `ownSuitProtection`. If positive → there's a real signal-coordination value we're under-weighting.
   - Alternative angle: instrument human play traces (from Mario's own matches) and correlate suit-consistency rate within a hand with hand-level win rate. Self-coaching data.

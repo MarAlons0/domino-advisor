@@ -402,34 +402,191 @@ new Experienced.
 ---
 
 ### 0h. Learn the Human's Style of Play and Adapt to It
-**Priority:** Medium (idea stage)
+**Priority:** Medium (design stage — phase 1 + test personas specified below, not built)
 **Complexity:** Medium–High
-**Depends on:** ISMCTS Master (0f/0g); benefits from 0g.5 (weighted determinizations)
+**Depends on:** ISMCTS Master (0f/0g). Related: 0b/0c (inference quality), 0g.5 (determinization
+distribution), UX-C (AI personalities — the persona layer below is most of it).
 
-Today every AI assumes the same generic opponent: ISMCTS samples the human's hidden tiles as if
-any consistent deal were equally likely, and simulates the human's future moves at random. A
-human is not random. They have habits, and those habits are both readable (they leak information
-about the hand) and exploitable (they are predictable mistakes).
+Every AI reads every player through the same fixed assumptions. ISMCTS samples hidden hands
+weighted by suit *affinities*, and those affinities move by hand-tuned multipliers that assume a
+generic player; the search then simulates everyone's future moves at random. A human is not
+generic. They have habits, and those habits are both readable (they leak information about the
+hand) and exploitable (predictable mistakes).
 
-**Learn (a per-player profile, stored with the player's stats):**
-- How often they close (*cerrar*) when they can, and at what pip edge.
-- How often they stay in their signaled suit vs. play the locally best tile.
-- When they dump doubles (early vs. late) and how they lead (strongest suit, highest double…).
-- Block vs. support: how often they cut the partner's suit to stop an opponent.
+**Guiding principle — light touch.** Learning nudges the AI; it never becomes the deciding
+criterion. Concretely: it changes how the AI *reads* the human's hand, not what the AI is trying
+to do; it grows only with evidence; it is capped; and with no history the AI is exactly today's.
 
-**Adapt (candidate uses, cheapest first):**
-1. **Read the hand better** — weight determinizations by the profile (a player who always leads
-   from their strongest suit makes their lead more informative). Natural extension of 0g.5.
-2. **Predict their moves in the search** — replace random play for that seat in ISMCTS rollouts
-   with a profile-driven policy.
-3. **Exploit / complement** — opponents lean into the human's leaks (e.g. if they rarely close,
-   pip-heavy lines are safer); the human's AI partner could adapt to complement them.
+#### Phase 1 — calibrate how much the human's signals reveal
 
-**Open questions:** how many hands before a profile is trustworthy (shrink toward the population
-prior until then); per-player profiles at a multiplayer table; whether to show the profile to
-the player as coaching ("you close only 30% of the time you could") — which overlaps Genín.
-Validation: the harness can't test this against real humans; use scripted "style bots" with
-known habits as stand-ins, then A/B the adapting AI against them.
+The signals the AI reads today, identical for every player (`PlayerView.recordPlayObservation`,
+`SmartAI.analyzePlayChoice`):
+
+| Signal | Current assumption (affinity multiplier) |
+|---|---|
+| Lead (*salida*) with a double | ×2.0 for that suit |
+| Lead with a non-double | ×1.5 for both numbers |
+| Introducing a new number to the board | ×1.2 for that number |
+| Avoiding an end you could have played on | ×0.85 for that suit (×0.70 if it's your partner's) |
+| Making both ends the same number (*cuadrar*) | extra ×1.3 for that number |
+
+Phase 1 learns, per human, how honest each signal actually is, and scales that signal's
+multiplier accordingly.
+
+- **Ground truth is fair.** After each hand all tiles are revealed, so the human's full starting
+  hand is known from public information. For every signal they gave, we can check what they
+  actually held (e.g. did their lead come from their longest suit? when they avoided an end, how
+  many of that suit did they hold?). An attentive human opponent could learn the same; the AI
+  never looks at a hand in progress.
+- **Estimate:** per signal type, the observed likelihood ratio (how much more/less of the
+  signaled suit the human held than the baseline), expressed as a learned multiplier.
+- **Shrinkage:** learned = default blended with observed, weight n / (n + k), k ≈ 30 signal events
+  — a few hands barely move it.
+- **Cap:** in log space the learned strength stays within 0.5×–1.5× of the default's
+  (×2.0 → between ×1.41 and ×2.83; ×0.85 → between ×0.92 and ×0.78).
+- **Scope:** single player, the human seat. All three AI players use it — opponents read the human
+  better, and so does the AI partner. Genín is unaffected (his reading of others doesn't involve
+  the human's own signals). Multiplayer later: AI seats run on the server and can't see each
+  device's profile.
+- **Storage:** a small per-device profile next to the player's stats (counts per signal type), so
+  it accumulates across matches. This is also the first per-play human data the app keeps.
+
+**Phase 2 (only if phase 1 pays off):** use habits in the search — e.g. the human's real closing
+rate for their seat in ISMCTS simulations instead of uniform random play — under the same
+shrinkage and cap. **Optional coaching view** (separate decision, overlaps Genín): show the player
+their profile ("opponents can read your leads 85% of the time").
+
+#### Testing against human-like opponents (personas)
+
+Harness opponents all play like the AI, so they can't stand in for humans. A **persona** is a
+harness player with human-like variation in four layers:
+
+1. **Population** — a distribution of players (below), so the learner is never tuned to one style.
+2. **Player** — draws its trait values once from the population and keeps them across many
+   matches (a seeded RNG makes the player reproducible: player identity = seed). This is what 0h
+   should learn.
+3. **Match** — each match the habits and the noise drift around that player's own values ("some
+   nights you play looser"): w′ = w · e^N(0, 0.25), noise′ = noise · e^N(0, 0.15). Drift is
+   multiplicative so a player with no habit stays habit-free.
+4. **Move** — noisy judgement on every move (below), noisier after a painful hand (tilt).
+
+**Habits** — each has a signed strength w ∈ [−1, 1]. When its situation comes up, with
+probability |w| the habit decides the move: its best X move if w > 0, its best non-X move if
+w < 0 ("best" = the brain's ranking). Otherwise the next habit gets its chance, and finally the
+persona's own judgement. *(First drafted as "do X with probability t, else the opposite"; that
+forces a deviation from the brain at almost every move, since `heavyFirst` applies nearly every
+turn — changed while building.)*
+
+| Trait | Applies when | X | Signal it bends |
+|---|---|---|---|
+| `close` | a move closes the board (cerrar) | take it | cuadrar / closing |
+| `holdBack` | early in the hand (you hold ≥ 5 tiles), you hold ≥ 4 of one suit, and you can play inside or outside it — the lead included | play outside your strong suit (at the lead: don't open with it, so never with its double) | lead + new-number honesty — makes them misleading |
+| `leadLongest` | leading a hand (not the forced [6\|6]) | lead from your longest suit | lead honesty |
+| `partnerSupport` | partner's suit is on an end and you can play the other end | leave partner's suit open | end avoidance |
+| `suitLoyalty` | you can play to your own lead suit or elsewhere | play your suit | new-number honesty |
+| `doublesEarly` | a double is legal and you hold ≥ 4 tiles | play the double | lead / doubles |
+| `heavyFirst` | legal moves differ in pips | play the heaviest | end avoidance (pip-driven, not suit-driven) |
+
+`holdBack` comes from Mario's observation of real tables: some players sit on a very strong suit
+early and won't open with its double, so their lead points away from their real strength. It
+sits before `leadLongest`, so `leadLongest` describes lead honesty on ordinary hands and `holdBack`
+on strong ones. It is the trait that most directly fools today's fixed signals — for such a
+player a double lead is weak evidence, or even misleading. Under the phase-1 cap the learner can
+only partly discount their leads (a ×2.0 signal can't drop below ×1.41) — the intended light touch.
+
+**One move:** run the brain's search → habits in the table's order (each applicable one whose X
+and non-X sets are both non-empty gets its |w| chance) → otherwise **noisy judgement**: pick each
+legal move with probability ∝ exp(−(how far below the best it looks) / noise), in points of the
+brain's simulated win rate (the brain's own pick counts as the best). Close calls are often
+confused, clear blunders rarely. **Tilt:** after losing a hand by ≥ 30 points, noise × (1 + tilt)
+for the next hand, tilt ∈ [0, 1] per player. *(First drafted as "occasional lapses with
+probability λ, mostly near-misses"; a near-perfect player who slips now and then can't reach a
+human's error rate without slipping on half its moves — replaced.)*
+
+**Brain:** Master with Genín's reward (`margin`) so "agreement with Genín" is measured on the same
+scale the app uses; 20% of the population plays at Experienced (noise then works on half the
+static score — no win rates without a search).
+
+**Placeholder population** (strengths; to be replaced by real data and Mario's judgement):
+`close` −0.1 ± 0.25, `leadLongest` +0.3 ± 0.25, `partnerSupport` +0.2 ± 0.2,
+`suitLoyalty` +0.2 ± 0.2, `doublesEarly` +0.2 ± 0.25, `heavyFirst` +0.15 ± 0.15 (normal, clamped);
+`holdBack`: 25% of players 0.4–0.8, the rest 0–0.1; noise 2–12 points; tilt 0–1; brain 80% Master /
+20% Experienced.
+
+**Grounding in real play.** `PlayerStats.coaching` records how often the human's plays grade
+good-or-better against Genín (`geninAgreements / geninTotal`). A persona in seat 0 — the seat the
+app treats as the human — is graded by the app's own code (`SmartAI.analyzeHumanTurn` +
+`MatchHistory`), so its agreement is directly comparable. The cerrado stats (`youClosed`) give a
+partial anchor for `close` — opportunities aren't logged yet; phase 1's per-play profile adds them,
+and later personas can be fitted to real players directly.
+
+**Built and validated (2026-10-28)** — `tools/personas.js`, harness flags `--persona`
+(seat 0 persona, Master partner, Master opponents), `--personas M --season K` (M players × K
+matches in a row), `--persona-seed S`, `--persona-noise X` (calibration), `--persona-plain`
+(control: Master brain, no habits, ~no noise). The report lists each persona's habits and how often
+each actually decided, its agreement with Genín (overall and by where the move came from), wins and
+off-pick rate.
+- *Harness is sound:* a pass-through persona (plays its brain's pick) wins 50.9% ± 2.8 vs 49.2%
+  for plain Master self-play (1,200 matches each). The plain control wins 47.1% ± 2.8 with 96%
+  agreement — the few points below 50 are Genín's reward vs the opponents' `match` reward.
+- *Grading has no side effects:* the plain control won 43.4% with and 43.4% without the grading
+  call (1,600 matches each; that run still had a drift bug, fixed since). Good news for the app
+  too — Genín's grading of the human doesn't change how the AI plays.
+- *Habits are expensive:* that drift bug made zero-strength habits fire 5–14% of the time, which
+  alone cost ~6 points of win rate. The default population (80 personas × 10 matches) wins
+  **33.0% ± 3.3** as a team, ~14 points below the control.
+- *Agreement saturates under today's grading:* the population agrees **87%** (per persona 79–94%,
+  median 86%); even at noise 15 agreement stays ~83–85%. Moves off the brain's pick still grade
+  good 77–82% of the time — many positions have several moves within the 5-point band.
+- *So 73% isn't on the same scale:* lifetime stats go back to v1.0.3, but Master plays have been
+  graded by simulated win rate only since v1.9.0 (2026-10-23). Before that, static-score grading
+  was much harsher (it agreed with the simulation on only 43% of deviations). **Needed:** a
+  current-scale anchor — the debrief Overview figure from matches played since 2026-10-23 — and
+  ideally Mario's win rate against Master opponents, which is the more sensitive anchor anyway.
+
+**Persona sanity checks** (before any 0h test): realized trait rates match drawn values;
+agreement-with-Genín lands near the human's figure; win rate against Master teams is plausible
+for a club player; and each persona's measured signal honesty (from its own revealed hands — the
+same estimator phase 1 uses) varies across the population, otherwise there is nothing to learn.
+
+**0h test protocols.** Persona in seat 0 (the human seat), partner seat 2 = standard Master (not
+learning, to isolate the effect), opponents seats 1 + 3 = Master with learning ON vs OFF.
+- **Seasons:** one persona plays K ≈ 30 matches in a row with the profile carried between matches;
+  repeat over M ≈ 40 personas (≈ 1,200 matches per arm; ~5 min on 8 shards). Metrics: hand-reading
+  accuracy of seat 0's tiles from the opponents' views (Brier / log-loss — the existing
+  `--prob-accuracy` machinery; far more sensitive than win rate), the opponents' match win rate,
+  and profile convergence (learned honesty vs the persona's measured honesty, by match number).
+- **Strangers:** a new persona every match, profile carried over anyway — the learned profile is
+  always the wrong person's. Expect ≈ no change in win rate or accuracy: tests the cap and
+  shrinkage directly.
+- **Plain Master in seat 0:** learning ON vs OFF. If Master's own measured signal honesty differs
+  from the hand-tuned defaults, learning may even help here — a finding about the defaults
+  themselves (0b/0c territory), not harm.
+
+**Where it lives:** `tools/personas.js`, harness-only. If UX-C (named AI personalities) goes
+ahead, the habit layer moves to `docs/js/ai/` and becomes the in-app personalities. Still to add
+for the 0h tests themselves: carrying the phase-1 profile across a season, and the
+strangers protocol.
+
+**Side finding — Master's randomness setting does nothing.** `main.js` sets
+`randomizeTolerance = 5` for Master, meant to vary its moves among those within 5 points of the
+best. But the ISMCTS pick is scored 1e6 (`SmartAI.chooseMove`, the v1.2.1 hotfix) while every
+other move keeps its static score (≈ −50…150), so the band only ever contains the search's pick.
+Master's only variety is the search's own sampling noise. Hence the persona lapses act on the
+search's visit counts instead, and the "harness/production parity" backlog item's premise
+(master differs between harness and production) has no effect on play.
+
+**Mario's answers (2026-10-28):**
+1. *Habits the trait list misses* — holding back a strong suit (4+) early and not opening with its
+   double → added as `holdBack`.
+2. *Placeholder population values* — plausible; they are the starting point.
+3. *Your "matched Genín or came close" figure* — **73%** lifetime (Stats → Agreement Rate). The
+   lapse target. Caveat: following advice Genín showed is always graded Optimal, so turns where
+   Mario asked Genín pull the figure up — his unaided agreement is likely somewhat lower. *Update:*
+   most of it was graded before v1.9.0's simulation grading, so it isn't on today's scale — see
+   "Built and validated" above.
+4. *Persona brains* — some players implicitly play at Experienced level → keep the 80% Master /
+   20% Experienced split as the starting point, tuned with the agreement anchor.
 
 ---
 
