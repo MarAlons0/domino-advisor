@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.14.0',
+        'app.version': 'v1.15.0',
         'app.createdBy': 'Created by',
 
         // Players
@@ -293,7 +293,7 @@ export const translations = {
         'help.settings.title': 'Settings, Language &amp; Stats',
         'help.settings.difficulty': '<strong>AI strength</strong> - In Settings (⚙), set each AI player — your partner and both opponents — to Beginner, Experienced or Master. With friends, the host sets the AI seats in the room.',
         'help.settings.language': '<strong>Language</strong> - Tap <em>EN / ES</em> at the top to switch between English and Spanish.',
-        'help.settings.stats': '<strong>Stats &amp; badges</strong> - Tap the trophy for your lifetime results — matches, hands, cerrados, your agreement with Genín — and the badges you\'ve earned. Matches with friends count too.',
+        'help.settings.stats': '<strong>Stats &amp; badges</strong> - Tap the trophy for your lifetime results — matches, hands, cerrados, your agreement with Genín — and the badges you\'ve earned. Matches with friends count too. <em>Reset stats</em> at the bottom starts the count over; badges stay.',
         'help.about.title': 'About the Game',
         'help.multiplayer.title': 'Play with Friends',
         'help.multiplayer.create': '<strong>Create a room</strong> - Tap the two-people icon (👥) at the top, enter your name and tap <em>Create a room</em>. You get a 6-character room code and an invite link. The name is yours (what the others see); rooms don\'t have names.',
@@ -551,6 +551,9 @@ export const translations = {
         'stats.section.cerrado': 'Cerrado',
         'stats.section.coaching': 'Coaching',
         'stats.section.badges': 'Badges',
+        'stats.reset': 'Reset stats',
+        'stats.reset.confirm': 'Tap again to reset (badges are kept)',
+        'stats.since': 'Counting since {0}',
         'stats.matches.played': 'Played',
         'stats.matches.won': 'Won',
         'stats.matches.lost': 'Lost',
@@ -624,7 +627,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.14.0',
+        'app.version': 'v1.15.0',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -910,7 +913,7 @@ export const translations = {
         'help.settings.title': 'Configuración, idioma y estadísticas',
         'help.settings.difficulty': '<strong>Fuerza de la IA</strong> - En Configuración (⚙), pon a cada jugador de la IA — tu pareja y los dos rivales — en Principiante, Experimentado o Maestro. Con amigos, el anfitrión elige los asientos de la IA en la sala.',
         'help.settings.language': '<strong>Idioma</strong> - Toca <em>EN / ES</em> arriba para cambiar entre inglés y español.',
-        'help.settings.stats': '<strong>Estadísticas e insignias</strong> - Toca el trofeo para ver tus resultados de siempre — partidas, manos, cerrados, tu coincidencia con Genín — y las insignias que has ganado. Las partidas con amigos también cuentan.',
+        'help.settings.stats': '<strong>Estadísticas e insignias</strong> - Toca el trofeo para ver tus resultados de siempre — partidas, manos, cerrados, tu coincidencia con Genín — y las insignias que has ganado. Las partidas con amigos también cuentan. <em>Reiniciar estadísticas</em>, al final, empieza la cuenta de nuevo; las insignias se quedan.',
         'help.about.title': 'Sobre el Juego',
         'help.multiplayer.title': 'Jugar con amigos',
         'help.multiplayer.create': '<strong>Crear una sala</strong> - Toca el ícono de dos personas (👥) arriba, escribe tu nombre y toca <em>Crear una sala</em>. Recibes un código de sala de 6 caracteres y un enlace de invitación. El nombre es el tuyo (el que ven los demás); las salas no llevan nombre.',
@@ -1168,6 +1171,9 @@ export const translations = {
         'stats.section.cerrado': 'Cerrado',
         'stats.section.coaching': 'Entrenamiento',
         'stats.section.badges': 'Insignias',
+        'stats.reset': 'Reiniciar estadísticas',
+        'stats.reset.confirm': 'Toca de nuevo para reiniciar (las insignias se conservan)',
+        'stats.since': 'Contando desde el {0}',
         'stats.matches.played': 'Jugadas',
         'stats.matches.won': 'Ganadas',
         'stats.matches.lost': 'Perdidas',

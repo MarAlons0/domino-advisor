@@ -1,5 +1,5 @@
 import { BADGES } from '../stats/BadgeSystem.js';
-import { t } from '../i18n/i18n.js';
+import { i18n, t } from '../i18n/i18n.js';
 
 export class StatsUI {
     constructor(playerStats) {
@@ -23,6 +23,10 @@ export class StatsUI {
         if (closeBtn) closeBtn.addEventListener('click', () => this.hide());
         if (this.overlay) this.overlay.addEventListener('click', () => this.hide());
 
+        // Two taps to reset: the first arms the button for a few seconds.
+        this.resetBtn = document.getElementById('stats-reset-btn');
+        if (this.resetBtn) this.resetBtn.addEventListener('click', () => this._onReset());
+
         this.isInitialized = true;
     }
 
@@ -34,8 +38,29 @@ export class StatsUI {
     }
 
     hide() {
+        this._disarmReset();
         if (this.modal) this.modal.classList.remove('visible');
         if (this.overlay) this.overlay.classList.remove('visible');
+    }
+
+    _onReset() {
+        if (!this._resetTimer) {
+            this.resetBtn.textContent = t('stats.reset.confirm');
+            this.resetBtn.classList.add('armed');
+            this._resetTimer = setTimeout(() => this._disarmReset(), 4000);
+            return;
+        }
+        this._disarmReset();
+        this._render(this.playerStats.reset());
+    }
+
+    _disarmReset() {
+        clearTimeout(this._resetTimer);
+        this._resetTimer = null;
+        if (this.resetBtn) {
+            this.resetBtn.textContent = t('stats.reset');
+            this.resetBtn.classList.remove('armed');
+        }
     }
 
     _render(stats) {
@@ -49,6 +74,15 @@ export class StatsUI {
         }
         if (empty) empty.style.display = 'none';
         if (body) body.style.display = 'block';
+
+        const since = document.getElementById('stats-since');
+        if (since) {
+            since.style.display = stats.since ? 'block' : 'none';
+            if (stats.since) {
+                const date = new Date(stats.since).toLocaleDateString(i18n.currentLanguage, { day: 'numeric', month: 'short', year: 'numeric' });
+                since.textContent = t('stats.since', date);
+            }
+        }
 
         this._renderMatches(stats.matches);
         this._renderHands(stats.hands);

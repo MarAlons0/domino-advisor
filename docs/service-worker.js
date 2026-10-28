@@ -1,5 +1,5 @@
 // Update CACHE_NAME whenever the app version bumps (keep in sync with index.html and translations.js)
-const CACHE_NAME = '7fichas-v1.14.0';
+const CACHE_NAME = '7fichas-v1.15.0';
 
 const CORE_ASSETS = [
     './',

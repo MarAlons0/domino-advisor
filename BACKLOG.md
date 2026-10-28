@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-28 (match-score-aware Master shipped as v1.14.0)_
+_Last updated: 2026-10-28 (stats reset shipped as v1.15.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -39,6 +39,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Reset stats** — two-tap reset at the bottom of Stats; badges kept, "Counting since" date shown — v1.15.0
 - [x] **Match-score-aware ISMCTS reward (0g.3b)** — Master judges each hand by the chance of winning the match from the score it leaves (safe at match point, gambles when far behind); 56.0% (CI 53.8–58.2) vs the v1.3.0 reward; Genín unchanged — v1.14.0
 - [x] **Help index** — "How do I…?" question index that jumps to the answer, "?" buttons that open Help at the right section, and the missing / wrong Help content fixed (cerrado scoring, grades, table moments, debrief) — v1.13.0
 - [x] **Multiplayer game** — play with friends, 2–4 people on their own devices, partners or opponents, AI in empty seats, on Cloudflare's free plan ([design](docs/MULTIPLAYER.md)): rooms, invite link, secret hands, reconnect (v1.10.0); Genín for each player (v1.11.0); everyone-taps rematch, quick reactions, optional turn timer — v1.12.0

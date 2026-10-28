@@ -3,6 +3,11 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.15.0] – 2026-10-28
+
+### Added
+- **Reset stats.** A button at the bottom of the Stats screen starts the count over: matches, hands, cerrados, Genín agreement and quizzes go back to zero, and earned badges are kept. It takes two taps; the first arms it for 4 seconds ("Tap again to reset (badges are kept)"). After a reset, Stats shows "Counting since <date>" at the top. Useful for measuring your agreement with Genín under today's grading, which has scored Master plays by simulated win rate only since v1.9.0. Help mentions it under Stats & badges.
+
 ## [1.14.0] – 2026-10-28
 
 ### Changed

@@ -3440,6 +3440,38 @@ button:disabled {
     margin-bottom: 24px;
 }
 
+.stats-since {
+    color: #888;
+    font-size: 0.8rem;
+    margin: 0 0 12px 0;
+}
+
+.stats-reset {
+    text-align: center;
+    margin-top: 8px;
+}
+
+.stats-reset-btn {
+    background: none;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: #888;
+    font-size: 0.8rem;
+    padding: 8px 14px;
+    cursor: pointer;
+}
+
+.stats-reset-btn:hover {
+    background: none;
+    color: #ccc;
+    border-color: #666;
+}
+
+.stats-reset-btn.armed {
+    color: #ff6b6b;
+    border-color: #ff6b6b;
+}
+
 .stats-section h3 {
     color: #00d4ff;
     font-size: 0.85rem;

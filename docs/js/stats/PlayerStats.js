@@ -4,6 +4,7 @@ const STORAGE_KEY = '7fichas_stats';
 
 const DEFAULT_STATS = {
     version: 1,
+    since: null, // timestamp of the last reset; null = counting since first play
     matches: {
         played: 0, won: 0, lost: 0,
         currentStreak: 0, bestWinStreak: 0,
@@ -68,6 +69,18 @@ export class PlayerStats {
 
     get() {
         if (!this._stats) this.load();
+        return this._stats;
+    }
+
+    /**
+     * Start the count over. Earned badges are kept.
+     */
+    reset() {
+        const badges = this.get().badges;
+        this._stats = JSON.parse(JSON.stringify(DEFAULT_STATS));
+        this._stats.badges = badges;
+        this._stats.since = Date.now();
+        this.save(this._stats);
         return this._stats;
     }
 
