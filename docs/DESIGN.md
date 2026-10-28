@@ -387,10 +387,24 @@ roadmap (July 2026 exploration):
    rates and the 5/15-point grade bands were calibrated on that scale. Moving him to `match`
    would mean rewording to "chance of winning the match" and re-checking the bands (early-match
    errors would shrink, late-match ones grow).
-5. **Determinization distribution A/B** — uniform vs. affinity-weighted sampling (proposed in 0f,
-   never run; the leak fix removes the contamination that would have muddied it). Revives the
-   strength value of 0b (end-choice inference) and 0c Phase 2: sharper affinities now have a
-   direct consumer in the search.
+5. ✅ **Determinization distribution A/B** (run 2026-10-28; harness variant `flat-sampling`,
+   flag `PlayerView.useAffinitySampling`). The flat arm draws holders with equal weight, so deals
+   reflect only the hard constraints (played tiles, passes, tile counts); it also flattens the MC
+   marginals, which come from the same sampler. Flat greedy sampling is uniform in practice:
+   across 40 mid-hand positions its marginals sat 0.004 (mean |ΔP|) from an exact rejection
+   sampler, the size of the Monte Carlo noise, while the affinities moved them 0.019 (max 0.09).
+   - Master vs Master, `flat-sampling` challenger: **47.9% ± 2.2%** (2,000 matches, CI
+     45.8–50.1; seats 50.0/45.9). The affinities are worth about +2 points.
+   - Hand-reading (Brier, ~2.3M predictions per arm, Master play): affinity **0.2066** vs flat
+     **0.2085** (shard noise ≈ 0.001); the gap peaks mid-hand at 0.004 (12–19 tiles played).
+     Against the trivial 1/3 baseline (~0.222), the hard constraints deliver ~88% of the
+     improvement and the affinities ~12%.
+   - Against personas (opponents flat vs current on alternate matches, 900 matches): opponents
+     win 68.0% flat vs 71.8% current (−3.8 ± 6.0) — same direction, so affinities tuned on
+     AI play don't mislead against human-like play.
+   **Keep affinity-weighted sampling** (no change). The affinity layer is a small, real edge;
+   0b and 0c Phase 2 can only sharpen that ~2-point layer, and 0h phase 1 (per-human
+   calibration of the same multipliers) can only win back part of it — see the 0h section.
 6. **Longer shots** — tree reuse between consecutive moves; per-move time budget instead of fixed
    iterations; MAST-style rollout learning; a learned (DNN) rollout policy as the natural entry
    point for the backlog DNN item, trained on harness self-play.
@@ -561,6 +575,12 @@ off-pick rate.
   evidence.** Matches won while winning fewer hands are rare (1–3% of wins), so a gap between
   overall match and hand rates comes from how the matches split — close wins, lopsided losses —
   not from winning matches on fewer hands.
+
+**Size of the prize (0g.5, 2026-10-28).** The whole affinity layer that phase 1 recalibrates is
+worth about +2 points of match win rate for Master and 0.002 of Brier (0.004 mid-hand); the hard
+constraints do ~88% of the hand-reading. Per-human calibration can only improve on part of that,
+so expect a light effect — as intended — and judge phase 1 by Brier on the human's tiles from the
+opponents' views, not by win rate, which would need tens of thousands of matches to see it.
 
 **Persona sanity checks** (before any 0h test): realized trait rates match drawn values;
 agreement-with-Genín lands near the human's figure; win rate against Master teams is plausible

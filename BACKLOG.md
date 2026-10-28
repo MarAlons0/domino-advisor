@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-28 (stats reset shipped as v1.15.0)_
+_Last updated: 2026-10-28 (0g.5 sampling A/B done; stats reset shipped as v1.15.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -9,7 +9,6 @@ _Nothing open — next items come from Medium._
 ## 🟡 Medium
 - [ ] **Learn the human's style of play and adapt to it (0h)** — build a per-player profile of how each human plays (closing, blocking, suit signaling, doubles timing) across their matches, and have the AI adapt to it instead of assuming a generic opponent. Like 0g.3b, it makes the Master search less one-size-fits-all. See [docs/DESIGN.md](docs/DESIGN.md). `[idea]`
   - Test personas built in the harness (`--persona`, tools/personas.js); phase 1 itself not built yet. Design: phase 1 = light-touch calibration of how much the human's signals reveal (shrunk, capped, single player); tested against human-like harness "personas" (population → player → match drift → move lapses). Mario's answers recorded at the end of the 0h section in [docs/DESIGN.md](docs/DESIGN.md) (anchors: Genín Agreement Rate 73% over 7 matches; 4 of 7 matches and 47% of hands vs Master — personas win 44% of hands, plain Master 51%).
-- [ ] **Determinization distribution A/B (0g.5)** — uniform vs. affinity-weighted sampling, now uncontaminated by the v1.2.6 leak fix. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **PWA (installable app)** — service worker + manifest for home-screen install / offline. `[feature]`
 - [ ] 🚧 **Quantify tile-probability predictions at scale (0c)** — Phase 1 (instrumentation) done; Phase 2 (layer attribution) pending. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **AI enhancements (0)** — validate any weight/strategy change with the A/B tournament harness. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
@@ -39,6 +38,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Determinization distribution A/B (0g.5)** — affinity-weighted sampling stays: worth ~+2 points vs flat/uniform (47.9%, CI 45.8–50.1) and 12% of the hand-reading gain; harness variant `flat-sampling` (no release). See [docs/DESIGN.md](docs/DESIGN.md).
 - [x] **Reset stats** — two-tap reset at the bottom of Stats; badges kept, "Counting since" date shown — v1.15.0
 - [x] **Match-score-aware ISMCTS reward (0g.3b)** — Master judges each hand by the chance of winning the match from the score it leaves (safe at match point, gambles when far behind); 56.0% (CI 53.8–58.2) vs the v1.3.0 reward; Genín unchanged — v1.14.0
 - [x] **Help index** — "How do I…?" question index that jumps to the answer, "?" buttons that open Help at the right section, and the missing / wrong Help content fixed (cerrado scoring, grades, table moments, debrief) — v1.13.0
