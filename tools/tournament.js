@@ -24,6 +24,7 @@ const { PlayerView } = await import('../docs/js/ai/PlayerView.js');
 const { Rules } = await import('../docs/js/engine/Rules.js');
 const { Tile } = await import('../docs/js/models/Tile.js');
 const { Hand } = await import('../docs/js/models/Hand.js');
+const { HABITS, drawPersona, PersonaPlayer, reportPersonas } = await import('./personas.js');
 
 // Max-disparity 50/118 deal. There are SIX distinct 14-tile partitions that achieve
 // the maximum pip total of 118, because the top-14 set by pip count contains a tie
@@ -50,7 +51,7 @@ const MAX_DISPARITY_PIP6 = [
 const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind'];
 
 function parseArgs(argv) {
-    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, variant: 'mc-pass', allVariant: null };
+    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, persona: false, personas: 10, season: 10, personaSeed: 1, personaNoise: null, personaPlain: false, variant: 'mc-pass', allVariant: null };
     for (let i = 2; i < argv.length; i++) {
         const a = argv[i];
         if (a === '--games') opts.games = parseInt(argv[++i], 10);
@@ -68,6 +69,12 @@ function parseArgs(argv) {
         else if (a === '--random-losers') opts.randomLosers = true;
         else if (a === '--force-cerrar') opts.forceCerrar = true;
         else if (a === '--hand-points') opts.handPoints = true;
+        else if (a === '--persona') opts.persona = true;
+        else if (a === '--personas') opts.personas = parseInt(argv[++i], 10);
+        else if (a === '--season') opts.season = parseInt(argv[++i], 10);
+        else if (a === '--persona-seed') opts.personaSeed = parseInt(argv[++i], 10);
+        else if (a === '--persona-noise') opts.personaNoise = parseFloat(argv[++i]);
+        else if (a === '--persona-plain') opts.personaPlain = true;
         else if (a === '--help' || a === '-h') {
             console.log('Usage: node tools/tournament.js [--games N] [--difficulty LEVEL] [--ab] [--variant NAME] [--instrument] [--verbose]');
             console.log('  --ab            Champion (current code) vs Challenger (a variant). Challenger');
@@ -106,6 +113,12 @@ function parseArgs(argv) {
             console.log('  --force-cerrar  Seats 0, 2 take any move that closes the chain (cerrar)');
             console.log('                  ahead of master AI strategy. Removes "did team A even try');
             console.log('                  to close?" as a confound from max-haul measurements.');
+            console.log('  --persona       Seat 0 is a human-like persona (tools/personas.js, BACKLOG 0h):');
+            console.log('                  habits, match drift, lapses, tilt; graded by the app\'s own');
+            console.log('                  Genín grading. --personas M players × --season K matches each');
+            console.log('                  (replaces --games); --persona-seed S picks the population draw;');
+            console.log('                  --persona-noise X fixes every persona\'s judgement noise (calibration);');
+            console.log('                  --persona-plain = control: Master brain, no habits, ~no noise.');
             console.log('  --hand-points   Report the distribution of points per hand (decided hands +');
             console.log('                  ties). Source data for the match-equity table in');
             console.log('                  docs/js/ai/MatchEquity.js (BACKLOG 0g.3b).');
@@ -361,8 +374,9 @@ function initTrackersForHand(handTracker, playerViews, state) {
     }
 }
 
-function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, pipAcc = null, cerradoAcc = null, cooperativeLosers = false, maxDisparityDeals = false, randomLosers = false, forceCerrar = false }) {
+function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, pipAcc = null, cerradoAcc = null, cooperativeLosers = false, maxDisparityDeals = false, randomLosers = false, forceCerrar = false, personaPlayer = null }) {
     const { game, ai, handTracker, playerViews } = setupMatch(difficulty, challengerSeats, variant, allVariant);
+    if (personaPlayer) personaPlayer.startMatch(ai);
     // Track each player's most recent decision so a close can be classified as
     // deliberate (had ≥2 legal moves) vs forced (closing tile was the only move).
     const lastDecision = [null, null, null, null];
@@ -379,6 +393,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
     let totalPasses = 0;
 
     game.onHandEnd = (data) => {
+        if (personaPlayer) personaPlayer.onHandEnd(data);
         handResults.push({
             reason: data.reason,
             winningTeam: data.winningTeam,
@@ -482,8 +497,10 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
             const useRandom = randomLosers && isTeamB;
             const useCooperative = !useRandom && cooperativeLosers && isTeamB;
             const useForceCerrar = forceCerrar && isTeamA;
+            const usePersona = personaPlayer && state.currentPlayer === personaPlayer.seat;
             let move;
-            if (useRandom) move = chooseMoveRandom(state, state.currentPlayer);
+            if (usePersona) move = personaPlayer.choose(state);
+            else if (useRandom) move = chooseMoveRandom(state, state.currentPlayer);
             else if (useCooperative) move = chooseMoveCooperative(state, state.currentPlayer);
             else if (useForceCerrar) move = chooseMoveForceCerrar(ai, state, state.currentPlayer);
             else move = ai.chooseMove(state, state.currentPlayer);
@@ -494,7 +511,14 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
                 game.pass();
                 totalPasses++;
             } else {
-                game.playTurn(move.tile, move.end, { reasoning: move.reasoning });
+                // A persona's play is graded the way the app grades the human's:
+                // Genín's 2,000-iteration search, no advice shown.
+                const analysis = usePersona ? ai.analyzeHumanTurn(state, state.currentPlayer, move, null) : null;
+                game.playTurn(move.tile, move.end, {
+                    reasoning: move.reasoning,
+                    aiRecommendation: analysis?.recommendation ?? null,
+                    turnAnalysis: analysis,
+                });
                 totalMoves++;
             }
         } else if (state.gamePhase === 'handOver') {
@@ -512,6 +536,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
     if (matchResult === null) {
         throw new Error(`Match did not terminate within ${MAX_TICKS} ticks`);
     }
+    if (personaPlayer) personaPlayer.endMatch(matchResult.winner, game.getMatchHistory());
 
     if (verbose) {
         const tag = challengerTeam !== null
@@ -1199,6 +1224,13 @@ function reportMaxCerrado(acc, totalHands, opts) {
 }
 
 const opts = parseArgs(process.argv);
+// --persona: M players, each for a season of K matches in a row.
+const personaPlayers = opts.persona
+    ? Array.from({ length: opts.personas }, (_, k) => new PersonaPlayer(drawPersona(opts.personaSeed * 1000 + k, opts.personaPlain
+        ? { brain: 'master', habits: Object.fromEntries(HABITS.map(n => [n, 0])), noise: 0.01 }
+        : opts.personaNoise != null ? { noise: opts.personaNoise } : {})))
+    : null;
+if (personaPlayers) opts.games = opts.personas * opts.season;
 console.log(`Running ${opts.games} matches at difficulty=${opts.difficulty}${opts.ab ? ` (A/B: ${opts.variant})` : ''}${opts.allVariant ? ` (all-seats: ${opts.allVariant})` : ''}${opts.instrument ? ' (instrumented)' : ''}${opts.probAccuracy ? ' (prob-accuracy)' : ''}${opts.pipAccuracy ? ' (pip-accuracy)' : ''}${opts.maxCerrado ? ' (max-cerrado)' : ''}${opts.cooperativeLosers ? ' (coop-losers)' : ''}${opts.maxDisparityDeals ? ' (max-disparity)' : ''}...`);
 
 const matches = [];
@@ -1228,12 +1260,14 @@ for (let i = 0; i < opts.games; i++) {
     if (opts.maxDisparityDeals) perMatchOpts = { ...perMatchOpts, maxDisparityDeals: true };
     if (opts.randomLosers) perMatchOpts = { ...perMatchOpts, randomLosers: true };
     if (opts.forceCerrar) perMatchOpts = { ...perMatchOpts, forceCerrar: true };
+    if (personaPlayers) perMatchOpts = { ...perMatchOpts, personaPlayer: personaPlayers[Math.floor(i / opts.season)] };
     matches.push(runMatch(perMatchOpts));
 }
 const elapsed = (Date.now() - start) / 1000;
 console.log(`\nCompleted in ${elapsed.toFixed(1)}s (${(elapsed / opts.games).toFixed(2)}s per match)`);
 
 report(aggregate(matches), opts);
+if (personaPlayers) reportPersonas(personaPlayers);
 if (opts.ab) reportAB(matches, opts.variant);
 if (opts.instrument) reportInstrumentation(decisions);
 if (opts.instrument) reportClosing(closes);
