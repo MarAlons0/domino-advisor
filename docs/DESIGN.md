@@ -140,7 +140,7 @@ End-choice inference cannot be done per-player in isolation. Playing on the part
 ---
 
 ### 0c. Quantify Tile Probability Predictions at Scale
-**Status:** In progress — Phase 1 (instrumentation + baseline) complete; Phase 2 (layer attribution) pending.
+**Status:** Phase 1 (instrumentation + baseline) and Phase 2 (layer attribution, 2026-10-28) complete; Phase 3 optional.
 **Priority:** Medium-High
 **Complexity:** Low–Medium
 **Depends on:** Existing `ProbabilityAnalyzer` (v0.4.1, Brier scoring); AI tournament harness (v1.1.0)
@@ -172,23 +172,60 @@ The v1.1.0 firme/dominance bug fixes were sanity-checked via win-rate A/Bs but i
 - Calibration curve shows a structural under-confidence in the 50–90% range: across four consecutive bins, the AI's predictions are ~+0.02 lower than reality (predicts 70%, actual 76%). Drift direction is consistent and the magnitude is well above SE at N=438K predictions across that range. The 0–30% bins show small over-confidence (~−0.01).
 - 57% of all predictions land in the 30–40% bin — the "weak evidence" zone. Pushing predictions *out* of this bin (sharper inference signals) is where future Brier gains live.
 
-**Phase 2 — Layer attribution (pending):**
-Decompose the Brier and calibration drift across the three inference layers to attribute the source:
-1. `HandTracker` raw N/M (no normalization, no affinity, constraint-propagation only)
-2. `PlayerView._heuristicProbability` (affinity-adjusted, per-tile normalized, no MC)
-3. `PlayerView` MC marginals (500-sample averaged)
+**Phase 2 — Layer attribution (done 2026-10-28):**
+Harness mode `--prob-layers` (with `--prob-out` / `--prob-merge` for parallel shards) scores every
+prediction at each layer, so all layers are compared on identical positions. Run: 500 Master
+self-play matches, 15.0M predictions per layer; per-shard step sizes agree within ~0.0002.
+(`HandTracker`'s own N/M was dropped as a layer: the tracker is shared by all seats and knows the
+human's hand, so it is not any one viewer's belief. Its view-correct form is the `passes` layer.)
 
-Implementation: extend `captureProbSnapshot` in the harness to call each layer separately and accumulate Brier per layer. Knowing whether the +0.02 drift comes from affinity over-pulling toward the mean, MC sampling noise, or constraint propagation tells us whether to recalibrate post-hoc (cheap, no architectural change) or fix the layer (more principled).
+| Layer | Brier | Log-loss | Step | Share |
+|---|---|---|---|---|
+| Uniform 1/3 (no information) | 0.2222 | 0.6365 | | |
+| Tile counts | 0.2199 | 0.6312 | +0.0023 | 14% |
+| Passes, one tile at a time (N/M over allowed holders) | 0.2091 | 0.6016 | +0.0108 | 66% |
+| Sampled deals, passes only (passes solved jointly) | 0.2085 | 0.5994 | +0.0006 | 4% |
+| Sampled deals + suit signals (raw MC marginals) | 0.2059 | 0.5935 | +0.0026 | 16% |
+| + Platt calibration (`getProbability`, what the AI uses) | 0.2059 | 0.5934 | +0.0000 | 0% |
+| *Side branch:* passes + suit signals, one tile at a time (`_heuristicProbability`) | 0.2062 | 0.5950 | | |
 
-**Phase 3 — Refinements (later):**
+Findings:
+- **Passes are the backbone** — two-thirds of all hand-reading. Tile counts add 14%, the suit
+  signals 16%; solving the passes jointly (sampling whole deals instead of one tile at a time)
+  only 4%.
+- **The one-tile-at-a-time fallback is nearly as good overall** (0.2062 vs 0.2059). Sampling
+  earns its keep late in the hand, where the constraints interlock (20–23 tiles played: 0.1594 vs
+  0.1641; 24–27: 0.1511 vs 0.1615), and is a hair worse early (0–7 tiles: +0.0003). ISMCTS needs
+  whole deals anyway, so nothing to change.
+- **Where the Phase 1 drift came from: the suit signals are too timid.** Sampling on passes alone
+  is well calibrated (drift within ±0.011 in every bin). Adding the affinities makes the marginals
+  under-confident — observed minus predicted −0.012 at 10–20%, +0.02 across 50–90%. The signals
+  point the right way but are not trusted enough. The one-tile-at-a-time layers are far worse
+  calibrated (up to +0.12), because one-at-a-time N/M ignores how passes interlock.
+- **Platt calibration fixes the drift but is worth ~0 Brier.** After it, every bin is within
+  ±0.007. The fix changes little because the drift sits in sparse bins and 76% of predictions are
+  in 20–40%. A refit on today's sampler (a = 1.091, b = 0.058, vs 1.10 / 0.04) would gain 0.0001
+  Brier, so the curve stays.
+- Late in the hand, predictions about the partner are less sharp than about the opponents (20–23
+  tiles: 0.1637 vs 0.1573), presumably because opponents pass more. Earlier in the hand they are
+  equal, as Phase 1 found.
+- The samplers never came up short (0.0% of 398K view snapshots under 50 deals).
+
+**Implication.** A post-hoc curve is the wrong tool for the remaining drift, because the
+miscalibration belongs to the signal layer. The lever is the signal strength itself: for example,
+sample with `affinity^k`, k > 1, and measure Brier, calibration and win rate. This is the same
+quantity 0h phase 1 calibrates per human, so a global `k` measured here is also the population
+prior for that work.
+
+**Phase 3 — Refinements (optional):**
 - Per-tile-type splits (doubles vs non-doubles).
-- Per-viewer-side splits (seat 0 has full info on own hand; seats 1–3 are symmetric — measure whether seat 0 is meaningfully sharper or not).
-- Trivial baselines computed in the harness (uniform 1/3, tile-count proportional) for direct comparison.
+- Per-viewer-side splits (seat 0 has full info on own hand; seats 1–3 are symmetric — measure whether seat 0 is meaningfully sharper or not). 0h needs the seat-0 split anyway (Brier on the human's tiles).
+- ~~Trivial baselines (uniform 1/3, tile-count proportional)~~ — done in Phase 2.
 
 ---
 
 ### 0e. Calibration Recalibration for Tile Probabilities
-**Status:** Done — shipped in v1.1.1. See CHANGELOG for details.
+**Status:** Done — shipped in v1.1.1. See CHANGELOG for details. Re-checked 2026-10-28 (0c Phase 2): a refit on the current sampler (a = 1.091, b = 0.058) would gain 0.0001 Brier, so the fitted curve stays.
 **Priority:** Medium
 **Complexity:** Low
 **Depends on:** 0c Phase 1 (the calibration data)
@@ -581,6 +618,9 @@ worth about +2 points of match win rate for Master and 0.002 of Brier (0.004 mid
 constraints do ~88% of the hand-reading. Per-human calibration can only improve on part of that,
 so expect a light effect — as intended — and judge phase 1 by Brier on the human's tiles from the
 opponents' views, not by win rate, which would need tens of thousands of matches to see it.
+0c Phase 2 (same day) adds that even against AI players the signals are under-trusted: the
+affinity layer leaves the marginals under-confident (+0.02 across 50–90%). A global signal-strength
+fix belongs before, or as the prior of, any per-human one.
 
 **Persona sanity checks** (before any 0h test): realized trait rates match drawn values;
 agreement-with-Genín lands near the human's figure; win rate against Master teams is plausible
