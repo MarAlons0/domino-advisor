@@ -538,11 +538,29 @@ off-pick rate.
 - *Agreement saturates under today's grading:* the population agrees **87%** (per persona 79–94%,
   median 86%); even at noise 15 agreement stays ~83–85%. Moves off the brain's pick still grade
   good 77–82% of the time — many positions have several moves within the 5-point band.
-- *So 73% isn't on the same scale:* lifetime stats go back to v1.0.3, but Master plays have been
-  graded by simulated win rate only since v1.9.0 (2026-10-23). Before that, static-score grading
-  was much harsher (it agreed with the simulation on only 43% of deviations). **Needed:** a
-  current-scale anchor — the debrief Overview figure from matches played since 2026-10-23 — and
-  ideally Mario's win rate against Master opponents, which is the more sensitive anchor anyway.
+- *So 73% may not be on the same scale:* Master plays have been graded by simulated win rate only
+  since v1.9.0 (2026-10-23); before that, static-score grading was much harsher (it agreed with
+  the simulation on only 43% of deviations). Mario's lifetime figure covers just 7 matches, and
+  how many were played before v1.9.0 is unknown. If most came after, the gap to the population's
+  87% is real. The per-match figure is the debrief's top line at the end of each match ("You
+  matched Genín or came close on X% of your N decisions").
+- *Win-rate anchor (Mario, 2026-10-28):* all matches vs Master opponents, **4 of 7 matches (57%,
+  95% CI 18–90%) and 47% of hands** (≈ 50 hands, so ± 7 points). The hand rate is the sharper
+  anchor. Re-run with hand counts (same definition as Stats: a tie is played, not won):
+
+  | Seat 0 | Matches won | Hands won | Hands/match | Wins on fewer hands than the opponents |
+  |---|---|---|---|---|
+  | Persona population (80 × 10) | 31.5% | 44.3% of 5,924 | 7.4 | 3% of wins |
+  | Plain Master control (20 × 10) | 43.5% | 50.6% of 1,552 | 7.8 | 1% of wins |
+  | Mario | 4 of 7 | 47% | — | — |
+
+  Over a 100-point race, each point of hand win rate is worth ~2 points of match win rate, so 47%
+  of hands predicts ~37% of matches — Mario's 4–3 is ~1.5 matches above that, ordinary luck at 7
+  matches (a 33% player goes 4–3 or better 17% of the time). His hand rate sits between the
+  population and plain Master, within one standard error of the population: **no retuning on this
+  evidence.** Matches won while winning fewer hands are rare (1–3% of wins), so a gap between
+  overall match and hand rates comes from how the matches split — close wins, lopsided losses —
+  not from winning matches on fewer hands.
 
 **Persona sanity checks** (before any 0h test): realized trait rates match drawn values;
 agreement-with-Genín lands near the human's figure; win rate against Master teams is plausible
@@ -583,8 +601,8 @@ search's visit counts instead, and the "harness/production parity" backlog item'
 3. *Your "matched Genín or came close" figure* — **73%** lifetime (Stats → Agreement Rate). The
    lapse target. Caveat: following advice Genín showed is always graded Optimal, so turns where
    Mario asked Genín pull the figure up — his unaided agreement is likely somewhat lower. *Update:*
-   most of it was graded before v1.9.0's simulation grading, so it isn't on today's scale — see
-   "Built and validated" above.
+   it covers 7 matches, some possibly graded before v1.9.0's simulation grading — see "Built and
+   validated" above, with his win-rate anchor (4 of 7 matches, 47% of hands).
 4. *Persona brains* — some players implicitly play at Experienced level → keep the 80% Master /
    20% Experienced split as the starting point, tuned with the agreement anchor.
 
