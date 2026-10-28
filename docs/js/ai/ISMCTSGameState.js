@@ -7,6 +7,7 @@
 
 import { Rules } from '../engine/Rules.js';
 import { Hand } from '../models/Hand.js';
+import { matchEquity } from './MatchEquity.js';
 
 const PASS = 'pass';
 
@@ -20,6 +21,12 @@ const PASS = 'pass';
 // SCALE ≈ a large hand haul; margins are clamped to ±SCALE.
 const REWARD_ALPHA = 0.8;
 const REWARD_SCALE = 60;
+// Match-score-aware reward (BACKLOG 0g.3b): 'match' mode scores a finished
+// hand by the observer team's chance of winning the match from the match
+// score it leaves (see MatchEquity.js). Winning a hand by 20 lifts the match
+// odds from 50% to 61% at 0–0, ends the match at 90–40, and barely helps at
+// 20–85 — so the search plays safe at match point and takes risks for big
+// hauls when far behind.
 
 export class ISMCTSGameState {
     /**
@@ -30,13 +37,17 @@ export class ISMCTSGameState {
      * @param {PlayerView} opts.view         - that AI's PlayerView (used for sampling)
      * @param {HandTracker} opts.handTracker - shared tracker
      * @param {string|null} [opts.rewardShaping] - null for binary win/loss
-     *        (canonical), 'margin' for pip-margin-blended terminal values
+     *        (canonical), 'margin' for pip-margin-blended terminal values,
+     *        'match' for match-win probability after the hand
      */
     constructor({ realState, observerIndex, view, handTracker, rewardShaping = null }) {
         this.observerIndex = observerIndex;
         this.view = view;
         this.handTracker = handTracker;
         this.rewardShaping = rewardShaping;
+        // Match score before this hand. 'match-blind' (harness diagnostic)
+        // keeps the equity curve but pretends every hand is played at 0–0.
+        this.matchScores = rewardShaping === 'match-blind' ? [0, 0] : [...realState.scores.match];
         this.playerToMove = realState.currentPlayer;
         this.hands = realState.hands.map(h => h.clone());
         this.chain = realState.chain.clone();
@@ -60,6 +71,7 @@ export class ISMCTSGameState {
         c.view = this.view;
         c.handTracker = this.handTracker;
         c.rewardShaping = this.rewardShaping;
+        c.matchScores = this.matchScores; // never mutated, share
         c.playerToMove = this.playerToMove;
         c.chain = this.chain.clone();
         c.consecutivePasses = this.consecutivePasses;
@@ -135,8 +147,9 @@ export class ISMCTSGameState {
      * Result from the perspective of `player`. Binary mode (default):
      * 1 = their team won, 0 = lost, 0.5 = tied. 'margin' mode blends the
      * winner's actual point haul (losing team's remaining pips) into the
-     * terminal value — see REWARD_ALPHA/REWARD_SCALE. Must only be called
-     * at a terminal state.
+     * terminal value — see REWARD_ALPHA/REWARD_SCALE. 'match' mode returns
+     * the team's match-win probability after the hand's points are added.
+     * Must only be called at a terminal state.
      */
     getResult(player) {
         const myTeam = player % 2; // seats 0,2 = team 0; seats 1,3 = team 1
@@ -150,11 +163,17 @@ export class ISMCTSGameState {
         }
         const team0Pips = this.hands[0].pipCount() + this.hands[2].pipCount();
         const team1Pips = this.hands[1].pipCount() + this.hands[3].pipCount();
-        if (winnerTeam === -1) {
+        if (winnerTeam === -1 && team0Pips !== team1Pips) {
             // Blocked (or closed): lower team pip total wins.
-            if (team0Pips === team1Pips) return 0.5;
             winnerTeam = team0Pips < team1Pips ? 0 : 1;
         }
+        if (this.rewardShaping === 'match' || this.rewardShaping === 'match-blind') {
+            // The winner scores the losing team's pips; a tie scores nothing.
+            const scores = [this.matchScores[0], this.matchScores[1]];
+            if (winnerTeam !== -1) scores[winnerTeam] += winnerTeam === 0 ? team1Pips : team0Pips;
+            return matchEquity(scores[myTeam], scores[1 - myTeam]);
+        }
+        if (winnerTeam === -1) return 0.5;
         const win = winnerTeam === myTeam ? 1 : 0;
         if (this.rewardShaping !== 'margin') return win;
         // Points the winner scores = losing team's remaining pips.

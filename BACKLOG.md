@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-25 (Help index shipped as v1.13.0)_
+_Last updated: 2026-10-28 (match-score-aware Master shipped as v1.14.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -7,7 +7,7 @@ _Last updated: 2026-10-25 (Help index shipped as v1.13.0)_
 _Nothing open — next items come from Medium._
 
 ## 🟡 Medium
-- [ ] **Match-score-aware ISMCTS reward (0g.3b)** — thread match score into `ISMCTSGameState` terminal values (play safe at match point, gamble when far behind). Follow-up to the shipped 0g.3/0g.4 margin reward. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
+- [ ] **Learn the human's style of play and adapt to it (0h)** — build a per-player profile of how each human plays (closing, blocking, suit signaling, doubles timing) across their matches, and have the AI adapt to it instead of assuming a generic opponent. Like 0g.3b, it makes the Master search less one-size-fits-all. See [docs/DESIGN.md](docs/DESIGN.md). `[idea]`
 - [ ] **Determinization distribution A/B (0g.5)** — uniform vs. affinity-weighted sampling, now uncontaminated by the v1.2.6 leak fix. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **PWA (installable app)** — service worker + manifest for home-screen install / offline. `[feature]`
 - [ ] 🚧 **Quantify tile-probability predictions at scale (0c)** — Phase 1 (instrumentation) done; Phase 2 (layer attribution) pending. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
@@ -37,6 +37,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Match-score-aware ISMCTS reward (0g.3b)** — Master judges each hand by the chance of winning the match from the score it leaves (safe at match point, gambles when far behind); 56.0% (CI 53.8–58.2) vs the v1.3.0 reward; Genín unchanged — v1.14.0
 - [x] **Help index** — "How do I…?" question index that jumps to the answer, "?" buttons that open Help at the right section, and the missing / wrong Help content fixed (cerrado scoring, grades, table moments, debrief) — v1.13.0
 - [x] **Multiplayer game** — play with friends, 2–4 people on their own devices, partners or opponents, AI in empty seats, on Cloudflare's free plan ([design](docs/MULTIPLAYER.md)): rooms, invite link, secret hands, reconnect (v1.10.0); Genín for each player (v1.11.0); everyone-taps rematch, quick reactions, optional turn timer — v1.12.0
 - [x] **Genín in multiplayer (part 2)** — advice, hand-end card and debrief at a multiplayer table, from each player's own information; coaching kept across a reload — v1.11.0

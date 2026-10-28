@@ -373,9 +373,20 @@ roadmap (July 2026 exploration):
    The two pure variants aren't statistically separable at N=500; pure-margin chosen on trend +
    principle (optimizes real points). P1 (winning move) kept as a shortcut. Experienced is
    unaffected. Harness variants `legacy-hybrid` / `reward-binary` reproduce the old configs.
-   *Still open from the original item 3:* **match-score-aware reward** (safe at match point,
-   gamble when far behind) — needs match score threaded into `ISMCTSGameState`; queued as a
-   follow-up (0g.3b).
+   ~~**Match-score-aware reward (0g.3b)**~~ *(shipped v1.14.0.)* Terminal value = the observer
+   team's match-win probability from the score the hand leaves (`MatchEquity.js`: a race to 100
+   where each hand is a coin flip worth points drawn from the measured distribution — 600 Master
+   self-play matches, 4,535 hands, mean 21, no ties). 2,000-match A/Bs:
+   - `reward-match` vs the v1.3.0 `margin` reward: **56.0% ± 2.2%** (CI 53.8–58.2, seats
+     57.6/54.4) — new default.
+   - `reward-match-blind` (same curve, every hand scored as if at 0–0) vs `match`:
+     **47.3% ± 2.2%** (CI 45.1–49.5). Reading the score is worth ~2–3 points by itself; the rest
+     of the gain is the heavier weight on points (at 0–0, +20 points ≈ +11 points of match
+     equity, against the margin reward's fixed 0.8 win / 0.2 points split).
+   Genín (advice, "Why?" win rates, grades) stays on `margin`: his percentages read as hand win
+   rates and the 5/15-point grade bands were calibrated on that scale. Moving him to `match`
+   would mean rewording to "chance of winning the match" and re-checking the bands (early-match
+   errors would shrink, late-match ones grow).
 5. **Determinization distribution A/B** — uniform vs. affinity-weighted sampling (proposed in 0f,
    never run; the leak fix removes the contamination that would have muddied it). Revives the
    strength value of 0b (end-choice inference) and 0c Phase 2: sharper affinities now have a
@@ -387,6 +398,38 @@ roadmap (July 2026 exploration):
 Also worth tracking: **Experienced** still runs the old MC-blend and inherits none of this. If
 the gap to Master grows too large, a reduced-iteration ISMCTS (100–200 iters) could become the
 new Experienced.
+
+---
+
+### 0h. Learn the Human's Style of Play and Adapt to It
+**Priority:** Medium (idea stage)
+**Complexity:** Medium–High
+**Depends on:** ISMCTS Master (0f/0g); benefits from 0g.5 (weighted determinizations)
+
+Today every AI assumes the same generic opponent: ISMCTS samples the human's hidden tiles as if
+any consistent deal were equally likely, and simulates the human's future moves at random. A
+human is not random. They have habits, and those habits are both readable (they leak information
+about the hand) and exploitable (they are predictable mistakes).
+
+**Learn (a per-player profile, stored with the player's stats):**
+- How often they close (*cerrar*) when they can, and at what pip edge.
+- How often they stay in their signaled suit vs. play the locally best tile.
+- When they dump doubles (early vs. late) and how they lead (strongest suit, highest double…).
+- Block vs. support: how often they cut the partner's suit to stop an opponent.
+
+**Adapt (candidate uses, cheapest first):**
+1. **Read the hand better** — weight determinizations by the profile (a player who always leads
+   from their strongest suit makes their lead more informative). Natural extension of 0g.5.
+2. **Predict their moves in the search** — replace random play for that seat in ISMCTS rollouts
+   with a profile-driven policy.
+3. **Exploit / complement** — opponents lean into the human's leaks (e.g. if they rarely close,
+   pip-heavy lines are safer); the human's AI partner could adapt to complement them.
+
+**Open questions:** how many hands before a profile is trustworthy (shrink toward the population
+prior until then); per-player profiles at a multiplayer table; whether to show the profile to
+the player as coaching ("you close only 30% of the time you could") — which overlaps Genín.
+Validation: the harness can't test this against real humans; use scripted "style bots" with
+known habits as stand-ins, then A/B the adapting AI against them.
 
 ---
 

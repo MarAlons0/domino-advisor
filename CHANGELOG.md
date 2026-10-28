@@ -3,6 +3,17 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.14.0] – 2026-10-28
+
+### Changed
+- **Master now plays the match, not just the hand (BACKLOG 0g.3b).** Master's search used to judge every simulated hand the same way at any score: win the hand, plus a little extra for points. It now judges each hand by the team's chance of winning the match from the score that hand leaves. Ahead 90–40, any win ends the match, so Master goes for the safest win. Behind 20–85, small wins barely help, so it takes risks for a big haul. And all match long it values points more, since points are what reach 100. In a 2,000-match A/B against the previous reward, it won **56.0% ± 2.2%** of matches (CI 53.8–58.2; 57.6% / 54.4% by seat assignment). This covers the AI partner and opponents at Master, and the AI seats at multiplayer tables.
+- **Genín is unchanged.** His advice, the "Why?" percentages and the play grades still use the hand-level reward, so his numbers still mean how often the hand was won and the 5 / 15-point grade bands keep their calibration.
+
+### Changed (internal)
+- New `ai/MatchEquity.js`: the chance of winning the race to 100 from any score, computed at load from the points-per-hand distribution of 600 Master self-play matches (4,535 hands, mean 21 points, no ties). `ISMCTSGameState` reads the match score from the game state and has a new reward mode, `'match'`, which is now the SmartAI default. Genín's searches run with `'margin'` (`COACH_REWARD_SHAPING`).
+- Isolation A/B: the same equity curve, but scoring every hand as if played at 0–0 (`reward-match-blind`), won only **47.3% ± 2.2%** (CI 45.1–49.5) against the score-aware default. Reading the match score is worth about 2–3 points of match win rate on its own; the rest of the gain comes from valuing points more throughout the match.
+- Harness: new `--hand-points` report; new variants `reward-match` and `reward-match-blind`; `reward-margin` now reproduces the v1.3.0 reward.
+
 ## [1.13.0] – 2026-10-25
 
 ### Added

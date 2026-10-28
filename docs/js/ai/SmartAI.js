@@ -8,6 +8,11 @@ import { t as tr } from '../i18n/i18n.js';
 // the AI's own (1000) so the win-rate grade is steadier (measured: fewer grade
 // changes on re-analysis) at ~+15 ms typical per play. See CHANGELOG 1.9.0.
 const GRADING_ITERATIONS = 2000;
+// Genín (advice, the "Why?" win rates, play grades) keeps the hand-level
+// 'margin' reward while Master plays 'match' (BACKLOG 0g.3b): his percentages
+// read as "how often the hand was won", and the 5/15-point grade thresholds
+// were calibrated on that scale.
+const COACH_REWARD_SHAPING = 'margin';
 import { MonteCarloEvaluator } from './MonteCarloEvaluator.js';
 import { Hand } from '../models/Hand.js';
 import { ismcts } from './ISMCTSEvaluator.js';
@@ -81,11 +86,15 @@ export class SmartAI {
         // Per-seat ISMCTS terminal reward shaping (BACKLOG 0g.3): 'margin'
         // blends the winner's point haul (losing team's remaining pips) into
         // terminal values so the search distinguishes winning by 60 from
-        // winning by 5; null is canonical binary win/loss. Default 'margin'
-        // as of v1.3.0 (with pure mode below: 58.8% CI 54.5-63.1 vs the
-        // v1.2.x hybrid in a 500-match A/B). Harness variant reward-binary
-        // reverts to null for A/Bs.
-        this.ismctsRewardShaping = ['margin', 'margin', 'margin', 'margin'];
+        // winning by 5; null is canonical binary win/loss. 'match' (BACKLOG
+        // 0g.3b) scores each hand by the team's match-win probability after
+        // it (MatchEquity.js), so the search reads the match score: safe at
+        // match point, gambling for big hauls when far behind. Default 'match'
+        // (56.0% CI 53.8-58.2 vs 'margin' in a 2,000-match A/B); 'margin' was
+        // the v1.3.0 default (with pure mode below: 58.8% CI 54.5-63.1 vs the
+        // v1.2.x hybrid). Harness variants reward-margin / reward-binary
+        // revert for A/Bs.
+        this.ismctsRewardShaping = ['match', 'match', 'match', 'match'];
         // Per-seat pure-ISMCTS mode (BACKLOG 0g.4): when true (and the seat is
         // master), the P2 cerrar / P3 block / P4 partner-support priorities are
         // skipped so the tree search evaluates those decisions itself — every
@@ -1488,13 +1497,14 @@ export class SmartAI {
      * main.js does not override it, so this call uses the master decision
      * path (ISMCTS in the fallback). The static scoreMove() result on the
      * chosen move is still computed for the explainer's factor breakdown.
+     * The search runs with Genín's reward (COACH_REWARD_SHAPING).
      *
      * @param {GameState} gameState - The current game state
      * @param {number} playerIndex - Which player to evaluate for
      * @returns {{tile: Tile, end: string, reasoning: string, score: number}|null}
      */
     getRecommendation(gameState, playerIndex) {
-        const move = this.chooseMove(gameState, playerIndex);
+        const move = this._asCoach(playerIndex, () => this.chooseMove(gameState, playerIndex));
         if (move === null) return null; // Must pass
         const score = this.scoreMove(move, gameState, playerIndex);
         return {
@@ -1509,17 +1519,32 @@ export class SmartAI {
     }
 
     /**
-     * chooseMove with the larger grading budget (GRADING_ITERATIONS). Only the
-     * ISMCTS (Master) path reads ismctsIterations; other levels are unaffected.
+     * chooseMove with the larger grading budget (GRADING_ITERATIONS) and
+     * Genín's reward. Only the ISMCTS (Master) path reads ismctsIterations;
+     * other levels are unaffected.
      * @private
      */
     _chooseMoveForGrading(gameState, playerIndex) {
         const saved = this.ismctsIterations;
         this.ismctsIterations = Math.max(saved, GRADING_ITERATIONS);
         try {
-            return this.chooseMove(gameState, playerIndex);
+            return this._asCoach(playerIndex, () => this.chooseMove(gameState, playerIndex));
         } finally {
             this.ismctsIterations = saved;
+        }
+    }
+
+    /**
+     * Run fn with the seat's ISMCTS reward set to Genín's (COACH_REWARD_SHAPING).
+     * @private
+     */
+    _asCoach(playerIndex, fn) {
+        const saved = this.ismctsRewardShaping[playerIndex];
+        this.ismctsRewardShaping[playerIndex] = COACH_REWARD_SHAPING;
+        try {
+            return fn();
+        } finally {
+            this.ismctsRewardShaping[playerIndex] = saved;
         }
     }
 
