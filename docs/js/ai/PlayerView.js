@@ -59,6 +59,12 @@ export class PlayerView {
         // variant disables it to reproduce the old behavior in A/Bs.
         this.useSamplerBackstop = true;
 
+        // When false, _sampleValidDeals ignores the suit affinities and draws
+        // holders with equal weight, so deals reflect only the hard
+        // constraints (played tiles, passes, tile counts). Harness-only
+        // (BACKLOG 0g.5, `flat-sampling` variant); on in the app.
+        this.useAffinitySampling = true;
+
         // (Platt-scaling recalibration on getProbability is now always on.
         // The useCalibratedProbs flag was a transitional gate; confirmed
         // non-regressive in a 500-match A/B and locked in for v1.1.1.)
@@ -575,7 +581,7 @@ export class PlayerView {
                 }
 
                 // Affinity-weighted random selection
-                const weights = eligible.map(p => this._getTileAffinity(p, tile));
+                const weights = eligible.map(p => this._samplingWeight(p, tile));
                 const totalWeight = weights.reduce((a, b) => a + b, 0);
                 let r = Math.random() * totalWeight;
                 let selected = eligible[eligible.length - 1];
@@ -652,7 +658,7 @@ export class PlayerView {
             const pool = [];
             for (const p of holders) {
                 if (targetCounts.has(p) && counts.get(p) < targetCounts.get(p)) {
-                    pool.push({ p, w: this._getTileAffinity(p, tile) });
+                    pool.push({ p, w: this._samplingWeight(p, tile) });
                 }
             }
             // Affinity-weighted random order without replacement.
@@ -717,6 +723,11 @@ export class PlayerView {
         const a2 = this.affinities[player][tile.low];
         if (tile.isDouble()) return a1;
         return Math.sqrt(a1 * a2);
+    }
+
+    /** Sampler weight for `player` holding `tile` (see useAffinitySampling). @private */
+    _samplingWeight(player, tile) {
+        return this.useAffinitySampling ? this._getTileAffinity(player, tile) : 1;
     }
 
     /**

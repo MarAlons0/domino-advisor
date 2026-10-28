@@ -48,7 +48,7 @@ const MAX_DISPARITY_PIP6 = [
     [6,0],[5,1],[4,2],[3,3],
 ];
 
-const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind'];
+const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind', 'flat-sampling'];
 
 function parseArgs(argv) {
     const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, persona: false, personas: 10, season: 10, personaSeed: 1, personaNoise: null, personaPlain: false, variant: 'mc-pass', allVariant: null };
@@ -209,6 +209,11 @@ function applyVariant(variant, ai, playerViews, seat) {
             // played at 0–0. Separates "weights points more" from "reads the
             // match score".
             ai.ismctsRewardShaping[seat] = 'match-blind';
+            break;
+        case 'flat-sampling':
+            // 0g.5: deals for ISMCTS determinization (and the MC marginals)
+            // drawn without the suit affinities — hard constraints only.
+            playerViews[seat].useAffinitySampling = false;
             break;
     }
 }
@@ -669,6 +674,27 @@ function reportHandPoints(matches) {
         console.log(`    ${String(lo).padStart(3)}–${String(lo + 9).padEnd(3)}  ${String(n).padStart(5)}  (${pct(n, decided)})`);
     }
     console.log(`  Per-point counts:    ${JSON.stringify(counts)}`);
+    console.log('');
+}
+
+// --persona --ab: the opponents' match win rate with and without the variant.
+function reportPersonaAB(matches, variant) {
+    const arm = (withVariant) => {
+        const ms = matches.filter(m => (m.challengerTeam === 1) === withVariant);
+        const won = ms.filter(m => m.matchResult.winner === 1).length;
+        const p = won / ms.length;
+        return { n: ms.length, won, p, se: Math.sqrt(p * (1 - p) / ms.length) };
+    };
+    const a = arm(false), b = arm(true);
+    const d = b.p - a.p, se = Math.sqrt(a.se ** 2 + b.se ** 2);
+    const f = (x) => (100 * x).toFixed(1);
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(` Persona A/B: opponents (seats 1, 3) current vs ${variant}`);
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(` Opponents current:     ${a.won}/${a.n}  (${f(a.p)}% ± ${f(1.96 * a.se)}%)`);
+    console.log(` Opponents ${variant}: ${b.won}/${b.n}  (${f(b.p)}% ± ${f(1.96 * b.se)}%)`);
+    console.log(` Difference:            ${d >= 0 ? '+' : ''}${f(d)} points ± ${f(1.96 * se)}`);
     console.log('');
 }
 
@@ -1245,7 +1271,13 @@ for (let i = 0; i < opts.games; i++) {
         process.stdout.write(`  ${i + 1}/${opts.games}\r`);
     }
     let perMatchOpts = opts;
-    if (opts.ab) {
+    if (opts.ab && personaPlayers) {
+        // Persona A/B: only the persona's opponents (seats 1, 3) take the
+        // variant, on every other match; the persona's side never changes.
+        perMatchOpts = i % 2
+            ? { ...opts, challengerSeats: [1, 3], challengerTeam: 1, variant: opts.variant }
+            : { ...opts, challengerSeats: null, challengerTeam: null, variant: null };
+    } else if (opts.ab) {
         // Alternate which team gets the challenger seats to cancel any
         // residual seat asymmetry.
         const challengerTeam = i % 2; // 0 = team A (seats 0,2), 1 = team B (seats 1,3)
@@ -1268,7 +1300,8 @@ console.log(`\nCompleted in ${elapsed.toFixed(1)}s (${(elapsed / opts.games).toF
 
 report(aggregate(matches), opts);
 if (personaPlayers) reportPersonas(personaPlayers);
-if (opts.ab) reportAB(matches, opts.variant);
+if (opts.ab && personaPlayers) reportPersonaAB(matches, opts.variant);
+else if (opts.ab) reportAB(matches, opts.variant);
 if (opts.instrument) reportInstrumentation(decisions);
 if (opts.instrument) reportClosing(closes);
 if (opts.probAccuracy) reportProbAccuracy(probAcc);
