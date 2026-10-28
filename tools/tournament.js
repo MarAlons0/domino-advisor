@@ -47,10 +47,10 @@ const MAX_DISPARITY_PIP6 = [
     [6,0],[5,1],[4,2],[3,3],
 ];
 
-const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary'];
+const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind'];
 
 function parseArgs(argv) {
-    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, variant: 'mc-pass', allVariant: null };
+    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, variant: 'mc-pass', allVariant: null };
     for (let i = 2; i < argv.length; i++) {
         const a = argv[i];
         if (a === '--games') opts.games = parseInt(argv[++i], 10);
@@ -67,6 +67,7 @@ function parseArgs(argv) {
         else if (a === '--max-disparity-deals') opts.maxDisparityDeals = true;
         else if (a === '--random-losers') opts.randomLosers = true;
         else if (a === '--force-cerrar') opts.forceCerrar = true;
+        else if (a === '--hand-points') opts.handPoints = true;
         else if (a === '--help' || a === '-h') {
             console.log('Usage: node tools/tournament.js [--games N] [--difficulty LEVEL] [--ab] [--variant NAME] [--instrument] [--verbose]');
             console.log('  --ab            Champion (current code) vs Challenger (a variant). Challenger');
@@ -105,6 +106,9 @@ function parseArgs(argv) {
             console.log('  --force-cerrar  Seats 0, 2 take any move that closes the chain (cerrar)');
             console.log('                  ahead of master AI strategy. Removes "did team A even try');
             console.log('                  to close?" as a confound from max-haul measurements.');
+            console.log('  --hand-points   Report the distribution of points per hand (decided hands +');
+            console.log('                  ties). Source data for the match-equity table in');
+            console.log('                  docs/js/ai/MatchEquity.js (BACKLOG 0g.3b).');
             process.exit(0);
         }
     }
@@ -155,6 +159,8 @@ function applyVariant(variant, ai, playerViews, seat) {
             ai.ismctsRolloutPolicy[seat] = 'greedy';
             break;
         case 'reward-margin':
+            // The v1.3.0 default reward (pip-margin blend). Since 0g.3b this is
+            // the regression A/B against the 'match' default.
             ai.ismctsRewardShaping[seat] = 'margin';
             break;
         case 'pure-ismcts':
@@ -162,7 +168,7 @@ function applyVariant(variant, ai, playerViews, seat) {
             break;
         case 'pure-margin':
             // 0g.4 × 0g.3 interaction: search sees cerrar decisions AND has a
-            // margin-aware reward to weigh them with. (Default since v1.3.0 —
+            // margin-aware reward to weigh them with. (The v1.3.0 default —
             // kept for reproducibility of the 0g.4 experiments.)
             ai.ismctsPure[seat] = true;
             ai.ismctsRewardShaping[seat] = 'margin';
@@ -175,9 +181,21 @@ function applyVariant(variant, ai, playerViews, seat) {
             ai.ismctsRewardShaping[seat] = null;
             break;
         case 'reward-binary':
-            // Isolates the margin term: pure mode stays on (default), terminal
-            // reward reverts to binary win/loss.
+            // Pure mode stays on (default), terminal reward reverts to binary
+            // win/loss (isolated the margin term in the 0g.3 experiments).
             ai.ismctsRewardShaping[seat] = null;
+            break;
+        case 'reward-match':
+            // 0g.3b: terminal value = match-win probability after the hand
+            // (MatchEquity.js) instead of the fixed win + margin blend. The
+            // default since then — a no-op, kept for reproducibility.
+            ai.ismctsRewardShaping[seat] = 'match';
+            break;
+        case 'reward-match-blind':
+            // 0g.3b diagnostic: same equity curve, but every hand scored as if
+            // played at 0–0. Separates "weights points more" from "reads the
+            // match score".
+            ai.ismctsRewardShaping[seat] = 'match-blind';
             break;
     }
 }
@@ -592,6 +610,40 @@ function report(stats, opts) {
     console.log(`  Mean (ms):           ${avg(stats.aiTimings).toFixed(2)}`);
     console.log(`  Median (ms):         ${median(stats.aiTimings).toFixed(2)}`);
     console.log(`  Max (ms):            ${maxOf(stats.aiTimings).toFixed(2)}`);
+    console.log('');
+}
+
+// --hand-points: how many points a hand is worth. A tie (blocked, equal pips)
+// scores nothing. The per-point counts line is what MatchEquity.js's
+// HAND_POINTS table was pasted from.
+function reportHandPoints(matches) {
+    const counts = [];
+    let ties = 0;
+    let decided = 0;
+    for (const m of matches) {
+        for (const h of m.handResults) {
+            if (h.winningTeam < 0) { ties++; continue; }
+            decided++;
+            counts[h.points] = (counts[h.points] || 0) + 1;
+        }
+    }
+    for (let i = 0; i < counts.length; i++) counts[i] = counts[i] || 0;
+    const all = [];
+    counts.forEach((c, pts) => { for (let k = 0; k < c; k++) all.push(pts); });
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(' Points per hand');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(`  Decided hands:       ${decided}`);
+    console.log(`  Ties (no points):    ${ties}  (${pct(ties, decided + ties)})`);
+    console.log(`  Mean / median:       ${avg(all).toFixed(1)} / ${median(all).toFixed(1)}`);
+    console.log('  Histogram (10-point buckets):');
+    for (let lo = 0; lo < counts.length; lo += 10) {
+        let n = 0;
+        for (let p = lo; p < lo + 10 && p < counts.length; p++) n += counts[p];
+        console.log(`    ${String(lo).padStart(3)}–${String(lo + 9).padEnd(3)}  ${String(n).padStart(5)}  (${pct(n, decided)})`);
+    }
+    console.log(`  Per-point counts:    ${JSON.stringify(counts)}`);
     console.log('');
 }
 
@@ -1187,6 +1239,7 @@ if (opts.instrument) reportInstrumentation(decisions);
 if (opts.instrument) reportClosing(closes);
 if (opts.probAccuracy) reportProbAccuracy(probAcc);
 if (opts.pipAccuracy) reportPipAccuracy(pipAcc);
+if (opts.handPoints) reportHandPoints(matches);
 if (opts.maxCerrado) {
     const totalHands = matches.reduce((s, m) => s + m.handResults.length, 0);
     reportMaxCerrado(cerradoAcc, totalHands, opts);
