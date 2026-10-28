@@ -122,6 +122,9 @@ export class PersonaPlayer {
         this.rng = makeRng((persona.seed ^ 0x9E3779B9) >>> 0);
         this.stats = {
             matches: 0, wins: 0, decisions: 0, lapses: 0, // lapse = noise moved it off the brain's pick
+            // Hands as the app's Stats count them (a tie is played, not won), and
+            // matches won while winning fewer hands than the opponents.
+            hands: 0, handsWon: 0, winsOnFewerHands: 0,
             graded: 0, agreed: 0, // the app's grades: optimal + good = agreement
             // The same, split by where the move came from.
             bySource: { brain: { graded: 0, agreed: 0 }, habit: { graded: 0, agreed: 0 }, lapse: { graded: 0, agreed: 0 } },
@@ -140,17 +143,25 @@ export class PersonaPlayer {
         }
         this.noise = this.persona.noise * Math.exp(NOISE_DRIFT_SD * normal(this.rng));
         this.tilted = false;
+        this.matchHands = [0, 0]; // hands won this match: [us, them]
         this.stats.matches++;
     }
 
     onHandEnd({ winningTeam, points }) {
-        this.tilted = winningTeam === 1 - (this.seat % 2) && points >= TILT_LOSS;
+        const us = this.seat % 2;
+        this.stats.hands++;
+        if (winningTeam === us) { this.stats.handsWon++; this.matchHands[0]++; }
+        else if (winningTeam === 1 - us) this.matchHands[1]++;
+        this.tilted = winningTeam === 1 - us && points >= TILT_LOSS;
     }
 
     /** @param {MatchHistory} history - game.getMatchHistory(), graded as in the app */
     endMatch(winnerTeam, history) {
         const s = this.stats;
-        if (winnerTeam === this.seat % 2) s.wins++;
+        if (winnerTeam === this.seat % 2) {
+            s.wins++;
+            if (this.matchHands[0] < this.matchHands[1]) s.winsOnFewerHands++;
+        }
         const h = history.getHumanStats();
         s.graded += h.total;
         s.agreed += h.optimal + h.good;
@@ -314,7 +325,7 @@ export function reportPersonas(players) {
         const { persona: p, stats: s } = pl;
         console.log('');
         console.log(` seed ${p.seed}  ${p.brain.padEnd(11)} noise ${p.noise.toFixed(1)}  tilt ${p.tilt.toFixed(2)}` +
-            `  │ agreement ${pct(s.agreed, s.graded)} (${s.graded} graded)  wins ${s.wins}/${s.matches}` +
+            `  │ agreement ${pct(s.agreed, s.graded)} (${s.graded} graded)  wins ${s.wins}/${s.matches}  hands ${pct(s.handsWon, s.hands)}` +
             `  lapses ${pct(s.lapses, s.decisions)}`);
         console.log('   ' + HABITS.map(n => `${n} ${f2(p.habits[n])}→${pct(s.habit[n].fired, s.habit[n].seen)}`).join('  '));
     }
@@ -323,7 +334,7 @@ export function reportPersonas(players) {
     const agree = (list) => pct(list.reduce((a, pl) => a + pl.stats.agreed, 0), list.reduce((a, pl) => a + pl.stats.graded, 0));
     console.log('');
     console.log(` Population: ${players.length} personas, ${sum('matches')} matches`);
-    console.log(`   Agreement with Genín: ${agree(players)} overall · master ${agree(byBrain('master'))} · experienced ${agree(byBrain('experienced'))}   (Mario: 73% lifetime, mostly pre-v1.9.0 grading)`);
+    console.log(`   Agreement with Genín: ${agree(players)} overall · master ${agree(byBrain('master'))} · experienced ${agree(byBrain('experienced'))}   (Mario: 73% over 7 matches; 4 of 7 matches, 47% of hands)`);
     const src = (k) => {
         const g = players.reduce((a, pl) => a + pl.stats.bySource[k].graded, 0);
         const a = players.reduce((x, pl) => x + pl.stats.bySource[k].agreed, 0);
@@ -331,5 +342,6 @@ export function reportPersonas(players) {
     };
     console.log(`   …by where the move came from: ${src('brain')} · ${src('habit')} · ${src('lapse')}`);
     console.log(`   Persona team win rate: ${pct(sum('wins'), sum('matches'))}   Lapses: ${pct(sum('lapses'), sum('decisions'))} of decisions`);
+    console.log(`   Hands won: ${pct(sum('handsWon'), sum('hands'))} of ${sum('hands')}   Matches won on fewer hands than the opponents: ${sum('winsOnFewerHands')} of ${sum('wins')} wins`);
     console.log('');
 }
