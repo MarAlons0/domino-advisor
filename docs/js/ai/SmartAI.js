@@ -335,7 +335,7 @@ export class SmartAI {
                                      : 0.85;
                     if (multiplier !== 1.0) {
                         for (const view of this.playerViews) {
-                            view.applyAffinitySignal(playerIndex, avoided, multiplier);
+                            view.applyAffinitySignal(playerIndex, avoided, multiplier, 'avoid');
                         }
                     }
                 }
@@ -348,7 +348,7 @@ export class SmartAI {
         // add an extra 1.3× on top — combined effect ≈ 1.56× for the cuadrar suit.
         if (isCuadrar && this.playerViews) {
             for (const view of this.playerViews) {
-                view.applyAffinitySignal(playerIndex, avoided, 1.3);
+                view.applyAffinitySignal(playerIndex, avoided, 1.3, 'cuadrar');
             }
         }
 

@@ -73,6 +73,16 @@ export class PlayerView {
         // harness `affinity-powK` variants and --signal-powers vary it.
         this.affinityPower = 3;
 
+        // Per-player reading of the suit signals, learned from that player's
+        // finished hands (BACKLOG 0h phase 1, ai/SignalProfile.js):
+        // signalScales[p] maps a signal type to an exponent on its multiplier
+        // (1 = the default reading); null reads the player like everyone else.
+        this.signalScales = [null, null, null, null];
+
+        // Optional listener (player, suit, type, multiplier), called on every
+        // suit signal this view reads — how the signal stream is observed.
+        this.onSignal = null;
+
         // (Platt-scaling recalibration on getProbability is now always on.
         // The useCalibratedProbs flag was a transitional gate; confirmed
         // non-regressive in a 500-match A/B and locked in for v1.1.1.)
@@ -120,11 +130,11 @@ export class PlayerView {
         if (this.isFirstPlay) {
             // Salida: strong signal about preferred suit
             if (tile.isDouble()) {
-                this._updateAffinity(player, tile.high, 2.0);
+                this._signal(player, tile.high, 2.0, 'leadDouble');
             } else {
                 // Non-double salida: moderate signal for the higher value
-                this._updateAffinity(player, tile.high, 1.5);
-                this._updateAffinity(player, tile.low, 1.5);
+                this._signal(player, tile.high, 1.5, 'lead');
+                this._signal(player, tile.low, 1.5, 'lead');
             }
             this.isFirstPlay = false;
             return;
@@ -138,7 +148,7 @@ export class PlayerView {
 
         if (newValue !== -1 && newValue !== playedOn) {
             // Player introduced a new value — mild positive signal
-            this._updateAffinity(player, newValue, 1.2);
+            this._signal(player, newValue, 1.2, 'newNumber');
         }
 
         // Note: end-avoidance affinity updates are now driven by SmartAI.analyzePlayChoice()
@@ -154,9 +164,10 @@ export class PlayerView {
      * @param {number} player - Which player's affinity to update (0-3)
      * @param {number} suit - Which suit (0-6)
      * @param {number} multiplier - Affinity adjustment (< 1 = negative, > 1 = positive)
+     * @param {string} type - Signal type (SignalProfile.SIGNAL_TYPES): 'avoid' or 'cuadrar'
      */
-    applyAffinitySignal(player, suit, multiplier) {
-        this._updateAffinity(player, suit, multiplier);
+    applyAffinitySignal(player, suit, multiplier, type) {
+        this._signal(player, suit, multiplier, type);
     }
 
     // ==================== Properties (MonteCarloEvaluator compatibility) ====================
@@ -711,6 +722,17 @@ export class PlayerView {
             [1, 1, 1, 1, 1, 1, 1],
             [1, 1, 1, 1, 1, 1, 1]
         ];
+    }
+
+    /**
+     * Read one suit signal: the multiplier, raised to this player's learned
+     * scale for the signal type (if any), updates the affinity.
+     * @private
+     */
+    _signal(player, suit, multiplier, type) {
+        const scale = this.signalScales[player]?.[type] ?? 1;
+        this._updateAffinity(player, suit, scale === 1 ? multiplier : multiplier ** scale);
+        if (this.onSignal) this.onSignal(player, suit, type, multiplier);
     }
 
     /**
