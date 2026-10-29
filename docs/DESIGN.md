@@ -490,7 +490,7 @@ new Experienced.
 ---
 
 ### 0h. Learn the Human's Style of Play and Adapt to It
-**Priority:** Medium (design stage — phase 1 + test personas specified below, not built)
+**Priority:** Medium. **Status (2026-10-28):** phase 1 built and tested in the harness. It gave no measurable gain, so it is not used in play; phase 2 is shelved. Results below.
 **Complexity:** Medium–High
 **Depends on:** ISMCTS Master (0f/0g). Related: 0b/0c (inference quality), 0g.5 (determinization
 distribution), UX-C (AI personalities — the persona layer below is most of it).
@@ -539,7 +539,54 @@ multiplier accordingly.
 - **Storage:** a small per-device profile next to the player's stats (counts per signal type), so
   it accumulates across matches. This is also the first per-play human data the app keeps.
 
-**Phase 2 (only if phase 1 pays off):** use habits in the search — e.g. the human's real closing
+**Phase 1 results (2026-10-28).**
+*Built (no change to play):*
+- `ai/SignalProfile.js`, the learner.
+- Typed signals in `PlayerView` (`_signal`, `signalScales[p]`, `onSignal`); SmartAI passes `'avoid'` / `'cuadrar'`.
+- Harness `--signal-honesty`, plus the `learn-signals` variant for `--persona --ab`. Shadow views for seats 1 and 3 read seat 0 the other way round, so every position is scored with and without the profile. `--shared-profile` for the strangers protocol.
+
+*Estimator.* For each signal, it counts the tiles of the signaled suit the player still holds
+right after the play. It compares that with what public information predicts: hand size × that
+suit's share of the unplayed tiles the player could hold. Per type it takes ln(held / expected)
+over all of the player's signals, divided by Master's own value (the reference below). That
+ratio is the player's honesty relative to Master. The AI raises that type's multiplier to it,
+shrunk toward 1 with weight n / (n + 30) and capped at 0.5–1.5. A hand counts only once it is
+over, and the scales refresh at the start of each hand, so in-hand information never leaks.
+
+*Master reference* (v1.16.0 self-play, 300 matches, `REFERENCE_LOG_RATIO`): ln(held / expected)
+= 0.242 for a lead with a double (1,952 signals), 0.193 for a non-double lead (824), 0.174 for a
+new number (40,577), 0.271 for a cuadrar (4,510). **The "avoided end" signal never fires.**
+SmartAI only sends it when the played tile also carries the avoided number, and a tile that fits
+one end while carrying the other end's number is exactly a cuadrar, which that branch excludes.
+So avoided ends have not been read since 0b (v1.0.5). This is a separate follow-up.
+
+*Seasons:* 40 personas × 30 matches, profile carried, opponents learning on alternate matches;
+1,200 matches.
+- Personas' signals are clearly less honest than Master's. Unshrunk honesty: new number 0.69,
+  cuadrar 0.36, non-double lead 0.43, double lead 0.72. Learned scales average 0.63–0.87,
+  spread 0.50–1.27.
+- **Reading seat 0's tiles: Brier 0.20716 → 0.20714** (−0.00003 over 5.8M paired predictions;
+  shards −0.00024 to +0.00014). The profile helps a hair early in the hand (−0.0001) and costs a
+  hair late (+0.0002).
+- **Opponents' match win rate: 71.7% → 71.0%** (−0.7 ± 5.1, 600 matches per arm).
+
+*Control*, plain Master in seat 0 (20 × 30): learned scales 1.005 (new number) to 1.07, Brier
++0.00009. The estimator is sound: it finds Master as honest as Master.
+
+*Why no gain.* The reading barely depends on signal strength near today's setting: the k sweep
+(0c follow-up) is flat between k = 3 and 4, and the whole step from 2 to 3 was worth 0.0007 on
+all tiles. Scaling one player's signals by ~0.7 moves their reading along that flat stretch.
+Meanwhile passes and tile counts carry two-thirds of the hand-reading whatever the profile says.
+Per-human signal calibration is real but worth ~nothing. The global strength (k = 3, v1.16.0)
+captured what was there. The strangers protocol was skipped: with no effect for the right
+person, there is none to lose for the wrong one.
+
+**Decision:** phase 1 is not shipped into play, and phase 2, which was conditional on it, is
+shelved. The code stays; it is harmless while no scales are set. `SignalProfile` is still a
+usable *style* measure ("your new numbers are 70% as readable as Master's"), which fits the
+optional coaching view below.
+
+**Phase 2 (only if phase 1 pays off — it did not):** use habits in the search — e.g. the human's real closing
 rate for their seat in ISMCTS simulations instead of uniform random play — under the same
 shrinkage and cap. **Optional coaching view** (separate decision, overlaps Genín): show the player
 their profile ("opponents can read your leads 85% of the time").
@@ -631,7 +678,9 @@ off-pick rate.
   the simulation on only 43% of deviations). Mario's lifetime figure covers just 7 matches, and
   how many were played before v1.9.0 is unknown. If most came after, the gap to the population's
   87% is real. The per-match figure is the debrief's top line at the end of each match ("You
-  matched Genín or came close on X% of your N decisions").
+  matched Genín or came close on X% of your N decisions"). *Resolved:* after a stats reset,
+  Mario's agreement under today's grading is **88%** (see the post-reset anchor below), so the
+  73% was the old grading.
 - *Win-rate anchor (Mario, 2026-10-28):* all matches vs Master opponents, **4 of 7 matches (57%,
   95% CI 18–90%) and 47% of hands** (≈ 50 hands, so ± 7 points). The hand rate is the sharper
   anchor. Re-run with hand counts (same definition as Stats: a tie is played, not won):
@@ -640,7 +689,8 @@ off-pick rate.
   |---|---|---|---|---|
   | Persona population (80 × 10) | 31.5% | 44.3% of 5,924 | 7.4 | 3% of wins |
   | Plain Master control (20 × 10) | 43.5% | 50.6% of 1,552 | 7.8 | 1% of wins |
-  | Mario | 4 of 7 | 47% | — | — |
+  | Mario, before the reset | 4 of 7 | 47% | — | — |
+  | Mario, since the reset (v1.15.0) | 3 of 3 | 62.5% of 24 | 8.0 | — |
 
   Over a 100-point race, each point of hand win rate is worth ~2 points of match win rate, so 47%
   of hands predicts ~37% of matches — Mario's 4–3 is ~1.5 matches above that, ordinary luck at 7
@@ -649,6 +699,15 @@ off-pick rate.
   evidence.** Matches won while winning fewer hands are rare (1–3% of wins), so a gap between
   overall match and hand rates comes from how the matches split — close wins, lopsided losses —
   not from winning matches on fewer hands.
+- *Post-reset anchor (Mario, 2026-10-28, v1.15.0 — the AI the personas were tested against):*
+  3 of 3 matches, **15 of 24 hands** (62.5%, 95% CI ≈ 43–79%), Genín agreement **88%**.
+  Agreement lands on the population (87%; median 86%, range 79–94%), so the personas' lapse
+  level is on scale. The caveat from answer 3 below still applies: turns where he followed
+  advice Genín showed grade Optimal. Hands pooled with the earlier ≈ 50: ≈ 52% of ≈ 74
+  (± 11), between the population (44%) and plain Master (51%) and toward the top. A typical,
+  slightly stronger-than-average member of the population: **still no retuning.** From v1.16.0,
+  Master opponents are ~4 points stronger (suit signals), so later hand rates should be compared
+  with persona runs on v1.16.0.
 
 **Size of the prize (0g.5, 2026-10-28).** The whole affinity layer that phase 1 recalibrates is
 worth about +2 points of match win rate for Master and 0.002 of Brier (0.004 mid-hand); the hard
@@ -700,7 +759,8 @@ search's visit counts instead, and the "harness/production parity" backlog item'
    lapse target. Caveat: following advice Genín showed is always graded Optimal, so turns where
    Mario asked Genín pull the figure up — his unaided agreement is likely somewhat lower. *Update:*
    it covers 7 matches, some possibly graded before v1.9.0's simulation grading — see "Built and
-   validated" above, with his win-rate anchor (4 of 7 matches, 47% of hands).
+   validated" above, with his win-rate anchor (4 of 7 matches, 47% of hands). *Post-reset
+   (3 matches on v1.15.0):* **88%**, 15 of 24 hands — on the population's scale.
 4. *Persona brains* — some players implicitly play at Experienced level → keep the 80% Master /
    20% Experienced split as the starting point, tuned with the agreement anchor.
 

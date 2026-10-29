@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-28 (stronger suit signals shipped as v1.16.0; 0c layer attribution done)_
+_Last updated: 2026-10-28 (0h phase 1 tested — no gain; stronger suit signals shipped as v1.16.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -7,8 +7,8 @@ _Last updated: 2026-10-28 (stronger suit signals shipped as v1.16.0; 0c layer at
 _Nothing open — next items come from Medium._
 
 ## 🟡 Medium
-- [ ] **Learn the human's style of play and adapt to it (0h)** — build a per-player profile of how each human plays (closing, blocking, suit signaling, doubles timing) across their matches, and have the AI adapt to it instead of assuming a generic opponent. Like 0g.3b, it makes the Master search less one-size-fits-all. See [docs/DESIGN.md](docs/DESIGN.md). `[idea]`
-  - Test personas built in the harness (`--persona`, tools/personas.js); phase 1 itself not built yet. Design: phase 1 = light-touch calibration of how much the human's signals reveal (shrunk, capped, single player); tested against human-like harness "personas" (population → player → match drift → move lapses). Mario's answers recorded at the end of the 0h section in [docs/DESIGN.md](docs/DESIGN.md) (anchors: Genín Agreement Rate 73% over 7 matches; 4 of 7 matches and 47% of hands vs Master — personas win 44% of hands, plain Master 51%).
+- [ ] **Avoided-end signal never fires** — SmartAI only sends the "avoided an end" affinity signal when the played tile also carries the avoided number, which makes the play a cuadrar (excluded), so avoided ends haven't been read since 0b (v1.0.5). Restore a working version and measure it with `--prob-layers` and an A/B. See [docs/DESIGN.md](docs/DESIGN.md) (0h phase 1 results). `[bug]`
+- [ ] **Show the player their style profile** — a Stats panel built on `ai/SignalProfile.js`: how readable the player's leads, new numbers and cuadrars are compared with Master's, learned from finished hands. The coaching view from 0h; the AI doesn't use it in play. `[feature]`
 - [ ] **PWA (installable app)** — service worker + manifest for home-screen install / offline. `[feature]`
 - [ ] **AI enhancements (0)** — validate any weight/strategy change with the A/B tournament harness. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Team-contextual play inference (0b)** — infer partner/opponent hands from play to sharpen advice. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
@@ -37,6 +37,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Learn the human's style of play and adapt to it (0h)** — phase 1 built and tested on persona seasons: personas' signals are less honest than Master's and the learner finds it, but reading their tiles doesn't improve (Brier −0.00003) and win rate doesn't move (−0.7 ± 5.1); not used in play, phase 2 shelved (no release). See [docs/DESIGN.md](docs/DESIGN.md).
 - [x] **Trust the suit signals more** — the AI samples hidden hands with the suit affinities cubed: Master 54.1% vs the previous version (CI 51.9–56.3), hand-reading Brier 0.2061 → 0.2038 — v1.16.0
 - [x] **Quantify tile-probability predictions at scale (0c)** — phases 1–2: passes do 66% of the hand-reading, tile counts 14%, suit signals 16%, joint sampling 4%, calibration ~0; the signals are under-trusted (the drift Platt corrects comes from them); harness `--prob-layers` (no release). Phase 3 splits optional. See [docs/DESIGN.md](docs/DESIGN.md).
 - [x] **Determinization distribution A/B (0g.5)** — affinity-weighted sampling stays: worth ~+2 points vs flat/uniform (47.9%, CI 45.8–50.1) and 12% of the hand-reading gain; harness variant `flat-sampling` (no release). See [docs/DESIGN.md](docs/DESIGN.md).
