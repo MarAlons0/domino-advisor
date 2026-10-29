@@ -67,9 +67,11 @@ export class PlayerView {
 
         // Exponent on the suit affinities when sampling: holders are weighted
         // by affinity^affinityPower, so values above 1 trust the play signals
-        // more. Harness-only for now (0c phase 2 follow-up: `affinity-powK`
-        // variants, --signal-powers); 1 in the app.
-        this.affinityPower = 1;
+        // more. 3 since v1.16.0 (0c follow-up): the marginals were under-
+        // confident at 1; at 3, Brier 0.2061 → 0.2038 and calibrated on their
+        // own, and Master won 54.1% of 2,000 matches against k = 1. The
+        // harness `affinity-powK` variants and --signal-powers vary it.
+        this.affinityPower = 3;
 
         // (Platt-scaling recalibration on getProbability is now always on.
         // The useCalibratedProbs flag was a transitional gate; confirmed
@@ -253,6 +255,8 @@ export class PlayerView {
      * propagation, PlayerView affinity Bayesian updates, or MC sampling
      * weights) change in a way that meaningfully shifts the calibration curve.
      * Use `tools/tournament.js --all-variant ... --prob-accuracy` to measure.
+     * Since affinityPower = 3 (v1.16.0) a refit is ≈ identity (a 1.006,
+     * b 0.003); the curve is kept as tested and costs 0.0001 Brier.
      * @private
      */
     _calibrate(p) {

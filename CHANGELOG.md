@@ -3,6 +3,20 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.16.0] – 2026-10-28
+
+### Changed
+- **The AI trusts what your plays say about your hand.** The AI guesses the hidden hands from the play: who passed, each player's salida, which suits each player brings out, and which ends they avoid. It used to give those clues too little weight, so its guesses about who holds which tile were too timid. It now counts them about three times as strongly. Master reads hands more accurately (Brier 0.2061 → 0.2038, and its probabilities now come out calibrated on their own). In a 2,000-match A/B against the previous version, Master won **54.1% ± 2.2%** of matches (CI 51.9–56.3; 53.7% / 54.5% by seat assignment). Against human-like test players, Master opponents won 4.4 points more often. This covers the AI partner and opponents and the AI seats at multiplayer tables. Experienced plays the same as before (50.6% ± 2.2% in the same test).
+- **Genín reads the table the same way**, so his advice, the "Why?" percentages and the play grades now come from the sharper reads.
+
+### Changed (internal)
+- `PlayerView.affinityPower = 3`: `_sampleValidDeals` weights each possible holder by its suit affinity cubed. That sampler feeds both ISMCTS determinization and the MC marginals behind `getProbability`. The Platt curve is kept as tested; at k = 3 a refit is ≈ identity (a = 1.006, b = 0.003), so the curve costs 0.0001 Brier and could be retired.
+- Found with the new harness layer report (`--prob-layers`, BACKLOG 0c phase 2), which scores every prediction at each inference layer on the same positions:
+  - passes do 66% of the hand-reading, tile counts 14%, suit signals 16%;
+  - the calibration drift the Platt curve corrects came from under-weighted signals.
+- `--signal-powers` sweep over the same positions, k = 1 / 1.5 / 2 / 3 / 4: Brier 0.2061 / 0.2052 / 0.2045 / 0.2038 / 0.2038. k = 4 is over-confident and worse early in the hand.
+- New harness variant family `affinity-powK`.
+
 ## [1.15.0] – 2026-10-28
 
 ### Added

@@ -218,7 +218,7 @@ quantity 0h phase 1 calibrates per human, so a global `k` measured here is also 
 prior for that work.
 
 **Follow-up: signal strength (2026-10-28).** New knob `PlayerView.affinityPower`: the sampler
-weights each holder by `affinity^k` (1 in the app). Harness: `--signal-powers K1,K2,…` adds a
+weights each holder by `affinity^k` (1 until v1.16.0, now 3). Harness: `--signal-powers K1,K2,…` adds a
 sampled layer per `k`, scored on the same positions (paired, so differences are precise), and
 the variant family `affinity-powK` gives a team that sampler for A/Bs.
 - Accuracy sweep (400 Master matches, 11.7M predictions per layer; all 10 shards agree on the
@@ -242,10 +242,14 @@ the variant family `affinity-powK` gives a team that sampler for A/Bs.
 - Against personas (opponents with k = 3 vs current on alternate matches, 1,500 matches): opponents
   win 73.6% vs 69.2% (+4.4 ± 4.6). Same size and direction as self-play, so stronger signals do
   not mislead against human-like play.
+- Experienced (static scorer + MC blend, which reads the same marginals), k = 3 vs k = 1:
+  **50.6% ± 2.2%** (2,000 matches, CI 48.5–52.8). Neutral: its moves barely depend on a few
+  points of probability, as the 0e calibration A/B found. Shipped for all levels anyway, since
+  there is one sampler.
 
-**Recommendation: ship k = 3** (`affinityPower = 3`, keeping the Platt curve exactly as tested;
-at k = 3 it costs 0.0001 Brier and could be retired later). Ship means a MINOR release, and the
-`domino-rooms` Worker needs a redeploy because it bundles the AI. Genín uses the same sampler for
+**Shipped k = 3 in v1.16.0** (`affinityPower = 3`, keeping the Platt curve exactly as tested;
+at k = 3 it costs 0.0001 Brier and could be retired later). The `domino-rooms` Worker bundles the
+AI, so multiplayer AI seats get it with a Worker redeploy. Genín uses the same sampler for
 his advice and grading, so his advice should sharpen too. The grade bands were calibrated on the
 old sampler, so it's worth a look at the grade mix after release. For 0h, k = 3 becomes the
 population prior that phase 1 calibrates per human.
