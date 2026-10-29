@@ -558,7 +558,25 @@ over, and the scales refresh at the start of each hand, so in-hand information n
 new number (40,577), 0.271 for a cuadrar (4,510). **The "avoided end" signal never fires.**
 SmartAI only sends it when the played tile also carries the avoided number, and a tile that fits
 one end while carrying the other end's number is exactly a cuadrar, which that branch excludes.
-So avoided ends have not been read since 0b (v1.0.5). This is a separate follow-up.
+So avoided ends have not been read since 0b (v1.0.5).
+
+*Avoided-end follow-up (same day).* Without the impossible condition, the signal fires about 60
+times per match. It is honest: players hold 80% of the expected tiles in the suit they avoid
+(ln −0.217 over 19,953 signals, Master self-play). But it doesn't help the hand-reading. Paired
+over 300 matches (`--signal-ablation avoid:S`, all four seats shadowed):
+
+| Real views (signal at 1) vs shadows at | Brier, real − shadow | Shards agreeing |
+|---|---|---|
+| 0 (never fires, as in v1.16.0) | +0.00018 (the signal hurts) | 9 of 10 |
+| 0.5 | +0.00027 (half strength is better) | 10 of 10 |
+| 1.5 | −0.00055 (stronger is worse still) | 10 of 10 |
+
+The best strength, ~0.5, beats not reading it by only ~0.0001. A player avoids the same suit
+over and over, and every repeat multiplies the affinity again; with k = 3 that over-counts a
+single fact. **Kept off, explicitly:** `SmartAI.avoidSignal = false`, which reproduces the old
+behaviour, so play is unchanged and there is no release. The harness turns it on with
+`--avoid-signal`. A version that counts the avoided suit once per hand (instead of per play)
+might be worth more, but the ceiling is small.
 
 *Seasons:* 40 personas × 30 matches, profile carried, opponents learning on alternate matches;
 1,200 matches.
