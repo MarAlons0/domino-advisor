@@ -217,6 +217,39 @@ sample with `affinity^k`, k > 1, and measure Brier, calibration and win rate. Th
 quantity 0h phase 1 calibrates per human, so a global `k` measured here is also the population
 prior for that work.
 
+**Follow-up: signal strength (2026-10-28).** New knob `PlayerView.affinityPower`: the sampler
+weights each holder by `affinity^k` (1 in the app). Harness: `--signal-powers K1,K2,…` adds a
+sampled layer per `k`, scored on the same positions (paired, so differences are precise), and
+the variant family `affinity-powK` gives a team that sampler for A/Bs.
+- Accuracy sweep (400 Master matches, 11.7M predictions per layer; all 10 shards agree on the
+  ordering):
+
+  | k | Brier | Log-loss | Best-fit Platt a / b | Note |
+  |---|---|---|---|---|
+  | 1 (app) | 0.2061 | 0.5940 | 1.085 / 0.054 | under-confident, Platt patches it |
+  | 1.5 | 0.2052 | 0.5919 | 1.103 / 0.065 | |
+  | 2 | 0.2045 | 0.5903 | 1.089 / 0.056 | |
+  | **3** | **0.2038** | **0.5887** | **1.006 / 0.003** | calibrated by itself (best fit ≈ identity) |
+  | 4 | 0.2038 | 0.5888 | 0.900 / −0.062 | over-confident at 20–60%; worse early in the hand |
+
+  At k = 3 the suit signals are worth 0.0048 instead of 0.0025, nearly double. The gain grows
+  through the hand (4–7 tiles: −0.0018; 20–23: −0.0041; 24–27: −0.0063). The first plays are the
+  exception: they are unchanged at k = 3 and worse at k = 4, presumably because the salida
+  multipliers (×2.0 / ×1.5) are already the strongest signals.
+- Win rate, Master with k = 3 vs current Master: **54.1% ± 2.2%** (2,000 matches, CI 51.9–56.3;
+  as team A 53.7%, as B 54.5%). That is about +4 points, twice what the whole affinity layer was
+  worth against flat sampling (0g.5).
+- Against personas (opponents with k = 3 vs current on alternate matches, 1,500 matches): opponents
+  win 73.6% vs 69.2% (+4.4 ± 4.6). Same size and direction as self-play, so stronger signals do
+  not mislead against human-like play.
+
+**Recommendation: ship k = 3** (`affinityPower = 3`, keeping the Platt curve exactly as tested;
+at k = 3 it costs 0.0001 Brier and could be retired later). Ship means a MINOR release, and the
+`domino-rooms` Worker needs a redeploy because it bundles the AI. Genín uses the same sampler for
+his advice and grading, so his advice should sharpen too. The grade bands were calibrated on the
+old sampler, so it's worth a look at the grade mix after release. For 0h, k = 3 becomes the
+population prior that phase 1 calibrates per human.
+
 **Phase 3 — Refinements (optional):**
 - Per-tile-type splits (doubles vs non-doubles).
 - Per-viewer-side splits (seat 0 has full info on own hand; seats 1–3 are symmetric — measure whether seat 0 is meaningfully sharper or not). 0h needs the seat-0 split anyway (Brier on the human's tiles).
@@ -620,7 +653,8 @@ so expect a light effect — as intended — and judge phase 1 by Brier on the h
 opponents' views, not by win rate, which would need tens of thousands of matches to see it.
 0c Phase 2 (same day) adds that even against AI players the signals are under-trusted: the
 affinity layer leaves the marginals under-confident (+0.02 across 50–90%). A global signal-strength
-fix belongs before, or as the prior of, any per-human one.
+fix belongs before, or as the prior of, any per-human one. Measured: k = 3 (affinities cubed)
+is worth about +4 points and becomes that prior (see the 0c follow-up).
 
 **Persona sanity checks** (before any 0h test): realized trait rates match drawn values;
 agreement-with-Genín lands near the human's figure; win rate against Master teams is plausible
