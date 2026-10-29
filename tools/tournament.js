@@ -51,9 +51,12 @@ const MAX_DISPARITY_PIP6 = [
 ];
 
 const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind', 'flat-sampling'];
+// Plus the family affinity-powK (any K, e.g. affinity-pow2): suit affinities raised to K when sampling.
+const AFFINITY_POW = /^affinity-pow(\d+(?:\.\d+)?)$/;
+const isVariant = v => VARIANTS.includes(v) || AFFINITY_POW.test(v);
 
 function parseArgs(argv) {
-    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, probLayers: false, probOut: null, probMerge: null, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, persona: false, personas: 10, season: 10, personaSeed: 1, personaNoise: null, personaPlain: false, variant: 'mc-pass', allVariant: null };
+    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, probLayers: false, signalPowers: [], probOut: null, probMerge: null, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, persona: false, personas: 10, season: 10, personaSeed: 1, personaNoise: null, personaPlain: false, variant: 'mc-pass', allVariant: null };
     for (let i = 2; i < argv.length; i++) {
         const a = argv[i];
         if (a === '--games') opts.games = parseInt(argv[++i], 10);
@@ -65,6 +68,7 @@ function parseArgs(argv) {
         else if (a === '--instrument') opts.instrument = true;
         else if (a === '--prob-accuracy') opts.probAccuracy = true;
         else if (a === '--prob-layers') opts.probLayers = true;
+        else if (a === '--signal-powers') opts.signalPowers = argv[++i].split(',').map(Number);
         else if (a === '--prob-out') opts.probOut = argv[++i];
         else if (a === '--prob-merge') { opts.probMerge = argv.slice(i + 1); break; }
         else if (a === '--pip-accuracy') opts.pipAccuracy = true;
@@ -84,7 +88,7 @@ function parseArgs(argv) {
             console.log('Usage: node tools/tournament.js [--games N] [--difficulty LEVEL] [--ab] [--variant NAME] [--instrument] [--verbose]');
             console.log('  --ab            Champion (current code) vs Challenger (a variant). Challenger');
             console.log('                  team alternates each match to cancel seat bias.');
-            console.log(`  --variant NAME  Challenger variant for --ab. One of: ${VARIANTS.join(', ')}.`);
+            console.log(`  --variant NAME  Challenger variant for --ab. One of: ${VARIANTS.join(', ')}, affinity-powK.`);
             console.log('                    mc-pass       MC-derived pass/block probabilities.');
             console.log('                    no-def-close  Disable defensive cuadrar (block only at pip advantage).');
             console.log('                    def-close-1   Defensive close only when an opponent has 1 tile left.');
@@ -101,6 +105,8 @@ function parseArgs(argv) {
             console.log('                  sampled deals, calibration) and refit the Platt curve (BACKLOG 0c');
             console.log('                  phase 2). --prob-out FILE saves the totals as JSON;');
             console.log('                  --prob-merge FILE... (last option) merges saved shards and reports.');
+            console.log('                  --signal-powers K1,K2,... adds layers sampled with the suit');
+            console.log('                  affinities raised to each K, scored on the same positions.');
             console.log('  --pip-accuracy  Snapshot AI pip-advantage estimate vs ground truth from');
             console.log('                  state.hands at each chooseMove; report mean signed error,');
             console.log('                  RMSE, and sign-mismatch rate (= false cuadrar trigger rate).');
@@ -135,12 +141,12 @@ function parseArgs(argv) {
             process.exit(0);
         }
     }
-    if (opts.ab && !VARIANTS.includes(opts.variant)) {
-        console.error(`Unknown variant "${opts.variant}". Choose one of: ${VARIANTS.join(', ')}`);
+    if (opts.ab && !isVariant(opts.variant)) {
+        console.error(`Unknown variant "${opts.variant}". Choose one of: ${VARIANTS.join(', ')}, affinity-powK`);
         process.exit(1);
     }
-    if (opts.allVariant && !VARIANTS.includes(opts.allVariant)) {
-        console.error(`Unknown --all-variant "${opts.allVariant}". Choose one of: ${VARIANTS.join(', ')}`);
+    if (opts.allVariant && !isVariant(opts.allVariant)) {
+        console.error(`Unknown --all-variant "${opts.allVariant}". Choose one of: ${VARIANTS.join(', ')}, affinity-powK`);
         process.exit(1);
     }
     return opts;
@@ -225,6 +231,12 @@ function applyVariant(variant, ai, playerViews, seat) {
             // drawn without the suit affinities — hard constraints only.
             playerViews[seat].useAffinitySampling = false;
             break;
+        default: {
+            // affinity-powK: sample with the suit affinities raised to the
+            // power K (PlayerView.affinityPower); K > 1 trusts the signals more.
+            const pow = AFFINITY_POW.exec(variant);
+            if (pow) playerViews[seat].affinityPower = parseFloat(pow[1]);
+        }
     }
 }
 
@@ -1050,7 +1062,9 @@ function reportProbAccuracy(acc) {
 //              `flat-sampling` sampler): passes and tile counts solved jointly
 //   mcRaw    — marginals of the app's affinity-weighted deals, uncalibrated
 //   final    — getProbability: mcRaw through the Platt curve (what the AI uses)
-// mcRaw is also binned so the Platt curve can be refit and the refit priced.
+//   powK     — with --signal-powers: like mcRaw, but deals sampled with the
+//              suit affinities raised to K (signal-strength sweep)
+// The sampled layers are also binned so the Platt curve can be refit and priced.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PROB_LAYERS = [
@@ -1064,31 +1078,39 @@ const PROB_LAYERS = [
 ];
 
 class ProbLayerAccumulator {
-    constructor() {
-        this.layers = Object.fromEntries(PROB_LAYERS.map(([k]) => [k, new ProbAccumulator()]));
-        this.platt = new Map();     // round(1000·p) of mcRaw → { n, sumY, sumX = Σ logit p }, 0 < p < 1
+    constructor(powers = []) {
+        this.powers = powers;
+        this.list = [...PROB_LAYERS.slice(0, -1),
+            ...powers.map(k => [`pow${k}`, `Sampled deals + signals^${k}`]), PROB_LAYERS.at(-1)];
+        this.sampled = ['mcRaw', ...powers.map(k => `pow${k}`)];
+        this.layers = Object.fromEntries(this.list.map(([k]) => [k, new ProbAccumulator()]));
+        // Per sampled layer: round(1000·p) → { n, sumY, sumX = Σ logit p }, for 0 < p < 1
+        this.platt = new Map(this.sampled.map(k => [k, new Map()]));
         this.snapshots = 0;         // one per view per position
         this.mcShort = 0;           // app sampler under 50 deals (falls back to `affinity`)
         this.flatShort = 0;         // passes-only sampler under 50 deals (falls back to `passes`)
     }
 
     add(tilesPlayed, relation, preds, actual) {
-        for (const [k] of PROB_LAYERS) this.layers[k].add(tilesPlayed, relation, preds[k], actual);
-        const p = preds.mcRaw;
-        if (p > 0 && p < 1) {
+        for (const [k] of this.list) this.layers[k].add(tilesPlayed, relation, preds[k], actual);
+        for (const [k, bins] of this.platt) {
+            const p = preds[k];
+            if (!(p > 0 && p < 1)) continue;
             const bin = Math.round(p * 1000);
-            let e = this.platt.get(bin);
-            if (!e) { e = { n: 0, sumY: 0, sumX: 0 }; this.platt.set(bin, e); }
+            let e = bins.get(bin);
+            if (!e) { e = { n: 0, sumY: 0, sumX: 0 }; bins.set(bin, e); }
             e.n++; e.sumY += actual; e.sumX += Math.log(p / (1 - p));
         }
     }
 
     merge(other) {
-        for (const [k] of PROB_LAYERS) this.layers[k].merge(other.layers[k]);
-        for (const [bin, e] of other.platt) {
-            const mine = this.platt.get(bin);
-            if (!mine) this.platt.set(bin, { ...e });
-            else { mine.n += e.n; mine.sumY += e.sumY; mine.sumX += e.sumX; }
+        for (const [k] of this.list) this.layers[k].merge(other.layers[k]);
+        for (const [k, bins] of this.platt) {
+            for (const [bin, e] of other.platt.get(k)) {
+                const mine = bins.get(bin);
+                if (!mine) bins.set(bin, { ...e });
+                else { mine.n += e.n; mine.sumY += e.sumY; mine.sumX += e.sumX; }
+            }
         }
         this.snapshots += other.snapshots;
         this.mcShort += other.mcShort;
@@ -1096,27 +1118,30 @@ class ProbLayerAccumulator {
     }
 
     toJSON() {
-        return { layers: this.layers, platt: [...this.platt], snapshots: this.snapshots, mcShort: this.mcShort, flatShort: this.flatShort };
+        return { powers: this.powers, layers: this.layers, platt: [...this.platt].map(([k, bins]) => [k, [...bins]]),
+            snapshots: this.snapshots, mcShort: this.mcShort, flatShort: this.flatShort };
     }
 
     static fromJSON(o) {
-        const acc = new ProbLayerAccumulator();
-        for (const [k] of PROB_LAYERS) acc.layers[k] = ProbAccumulator.fromJSON(o.layers[k]);
-        acc.platt = new Map(o.platt);
+        const acc = new ProbLayerAccumulator(o.powers);
+        for (const [k] of acc.list) acc.layers[k] = ProbAccumulator.fromJSON(o.layers[k]);
+        acc.platt = new Map(o.platt.map(([k, bins]) => [k, new Map(bins)]));
         acc.snapshots = o.snapshots; acc.mcShort = o.mcShort; acc.flatShort = o.flatShort;
         return acc;
     }
 }
 
-// Marginals of deals sampled on the hard constraints alone, with the app's
-// sample count and its under-50-deals fallback (PlayerView._computeMCMarginals).
+// Marginals of deals drawn by the view's sampler with the given affinity
+// settings (restored afterwards), with the app's sample count and its
+// under-50-deals fallback (PlayerView._computeMCMarginals).
 // Returns Map<tileKey, number[4]>, or null when the sampler came up short.
-function flatMarginals(view) {
-    const saved = view.useAffinitySampling;
-    view.useAffinitySampling = false;
+function sampledMarginals(view, useAffinitySampling, affinityPower = 1) {
+    const saved = [view.useAffinitySampling, view.affinityPower];
+    view.useAffinitySampling = useAffinitySampling;
+    view.affinityPower = affinityPower;
     let deals;
     try { deals = view._sampleValidDeals(view._mcSampleCount); }
-    finally { view.useAffinitySampling = saved; }
+    finally { [view.useAffinitySampling, view.affinityPower] = saved; }
     if (deals.length < 50) return null;
     const marginals = new Map();
     for (const deal of deals) {
@@ -1142,7 +1167,8 @@ function captureProbLayers(playerViews, state, acc) {
         const possible = [0, 1, 2, 3].map(p => view._countPossibleTilesForPlayer(p));
         view._computeMCMarginals();
         const mc = view._mcMarginals;
-        const flat = flatMarginals(view);
+        const flat = sampledMarginals(view, false);
+        const powered = acc.powers.map(k => sampledMarginals(view, true, k));
         acc.snapshots++;
         if (!mc) acc.mcShort++;
         if (!flat) acc.flatShort++;
@@ -1165,7 +1191,7 @@ function captureProbLayers(playerViews, state, acc) {
             for (const p of others) {
                 const passes = baseTotal ? base[p] / baseTotal : 0;
                 const affinity = weightedTotal ? weighted[p] / weightedTotal : 0;
-                acc.add(tilesPlayed, p === partner ? 'partner' : 'opponent', {
+                const preds = {
                     uniform: 1 / others.length,
                     counts: othersTotal ? counts[p] / othersTotal : 0,
                     passes,
@@ -1173,7 +1199,11 @@ function captureProbLayers(playerViews, state, acc) {
                     mcFlat: flat ? (flat.get(key)?.[p] ?? 0) : passes,
                     mcRaw: mc?.has(key) ? (mc.get(key).get(p) || 0) : affinity,
                     final: view.getProbability(p, tile),
-                }, state.hands[p].has(tile) ? 1 : 0);
+                };
+                acc.powers.forEach((k, i) => {
+                    preds[`pow${k}`] = powered[i] ? (powered[i].get(key)?.[p] ?? 0) : affinity;
+                });
+                acc.add(tilesPlayed, p === partner ? 'partner' : 'opponent', preds, state.hands[p].has(tile) ? 1 : 0);
             }
         }
     }
@@ -1225,7 +1255,7 @@ function reportProbLayers(acc) {
     console.log('═══════════════════════════════════════════════════════════');
     console.log('');
     console.log('  Layer                                     Brier     Log-loss');
-    for (const [k, label] of PROB_LAYERS) {
+    for (const [k, label] of acc.list) {
         console.log(`  ${label.padEnd(40)}  ${brier(k).toFixed(4)}    ${ll(k).toFixed(4)}`);
     }
     console.log('');
@@ -1250,10 +1280,10 @@ function reportProbLayers(acc) {
     console.log('');
 
     console.log('Brier by tiles played:');
-    console.log('  tiles' + PROB_LAYERS.map(([k]) => k.padStart(10)).join(''));
+    console.log('  tiles' + acc.list.map(([k]) => k.padStart(10)).join(''));
     const buckets = [...L.final.byBucket.keys()].sort((a, b) => a - b);
     for (const b of buckets) {
-        const cells = PROB_LAYERS.map(([k]) => {
+        const cells = acc.list.map(([k]) => {
             const e = L[k].byBucket.get(b);
             return (e ? (e.brier / e.n).toFixed(4) : '—').padStart(10);
         });
@@ -1262,9 +1292,9 @@ function reportProbLayers(acc) {
     console.log('');
 
     console.log('Calibration drift (observed − mean predicted) by predicted bin; — under 1,000 predictions:');
-    console.log('  bin    ' + PROB_LAYERS.slice(1).map(([k]) => k.padStart(10)).join(''));
+    console.log('  bin    ' + acc.list.slice(1).map(([k]) => k.padStart(10)).join(''));
     for (let bin = 0; bin < 10; bin++) {
-        const cells = PROB_LAYERS.slice(1).map(([k]) => {
+        const cells = acc.list.slice(1).map(([k]) => {
             const c = L[k].byCalBin.get(bin);
             return (c && c.n >= 1000 ? signed((c.sumActual - c.sumPred) / c.n, 3) : '—').padStart(10);
         });
@@ -1272,19 +1302,23 @@ function reportProbLayers(acc) {
     }
     console.log('');
 
-    // Refit the Platt curve on today's raw sampled-deal predictions and price
-    // the refit against the app's curve (read back from _calibrate).
-    const bins = [...acc.platt.values()];
-    const fit = fitPlatt(bins);
+    // Refit the Platt curve on each sampled layer's raw predictions, and price
+    // the app's curve (read back from _calibrate) and the refit on that layer.
     const logit = p => Math.log(p / (1 - p));
     const appCal = p => PlayerView.prototype._calibrate(p);
     const appB = logit(appCal(0.5));
     const appA = logit(appCal(1 / (1 + Math.exp(-1)))) - appB;
-    const cur = binnedScores(bins, appCal);
-    const refit = binnedScores(bins, p => 1 / (1 + Math.exp(-(fit.a * logit(p) + fit.b))));
-    console.log(`Platt curve refit on the raw sampled-deal predictions (${bins.reduce((s, e) => s + e.n, 0).toLocaleString()} strictly between 0 and 1):`);
-    console.log(`  app:    a = ${appA.toFixed(3)}, b = ${appB.toFixed(3)}    Brier ${brier('final').toFixed(4)}    log-loss ${ll('final').toFixed(4)}`);
-    console.log(`  refit:  a = ${fit.a.toFixed(3)}, b = ${fit.b.toFixed(3)}    Brier ${(brier('final') + (refit.brier - cur.brier) / n).toFixed(4)}    log-loss ${(ll('final') + (refit.ll - cur.ll) / n).toFixed(4)}`);
+    console.log(`Platt curve on the sampled-deal layers (app curve: a = ${appA.toFixed(3)}, b = ${appB.toFixed(3)}):`);
+    console.log('  layer      raw Brier   + app curve   refit a / b      + refit   refit log-loss');
+    for (const k of acc.sampled) {
+        const bins = [...acc.platt.get(k).values()];
+        const fit = fitPlatt(bins);
+        const raw = binnedScores(bins, p => p);
+        const app = binnedScores(bins, appCal);
+        const refit = binnedScores(bins, p => 1 / (1 + Math.exp(-(fit.a * logit(p) + fit.b))));
+        const at = s => (brier(k) + (s.brier - raw.brier) / n).toFixed(4);
+        console.log(`  ${k.padEnd(9)}  ${brier(k).toFixed(4)}      ${at(app)}        ${fit.a.toFixed(3)} / ${fit.b.toFixed(3)}    ${at(refit)}    ${(ll(k) + (refit.ll - raw.ll) / n).toFixed(4)}`);
+    }
     console.log('');
     console.log(`Sampler under 50 deals: app ${pct(acc.mcShort, acc.snapshots)}, passes-only ${pct(acc.flatShort, acc.snapshots)} of ${acc.snapshots.toLocaleString()} view snapshots`);
     console.log('');
@@ -1541,8 +1575,9 @@ function reportMaxCerrado(acc, totalHands, opts) {
 const opts = parseArgs(process.argv);
 if (opts.probMerge) {
     // Merge --prob-out files from parallel shards and report them as one run.
-    const merged = new ProbLayerAccumulator();
-    for (const file of opts.probMerge) merged.merge(ProbLayerAccumulator.fromJSON(JSON.parse(readFileSync(file, 'utf8'))));
+    const shards = opts.probMerge.map(file => ProbLayerAccumulator.fromJSON(JSON.parse(readFileSync(file, 'utf8'))));
+    const merged = new ProbLayerAccumulator(shards[0].powers);
+    for (const shard of shards) merged.merge(shard);
     reportProbAccuracy(merged.layers.final);
     reportProbLayers(merged);
     process.exit(0);
@@ -1559,7 +1594,7 @@ console.log(`Running ${opts.games} matches at difficulty=${opts.difficulty}${opt
 const matches = [];
 const decisions = opts.instrument ? [] : null;
 const closes = opts.instrument ? [] : null;
-const probLayers = opts.probLayers ? new ProbLayerAccumulator() : null;
+const probLayers = opts.probLayers ? new ProbLayerAccumulator(opts.signalPowers) : null;
 const probAcc = opts.probAccuracy && !probLayers ? new ProbAccumulator() : null;
 const pipAcc = opts.pipAccuracy ? new PipAccumulator() : null;
 const cerradoAcc = opts.maxCerrado ? new CerradoAccumulator() : null;

@@ -65,6 +65,12 @@ export class PlayerView {
         // (BACKLOG 0g.5, `flat-sampling` variant); on in the app.
         this.useAffinitySampling = true;
 
+        // Exponent on the suit affinities when sampling: holders are weighted
+        // by affinity^affinityPower, so values above 1 trust the play signals
+        // more. Harness-only for now (0c phase 2 follow-up: `affinity-powK`
+        // variants, --signal-powers); 1 in the app.
+        this.affinityPower = 1;
+
         // (Platt-scaling recalibration on getProbability is now always on.
         // The useCalibratedProbs flag was a transitional gate; confirmed
         // non-regressive in a 500-match A/B and locked in for v1.1.1.)
@@ -725,9 +731,11 @@ export class PlayerView {
         return Math.sqrt(a1 * a2);
     }
 
-    /** Sampler weight for `player` holding `tile` (see useAffinitySampling). @private */
+    /** Sampler weight for `player` holding `tile` (see useAffinitySampling, affinityPower). @private */
     _samplingWeight(player, tile) {
-        return this.useAffinitySampling ? this._getTileAffinity(player, tile) : 1;
+        if (!this.useAffinitySampling) return 1;
+        const affinity = this._getTileAffinity(player, tile);
+        return this.affinityPower === 1 ? affinity : affinity ** this.affinityPower;
     }
 
     /**
