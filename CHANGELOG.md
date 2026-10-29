@@ -3,6 +3,17 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.17.0] – 2026-10-29
+
+### Added
+- **Your signals (Stats).** A new section shows how much your plays tell the table about your hand, compared with Master: opening with a double, opening with another tile, the new numbers you bring out, and squaring the board (cuadrar). After each hand, once the tiles are public, the app checks how many tiles of each suit you signaled you actually still held, against what anyone at the table could have expected. 100% means your plays are as revealing as Master's; lower means your play hides your hand, from your opponents but also from your partner. Each row shows a verdict (less / about like / more readable than Master, or too early to tell), a bar with the likely range, and how many signals and hands it rests on. The range narrows as you play: new numbers give a useful reading within about 10 matches, while leads and cuadrars take many more. Counts start with this version, also in matches with friends (a hand resumed after a reconnect is left out), and Reset stats clears them. In English and Spanish; Help mentions it under Stats & badges. The AI doesn't use it in play.
+
+### Fixed
+- **Reset stats could leave numbers behind for a first-time player.** On a device with no saved stats yet, the stats were built on the app's own default values, so playing changed those defaults and a Reset in the same session left the numbers as they were. Stats now always start from a fresh copy.
+
+### Changed (internal)
+- `ai/SignalProfile.js` keeps per-hand sums and gives each signal type an estimate with a 95% range (`interval()`, the hand as the unit, from 8 hands); `PlayerStats.style` stores it, `recordStyleHand()` adds a finished hand. Harness: the `--signal-honesty` report adds the typical range width per signal type.
+
 ## [1.16.0] – 2026-10-28
 
 ### Changed

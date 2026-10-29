@@ -7,9 +7,11 @@
 // so for each signal a player gave we can check how many tiles of the
 // signaled suit they still held, against what public information predicted.
 // Relative to Master's (REFERENCE_LOG_RATIO), that says how honest this
-// player's signals of each type are, and the AI reads them with the
-// multiplier raised to that power. Light touch: shrunk toward 1 while the
-// evidence is thin, capped, and exactly today's reading with no history.
+// player's signals of each type are. The AI could read them with the
+// multiplier raised to that power (light touch: shrunk toward 1 while the
+// evidence is thin, capped) — tested in 0h phase 1, it gained nothing, so
+// play doesn't use it. The Stats screen shows it as the player's style
+// (interval()).
 
 export const SIGNAL_TYPES = ['leadDouble', 'lead', 'newNumber', 'avoid', 'cuadrar'];
 
@@ -30,6 +32,7 @@ export const REFERENCE_LOG_RATIO = {
 const PRIOR_EVENTS = 30;            // shrinkage: the evidence weighs n / (n + 30)
 const MIN_SCALE = 0.5;              // cap, in log space: 0.5×–1.5× the default
 const MAX_SCALE = 1.5;
+export const MIN_HANDS = 8;         // hands with the signal before interval() gives a reading
 
 /**
  * How many tiles of `suit` a player still holds right after a signal, and how
@@ -54,7 +57,9 @@ export function measureSignal(handTiles, suit, unplayedTiles, deadSuits) {
 export class SignalProfile {
     /** @param {object} [saved] - a previous toJSON() */
     constructor(saved = null) {
-        this.counts = Object.fromEntries(SIGNAL_TYPES.map(t => [t, { n: 0, held: 0, expected: 0 }]));
+        // Per type: signals, tiles held and expected, and per-hand sums for the
+        // interval (hands with the signal; Σ H², Σ H·E, Σ E² of each hand's totals).
+        this.counts = Object.fromEntries(SIGNAL_TYPES.map(t => [t, { n: 0, held: 0, expected: 0, hands: 0, hh: 0, he: 0, ee: 0 }]));
         if (saved) for (const t of SIGNAL_TYPES) if (saved[t]) Object.assign(this.counts[t], saved[t]);
         this._pending = [];
     }
@@ -66,9 +71,17 @@ export class SignalProfile {
 
     /** The hand is over and its tiles are public: its signals count. */
     commitHand() {
+        const byType = new Map();
         for (const { type, held, expected } of this._pending) {
             const c = this.counts[type];
             c.n++; c.held += held; c.expected += expected;
+            const h = byType.get(type) || { held: 0, expected: 0 };
+            h.held += held; h.expected += expected;
+            byType.set(type, h);
+        }
+        for (const [type, h] of byType) {
+            const c = this.counts[type];
+            c.hands++; c.hh += h.held * h.held; c.he += h.held * h.expected; c.ee += h.expected * h.expected;
         }
         this._pending = [];
     }
@@ -94,6 +107,26 @@ export class SignalProfile {
         const n = this.counts[type].n;
         const shrunk = 1 + (Math.max(-1, Math.min(3, raw)) - 1) * n / (n + PRIOR_EVENTS);
         return Math.max(MIN_SCALE, Math.min(MAX_SCALE, shrunk));
+    }
+
+    /**
+     * rawScale with a 95% interval. A hand's signals share one deal, so the
+     * hand is the unit: the spread of each hand's held vs expected around the
+     * overall ratio gives the ratio's standard error. Null until the type has
+     * shown up in MIN_HANDS hands.
+     * @returns {{estimate: number, low: number, high: number, n: number, hands: number}|null}
+     */
+    interval(type) {
+        const c = this.counts[type];
+        const ref = REFERENCE_LOG_RATIO[type];
+        if (!ref || c.hands < MIN_HANDS || c.held === 0 || c.expected === 0) return null;
+        const r = c.held / c.expected;
+        const variance = Math.max(0, c.hh - 2 * r * c.he + r * r * c.ee) / (c.expected * c.expected)
+            * c.hands / (c.hands - 1);
+        const se = Math.sqrt(variance) / r;           // of ln r
+        const lr = this.logRatio(type);
+        const a = (lr - 1.96 * se) / ref, b = (lr + 1.96 * se) / ref;
+        return { estimate: lr / ref, low: Math.min(a, b), high: Math.max(a, b), n: c.n, hands: c.hands };
     }
 
     /** All scales, in the shape PlayerView.signalScales[p] takes. */

@@ -1,4 +1,5 @@
 import { StorageService } from './StorageService.js';
+import { SignalProfile } from '../ai/SignalProfile.js';
 
 const STORAGE_KEY = '7fichas_stats';
 
@@ -34,6 +35,9 @@ const DEFAULT_STATS = {
         handOverridesWon: 0,
         quizTotalScore: 0, quizAttempts: 0, bestQuizScore: 0
     },
+    // Your suit signals vs public expectation, per type (ai/SignalProfile.js):
+    // the Stats screen's "Your signals".
+    style: new SignalProfile().toJSON(),
     badges: []
 };
 
@@ -59,7 +63,10 @@ export class PlayerStats {
 
     load() {
         const stored = StorageService.get(STORAGE_KEY);
-        this._stats = deepMerge(DEFAULT_STATS, stored || {});
+        // Merge into a copy: sections missing from storage would otherwise be
+        // the defaults' own objects, and recording into them would change
+        // what reset() starts from.
+        this._stats = deepMerge(JSON.parse(JSON.stringify(DEFAULT_STATS)), stored || {});
         return this._stats;
     }
 
@@ -82,6 +89,18 @@ export class PlayerStats {
         this._stats.since = Date.now();
         this.save(this._stats);
         return this._stats;
+    }
+
+    /**
+     * Fold one finished hand's suit signals (yours) into the style profile.
+     * @param {Array<{type: string, held: number, expected: number}>} signals
+     */
+    recordStyleHand(signals) {
+        const stats = this.get();
+        const profile = new SignalProfile(stats.style);
+        for (const { type, held, expected } of signals) profile.observe(type, held, expected);
+        profile.commitHand();
+        stats.style = profile.toJSON();
     }
 
     resetMatchSession() {

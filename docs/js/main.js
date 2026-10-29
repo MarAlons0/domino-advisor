@@ -3,6 +3,7 @@ import { GameState } from './models/GameState.js';
 import { SmartAI } from './ai/SmartAI.js';
 import { HandTracker } from './ai/HandTracker.js';
 import { PlayerView } from './ai/PlayerView.js';
+import { measureSignal } from './ai/SignalProfile.js';
 import { DebriefUI } from './ui/DebriefUI.js';
 import { SettingsUI } from './ui/SettingsUI.js';
 import { StatsUI } from './ui/StatsUI.js';
@@ -72,6 +73,16 @@ class DominoApp {
         // Create per-player probability views with Bayesian suit affinity inference
         this.playerViews = [0, 1, 2, 3].map(i => new PlayerView(i, this.handTracker));
         this.ai.setPlayerViews(this.playerViews);
+
+        // Your style (Stats → Your signals): every view hears every suit
+        // signal, so view 0's listener catches yours once. They are measured
+        // after the play is applied (_trackPlay) and count when the hand ends.
+        this._styleQueue = [];
+        this._styleSignals = [];
+        this._styleSkipHand = false;
+        this.playerViews[0].onSignal = (player, suit, type) => {
+            if (player === 0 && !this._styleSkipHand) this._styleQueue.push({ suit, type });
+        };
 
         // Probability accuracy analyzer (debug mode only)
         this.probAnalyzer = DEBUG_AI ? new ProbabilityAnalyzer(this.playerViews) : null;
@@ -218,6 +229,9 @@ class DominoApp {
             this.playerViews[i].resetAffinities();
             this.playerViews[i].initOwnHand(i === 0 ? dealt : state.hands[i]);
         }
+        // A hand resumed mid-way can't be measured fairly (its plays are replayed
+        // against today's hand), so it doesn't count toward your style.
+        this._startStyleHand(!!info.resumed);
         for (const p of plays) {
             const ends = p.stateSnapshot?.chainSize ? [p.stateSnapshot.leftEnd, p.stateSnapshot.rightEnd] : [null, null];
             if (p.tile) this._trackPlay(p.player, p.tile, p.end, ...ends);
@@ -658,13 +672,16 @@ class DominoApp {
             if (this.probAnalyzer) {
                 this.probAnalyzer.analyzeAndLog(this.game.getState().hands);
             }
+            // Your signals from this hand; the hand is over, so they count.
+            const styleSignals = this._styleSkipHand ? [] : this._styleSignals;
+            this._styleSignals = [];
             // Hold the modal so the table effect has time to play
             const delay = this._handEndDelay(data.reason);
             setTimeout(() => {
                 // Record stats for every hand — including the match-ending one,
                 // which gets no hand-end modal. This timer was queued before
                 // onMatchEnd's (same delay), so hand stats land before match stats.
-                this._recordHandStats(data);
+                this._recordHandStats(data, styleSignals);
                 // The match-ending hand goes straight to the match-end message
                 // (with the Review Game button) instead of the hand-end modal.
                 if (data.isMatchEnding || this.game.getState().gamePhase === 'matchOver') return;
@@ -712,6 +729,24 @@ class DominoApp {
         for (const view of this.playerViews) {
             view.recordPlayObservation(player, tile, end, leftEnd, rightEnd);
         }
+        if (this._styleQueue.length) this._measureStyleSignals();
+    }
+
+    /** Measure your queued suit signals against public information (Stats → Your signals). @private */
+    _measureStyleSignals() {
+        const hand = this.game.getState().hands[0].getTiles();
+        const unplayed = this.handTracker.allTiles.filter(t => this.handTracker.knownLocations.get(t.toKey()) !== 'played');
+        for (const { suit, type } of this._styleQueue) {
+            this._styleSignals.push({ type, ...measureSignal(hand, suit, unplayed, this.handTracker.deadSuits[0]) });
+        }
+        this._styleQueue = [];
+    }
+
+    /** A new hand: your signals start over; `skip` leaves this hand out. @private */
+    _startStyleHand(skip = false) {
+        this._styleQueue = [];
+        this._styleSignals = [];
+        this._styleSkipHand = skip;
     }
 
     /** What Genín and the AI learn from a pass (inferred dead suits). @private */
@@ -747,6 +782,7 @@ class DominoApp {
             this.playerViews[i].resetAffinities();
             this.playerViews[i].initOwnHand(state.hands[i]);
         }
+        this._startStyleHand();
 
         const starterName = GameState.getPlayerName(state.currentPlayer);
         this.log(t('log.starterHasDouble', starterName), 'system');
@@ -1296,12 +1332,14 @@ class DominoApp {
     }
 
     /**
-     * Record lifetime stats for a finished hand and award any hand badges.
+     * Record lifetime stats for a finished hand (with your suit signals from it,
+     * for Stats → Your signals) and award any hand badges.
      * Called for every hand, including the match-ending one.
      * @private
      */
-    _recordHandStats(data) {
+    _recordHandStats(data, styleSignals = []) {
         this.playerStats.recordHandResult(data, this.game.getMatchHistory());
+        if (styleSignals.length) this.playerStats.recordStyleHand(styleSignals);
         const hBadges = this.badgeSystem.checkHandBadges(this.playerStats.get());
         if (hBadges.length) this.badgeToast.showBadges(hBadges);
         this.playerStats.save(this.playerStats.get());
@@ -1514,6 +1552,7 @@ class DominoApp {
                 this.playerViews[i].resetAffinities();
                 this.playerViews[i].initOwnHand(newState.hands[i]);
             }
+            this._startStyleHand();
 
             this.updateQuizButton();
 

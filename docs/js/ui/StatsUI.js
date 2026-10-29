@@ -1,5 +1,11 @@
 import { BADGES } from '../stats/BadgeSystem.js';
+import { SignalProfile, MIN_HANDS } from '../ai/SignalProfile.js';
 import { i18n, t } from '../i18n/i18n.js';
+
+// "Your signals": the suit signals the Stats screen reports, in order.
+const STYLE_TYPES = ['leadDouble', 'lead', 'newNumber', 'cuadrar'];
+// A likely range wider than ±60% of Master's is too early to call.
+const STYLE_WIDE = 0.6;
 
 export class StatsUI {
     constructor(playerStats) {
@@ -26,6 +32,9 @@ export class StatsUI {
         // Two taps to reset: the first arms the button for a few seconds.
         this.resetBtn = document.getElementById('stats-reset-btn');
         if (this.resetBtn) this.resetBtn.addEventListener('click', () => this._onReset());
+
+        // "Your signals" rows are built in the current language: rebuild on a switch.
+        i18n.onLanguageChange(() => this._renderStyle(this.playerStats.get().style));
 
         this.isInitialized = true;
     }
@@ -88,6 +97,7 @@ export class StatsUI {
         this._renderHands(stats.hands);
         this._renderCerrado(stats.cerrado);
         this._renderCoaching(stats.coaching);
+        this._renderStyle(stats.style);
         this._renderBadges(stats.badges);
     }
 
@@ -151,6 +161,48 @@ export class StatsUI {
         this._set('stat-coaching-overrides', this._fmt(c.handOverridesWon));
         this._set('stat-coaching-quiz-attempts', c.quizAttempts > 0 ? c.quizAttempts : '--');
         this._set('stat-coaching-best-quiz', c.quizAttempts > 0 ? c.bestQuizScore : '--');
+    }
+
+    /**
+     * How readable your suit signals are compared with Master's (100%), each
+     * with its likely range — on a bar from 0 to twice Master's.
+     */
+    _renderStyle(style) {
+        const rows = document.getElementById('stats-style-rows');
+        if (!rows) return;
+        const profile = new SignalProfile(style);
+        const pct = (x) => Math.round(100 * x);
+        const pos = (x) => Math.max(0, Math.min(100, 50 * x));
+        rows.innerHTML = '';
+        for (const type of STYLE_TYPES) {
+            const iv = profile.interval(type);
+            let verdict, gauge = '', detail;
+            if (!iv) {
+                const c = profile.counts[type];
+                verdict = 'none';
+                detail = t('stats.style.needMore', c.n, c.hands, MIN_HANDS);
+            } else {
+                verdict = iv.high < 1 ? 'less' : iv.low > 1 ? 'more'
+                    : (iv.high - iv.low) / 2 > STYLE_WIDE ? 'early' : 'same';
+                detail = t('stats.style.detail', pct(iv.estimate), pct(Math.max(0, iv.low)), pct(iv.high), iv.n, iv.hands);
+                gauge = `<div class="style-gauge">
+                    <div class="style-range" style="left:${pos(iv.low)}%;width:${pos(iv.high) - pos(iv.low)}%"></div>
+                    <div class="style-master"></div>
+                    <div class="style-dot" style="left:${pos(iv.estimate)}%"></div>
+                </div>`;
+            }
+            const row = document.createElement('div');
+            row.className = 'style-row';
+            row.innerHTML = `
+                <div class="style-row-head">
+                    <span class="style-label">${t(`stats.style.${type}`)}</span>
+                    <span class="style-verdict ${verdict}">${t(`stats.style.${verdict}`)}</span>
+                </div>
+                ${gauge}
+                <div class="style-detail">${detail}</div>
+            `;
+            rows.appendChild(row);
+        }
     }
 
     _renderBadges(earnedBadges) {

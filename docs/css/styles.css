@@ -3508,6 +3508,84 @@ button:disabled {
     color: #eee;
 }
 
+/* Your signals */
+.stats-style-intro {
+    color: #888;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin: 0 0 10px 0;
+}
+
+.style-row {
+    background: #0f1a2e;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+}
+
+.style-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.style-label {
+    font-size: 0.85rem;
+    color: #ddd;
+}
+
+.style-verdict {
+    font-size: 0.75rem;
+    color: #888;
+    text-align: right;
+}
+
+.style-verdict.less { color: #ffb347; }
+.style-verdict.more { color: #00d4ff; }
+.style-verdict.same { color: #7bd88f; }
+
+.style-gauge {
+    position: relative;
+    height: 8px;
+    background: #1e2a44;
+    border-radius: 4px;
+    margin: 8px 0 4px;
+}
+
+.style-range {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: rgba(0, 212, 255, 0.25);
+    border-radius: 4px;
+}
+
+.style-master {
+    position: absolute;
+    left: 50%;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    margin-left: -1px;
+    background: #aaa;
+}
+
+.style-dot {
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    border-radius: 50%;
+    background: #00d4ff;
+}
+
+.style-detail {
+    font-size: 0.72rem;
+    color: #888;
+}
+
 /* Reason breakdown table */
 .stats-reason-table {
     width: 100%;
