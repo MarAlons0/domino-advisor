@@ -16,9 +16,9 @@ export const SIGNAL_TYPES = ['leadDouble', 'lead', 'newNumber', 'avoid', 'cuadra
 // ln(held / expected) per signal type for Master players: v1.16.0 self-play,
 // 300 matches, tools/tournament.js --signal-honesty (shard spread ±0.02 for
 // newNumber, ±0.05 for the rest). A player whose ratio matches gets scale 1
-// (read as today). `avoid` never fires (SmartAI only sends it when the tile
-// also carries the avoided number, which makes the play a cuadrar), so it has
-// no reference and is never scaled.
+// (read as today). `avoid` has no reference and is never scaled: SmartAI
+// doesn't send it in play (SmartAI.avoidSignal is off). When on, Master's
+// ln ratio is −0.217 over 19,953 signals.
 export const REFERENCE_LOG_RATIO = {
     leadDouble: 0.242,  // 1,952 signals
     lead: 0.193,        // 824

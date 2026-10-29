@@ -52,12 +52,15 @@ const MAX_DISPARITY_PIP6 = [
 ];
 
 const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind', 'flat-sampling', 'learn-signals'];
-// Plus the family affinity-powK (any K, e.g. affinity-pow2): suit affinities raised to K when sampling.
+// Plus two families: affinity-powK (e.g. affinity-pow2) samples with the suit
+// affinities raised to K; scale-TYPE-S (e.g. scale-avoid-0) reads every
+// player's signals of that type with the multiplier raised to S.
 const AFFINITY_POW = /^affinity-pow(\d+(?:\.\d+)?)$/;
-const isVariant = v => VARIANTS.includes(v) || AFFINITY_POW.test(v);
+const SIGNAL_SCALE = /^scale-([a-zA-Z]+)-(\d+(?:\.\d+)?)$/;
+const isVariant = v => VARIANTS.includes(v) || AFFINITY_POW.test(v) || SIGNAL_SCALE.test(v);
 
 function parseArgs(argv) {
-    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, probLayers: false, signalPowers: [], signalHonesty: false, sharedProfile: false, probOut: null, probMerge: null, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, persona: false, personas: 10, season: 10, personaSeed: 1, personaNoise: null, personaPlain: false, variant: 'mc-pass', allVariant: null };
+    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, probLayers: false, signalPowers: [], signalHonesty: false, sharedProfile: false, signalAblation: null, avoidSignal: false, probOut: null, probMerge: null, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, persona: false, personas: 10, season: 10, personaSeed: 1, personaNoise: null, personaPlain: false, variant: 'mc-pass', allVariant: null };
     for (let i = 2; i < argv.length; i++) {
         const a = argv[i];
         if (a === '--games') opts.games = parseInt(argv[++i], 10);
@@ -87,11 +90,16 @@ function parseArgs(argv) {
         else if (a === '--persona-plain') opts.personaPlain = true;
         else if (a === '--signal-honesty') opts.signalHonesty = true;
         else if (a === '--shared-profile') opts.sharedProfile = true;
+        else if (a === '--avoid-signal') opts.avoidSignal = true;
+        else if (a === '--signal-ablation') {
+            const [type, scale = '0'] = argv[++i].split(':');
+            opts.signalAblation = { type, scale: parseFloat(scale) };
+        }
         else if (a === '--help' || a === '-h') {
             console.log('Usage: node tools/tournament.js [--games N] [--difficulty LEVEL] [--ab] [--variant NAME] [--instrument] [--verbose]');
             console.log('  --ab            Champion (current code) vs Challenger (a variant). Challenger');
             console.log('                  team alternates each match to cancel seat bias.');
-            console.log(`  --variant NAME  Challenger variant for --ab. One of: ${VARIANTS.join(', ')}, affinity-powK.`);
+            console.log(`  --variant NAME  Challenger variant for --ab. One of: ${VARIANTS.join(', ')}, affinity-powK, scale-TYPE-S.`);
             console.log('                    mc-pass       MC-derived pass/block probabilities.');
             console.log('                    no-def-close  Disable defensive cuadrar (block only at pip advantage).');
             console.log('                    def-close-1   Defensive close only when an opponent has 1 tile left.');
@@ -145,6 +153,11 @@ function parseArgs(argv) {
             console.log('                  through its learned SignalProfile on alternate matches; seat-0');
             console.log('                  hand-reading is scored with and without it on the same positions.');
             console.log('                  --shared-profile: one profile for all personas (strangers protocol).');
+            console.log('  --avoid-signal  Turn on SmartAI.avoidSignal (avoided ends read as a suit signal;');
+            console.log('                  off in play, see SmartAI). Needed to measure or vary `avoid`.');
+            console.log('  --signal-ablation TYPE[:S]  Shadow views for all seats read signals of TYPE at');
+            console.log('                  strength S (default 0 = ignore them); every prediction is scored');
+            console.log('                  by the real view and its shadow on the same positions.');
             console.log('  --hand-points   Report the distribution of points per hand (decided hands +');
             console.log('                  ties). Source data for the match-equity table in');
             console.log('                  docs/js/ai/MatchEquity.js (BACKLOG 0g.3b).');
@@ -152,11 +165,11 @@ function parseArgs(argv) {
         }
     }
     if (opts.ab && !isVariant(opts.variant)) {
-        console.error(`Unknown variant "${opts.variant}". Choose one of: ${VARIANTS.join(', ')}, affinity-powK`);
+        console.error(`Unknown variant "${opts.variant}". Choose one of: ${VARIANTS.join(', ')}, affinity-powK, scale-TYPE-S`);
         process.exit(1);
     }
     if (opts.allVariant && !isVariant(opts.allVariant)) {
-        console.error(`Unknown --all-variant "${opts.allVariant}". Choose one of: ${VARIANTS.join(', ')}, affinity-powK`);
+        console.error(`Unknown --all-variant "${opts.allVariant}". Choose one of: ${VARIANTS.join(', ')}, affinity-powK, scale-TYPE-S`);
         process.exit(1);
     }
     return opts;
@@ -250,13 +263,17 @@ function applyVariant(variant, ai, playerViews, seat) {
             // power K (PlayerView.affinityPower); K > 1 trusts the signals more.
             const pow = AFFINITY_POW.exec(variant);
             if (pow) playerViews[seat].affinityPower = parseFloat(pow[1]);
+            // scale-TYPE-S: read every player's TYPE signals at strength S.
+            const sc = SIGNAL_SCALE.exec(variant);
+            if (sc) playerViews[seat].signalScales = [0, 1, 2, 3].map(() => ({ [sc[1]]: parseFloat(sc[2]) }));
         }
     }
 }
 
-function setupMatch(difficulty, challengerSeats = null, variant = null, allVariant = null) {
+function setupMatch(difficulty, challengerSeats = null, variant = null, allVariant = null, avoidSignal = false) {
     const game = new Game();
     const ai = new SmartAI();
+    ai.avoidSignal = avoidSignal;
     const handTracker = new HandTracker();
     ai.setHandTracker(handTracker);
     const playerViews = [0, 1, 2, 3].map(i => new PlayerView(i, handTracker));
@@ -424,27 +441,46 @@ function initTrackersForHand(handTracker, playerViews, state) {
 // `seat0Acc`, shadow views for seats 1 and 3 read seat 0 the other way round,
 // so their hand-reading of seat 0 is scored with and without the profile on
 // the same positions.
-function setupSignalLearning({ game, handTracker, playerViews, signalSink, seat0Profile, seat0Acc, learnSeats }) {
-    if (!signalSink && !seat0Profile) return { handStart() {}, handEnd() {}, snapshot() {} };
+// Shadow views: extra PlayerViews for `seats` that observe every play and
+// every SmartAI signal exactly like the real ones but never choose a move, so
+// a different reading can be scored on the same positions.
+function makeShadowViews(game, handTracker, playerViews, seats) {
     const shadows = new Map();
-    if (seat0Acc) {
-        for (const seat of [1, 3]) {
-            const shadow = new PlayerView(seat, handTracker);
-            shadows.set(seat, shadow);
-            // SmartAI sends the avoid / cuadrar signals to the four real views only.
-            const view = playerViews[seat];
-            const apply = view.applyAffinitySignal.bind(view);
-            view.applyAffinitySignal = (...args) => { apply(...args); shadow.applyAffinitySignal(...args); };
-        }
+    for (const seat of seats) {
+        const shadow = new PlayerView(seat, handTracker);
+        shadows.set(seat, shadow);
+        // SmartAI sends the avoid / cuadrar signals to the four real views only.
+        const view = playerViews[seat];
+        const apply = view.applyAffinitySignal.bind(view);
+        view.applyAffinitySignal = (...args) => { apply(...args); shadow.applyAffinitySignal(...args); };
     }
-    const pending = [];
-    playerViews[0].onSignal = (player, suit, type) => pending.push({ player, suit, type });
     const onPlay = game.onPlay;
     game.onPlay = (data) => {
         onPlay(data);
         const leftEnd = data.openEndsBefore?.left ?? null;
         const rightEnd = data.openEndsBefore?.right ?? null;
         for (const shadow of shadows.values()) shadow.recordPlayObservation(data.player, data.tile, data.end, leftEnd, rightEnd);
+    };
+    return {
+        shadows,
+        handStart(state) {
+            for (const [seat, shadow] of shadows) {
+                shadow.resetAffinities();
+                shadow.initOwnHand(state.hands[seat]);
+            }
+        },
+    };
+}
+
+function setupSignalLearning({ game, handTracker, playerViews, signalSink, seat0Profile, seat0Acc, learnSeats }) {
+    if (!signalSink && !seat0Profile) return { handStart() {}, handEnd() {}, snapshot() {} };
+    const shadowSet = seat0Acc ? makeShadowViews(game, handTracker, playerViews, [1, 3]) : null;
+    const shadows = shadowSet ? shadowSet.shadows : new Map();
+    const pending = [];
+    playerViews[0].onSignal = (player, suit, type) => pending.push({ player, suit, type });
+    const onPlay = game.onPlay;
+    game.onPlay = (data) => {
+        onPlay(data);
         const state = game.getState();
         const unplayed = handTracker.allTiles.filter(t => handTracker.knownLocations.get(t.toKey()) !== 'played');
         for (const { player, suit, type } of pending) {
@@ -459,11 +495,8 @@ function setupSignalLearning({ game, handTracker, playerViews, signalSink, seat0
         handStart(state) {
             const scales = seat0Profile ? seat0Profile.scales() : null;
             for (const seat of learnSeats) playerViews[seat].signalScales[0] = scales;
-            for (const [seat, shadow] of shadows) {
-                shadow.resetAffinities();
-                shadow.initOwnHand(state.hands[seat]);
-                shadow.signalScales[0] = learnOn ? null : scales;
-            }
+            if (shadowSet) shadowSet.handStart(state);
+            for (const shadow of shadows.values()) shadow.signalScales[0] = learnOn ? null : scales;
         },
         handEnd() {
             if (signalSink) signalSink.handEnd();
@@ -487,11 +520,45 @@ function setupSignalLearning({ game, handTracker, playerViews, signalSink, seat0
     };
 }
 
-function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, probLayers = null, pipAcc = null, cerradoAcc = null, cooperativeLosers = false, maxDisparityDeals = false, randomLosers = false, forceCerrar = false, personaPlayer = null, signalSink = null, seat0Profile = null, seat0Acc = null }) {
-    const { game, ai, handTracker, playerViews } = setupMatch(difficulty, challengerSeats, variant, allVariant);
+// Paired signal ablation (--signal-ablation TYPE:S): shadow views for all four
+// seats read every player's TYPE signals at strength S (0 = ignore them);
+// every prediction is scored by the real view and by its shadow.
+function setupSignalAblation({ game, handTracker, playerViews, ablation, acc }) {
+    const { shadows, handStart } = makeShadowViews(game, handTracker, playerViews, [0, 1, 2, 3]);
+    for (const shadow of shadows.values()) {
+        shadow.signalScales = [0, 1, 2, 3].map(() => ({ [ablation.type]: ablation.scale }));
+    }
+    return {
+        handStart,
+        snapshot(state) {
+            const tilesPlayed = state.chain.size();
+            for (const [viewer, shadow] of shadows) {
+                const view = playerViews[viewer];
+                const partner = (viewer + 2) % 4;
+                for (const tile of view.allTiles) {
+                    const key = tile.toKey();
+                    if (handTracker.knownLocations.get(key) === 'played' || view.ownTileKeys.has(key)) continue;
+                    for (let p = 0; p < 4; p++) {
+                        if (p === viewer) continue;
+                        const actual = state.hands[p].has(tile) ? 1 : 0;
+                        const relation = p === partner ? 'partner' : 'opponent';
+                        acc.real.add(tilesPlayed, relation, view.getProbability(p, tile), actual);
+                        acc.shadow.add(tilesPlayed, relation, shadow.getProbability(p, tile), actual);
+                    }
+                }
+            }
+        },
+    };
+}
+
+function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, probLayers = null, pipAcc = null, cerradoAcc = null, cooperativeLosers = false, maxDisparityDeals = false, randomLosers = false, forceCerrar = false, personaPlayer = null, signalSink = null, seat0Profile = null, seat0Acc = null, signalAblation = null, ablationAcc = null, avoidSignal = false }) {
+    const { game, ai, handTracker, playerViews } = setupMatch(difficulty, challengerSeats, variant, allVariant, avoidSignal);
     if (personaPlayer) personaPlayer.startMatch(ai);
     const learning = setupSignalLearning({ game, handTracker, playerViews, signalSink, seat0Profile, seat0Acc,
         learnSeats: variant === 'learn-signals' && challengerSeats ? challengerSeats : [] });
+    const ablation = signalAblation
+        ? setupSignalAblation({ game, handTracker, playerViews, ablation: signalAblation, acc: ablationAcc })
+        : { handStart() {}, snapshot() {} };
     // Track each player's most recent decision so a close can be classified as
     // deliberate (had ≥2 legal moves) vs forced (closing tile was the only move).
     const lastDecision = [null, null, null, null];
@@ -587,6 +654,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
     if (maxDisparityDeals) currentPartition = applyMaxDisparityDeal(game);
     initTrackersForHand(handTracker, playerViews, game.getState());
     learning.handStart(game.getState());
+    ablation.handStart(game.getState());
     // Snapshot team pip totals at the start of each hand so cerrado samples
     // can record the losing team's *initial* pips (and the pip dump). Updated
     // again whenever a new hand is dealt below.
@@ -607,6 +675,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
             else if (probAcc) captureProbSnapshot(playerViews, state, probAcc);
             if (pipAcc) capturePipSnapshot(ai, playerViews, state, pipAcc);
             learning.snapshot(state);
+            ablation.snapshot(state);
             const t0 = process.hrtime.bigint();
             // Per-seat dispatch. Seats 1 and 3 (team B) may use random or
             // cooperative behavior; seats 0 and 2 (team A) may use force-cerrar.
@@ -646,6 +715,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
             if (maxDisparityDeals) currentPartition = applyMaxDisparityDeal(game);
             initTrackersForHand(handTracker, playerViews, game.getState());
             learning.handStart(game.getState());
+            ablation.handStart(game.getState());
             const h = game.getState().hands;
             initialTeamPips = [h[0].pipCount() + h[2].pipCount(), h[1].pipCount() + h[3].pipCount()];
         } else {
@@ -900,6 +970,33 @@ function reportSeat0Learning(acc, profiles) {
         const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
         console.log(`  ${t.padEnd(11)}  ${String(ps.length).padStart(8)}  ${mean(ps.map(p => p.counts[t].n)).toFixed(0).padStart(6)}   ${mean(sc).toFixed(3).padStart(10)}   ${Math.min(...sc).toFixed(2)}   ${Math.max(...sc).toFixed(2)}   ${raw.length ? mean(raw).toFixed(3).padStart(10) : '—'}`);
     }
+    console.log('');
+}
+
+function reportSignalAblation(acc, ablation) {
+    const { real, shadow } = acc;
+    const b = (e) => e.brier / e.n;
+    const sign = (x, d) => (x >= 0 ? '+' : '') + x.toFixed(d);
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(` Signal ablation: real views vs shadows reading ${ablation.type} at ${ablation.scale} (same positions)`);
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(`  ${real.total.n.toLocaleString()} predictions`);
+    console.log(`  Brier     real ${b(real.total).toFixed(5)}   shadow ${b(shadow.total).toFixed(5)}   real − shadow ${sign(b(real.total) - b(shadow.total), 5)}`);
+    console.log(`  Log-loss  real ${(real.total.ll / real.total.n).toFixed(5)}   shadow ${(shadow.total.ll / shadow.total.n).toFixed(5)}`);
+    console.log('  tiles     real        shadow      real − shadow');
+    for (const k of [...real.byBucket.keys()].sort((x, y) => x - y)) {
+        const r = real.byBucket.get(k), s = shadow.byBucket.get(k);
+        console.log(`  ${`${k * 4}-${k * 4 + 3}`.padStart(5)}    ${b(r).toFixed(5)}   ${b(s).toFixed(5)}   ${sign(b(r) - b(s), 5)}`);
+    }
+    console.log('  Calibration drift (observed − mean predicted):');
+    console.log('  bin        real      shadow');
+    for (let bin = 0; bin < 10; bin++) {
+        const r = real.byCalBin.get(bin), s = shadow.byCalBin.get(bin);
+        const cell = (c) => (c && c.n >= 1000 ? sign((c.sumActual - c.sumPred) / c.n, 3) : '—').padStart(8);
+        console.log(`  ${`${bin * 10}–${bin * 10 + 10}%`.padEnd(8)} ${cell(r)}  ${cell(s)}`);
+    }
+    console.log(`  totals ${real.total.n} ${real.total.brier.toFixed(4)} ${shadow.total.brier.toFixed(4)} ${real.total.ll.toFixed(4)} ${shadow.total.ll.toFixed(4)}`);
     console.log('');
 }
 
@@ -1784,6 +1881,7 @@ const personaProfiles = personaPlayers && !opts.sharedProfile ? personaPlayers.m
 const sharedProfile = personaPlayers && opts.sharedProfile ? new SignalProfile() : null;
 const learnAB = !!personaPlayers && opts.ab && opts.variant === 'learn-signals';
 const seat0Acc = learnAB ? { on: new ProbAccumulator(), off: new ProbAccumulator() } : null;
+const ablationAcc = opts.signalAblation ? { real: new ProbAccumulator(), shadow: new ProbAccumulator() } : null;
 const probAcc = opts.probAccuracy && !probLayers ? new ProbAccumulator() : null;
 const pipAcc = opts.pipAccuracy ? new PipAccumulator() : null;
 const cerradoAcc = opts.maxCerrado ? new CerradoAccumulator() : null;
@@ -1821,6 +1919,7 @@ for (let i = 0; i < opts.games; i++) {
     }
     if (signalHonesty) perMatchOpts = { ...perMatchOpts, signalSink: signalHonesty };
     if (seat0Acc) perMatchOpts = { ...perMatchOpts, seat0Acc };
+    if (ablationAcc) perMatchOpts = { ...perMatchOpts, signalAblation: opts.signalAblation, ablationAcc };
     matches.push(runMatch(perMatchOpts));
 }
 const elapsed = (Date.now() - start) / 1000;
@@ -1830,6 +1929,7 @@ report(aggregate(matches), opts);
 if (personaPlayers) reportPersonas(personaPlayers);
 if (signalHonesty) reportSignalHonesty(signalHonesty, personaProfiles);
 if (learnAB) reportSeat0Learning(seat0Acc, personaProfiles || [sharedProfile]);
+if (ablationAcc) reportSignalAblation(ablationAcc, opts.signalAblation);
 if (opts.ab && personaPlayers) reportPersonaAB(matches, opts.variant);
 else if (opts.ab) reportAB(matches, opts.variant);
 if (opts.instrument) reportInstrumentation(decisions);

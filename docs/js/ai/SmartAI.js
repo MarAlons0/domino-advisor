@@ -111,6 +111,16 @@ export class SmartAI {
         // the top. Default 0 = always pick the single best move (deterministic).
         // Used to measure the self-play cost of unpredictability.
         this.randomizeTolerance = [0, 0, 0, 0];
+        // Read avoided ends as an affinity signal (INFERENCE 2b in
+        // analyzePlayChoice)? Off. Before the 0h measurement it never fired
+        // (it also required tile.hasValue(avoided), which only a cuadrar
+        // tile satisfies). Once it fired, the ×0.85 / ×0.70 signal made
+        // hand-reading slightly worse (Brier +0.0002, paired over 300
+        // matches): players do hold fewer of the avoided suit (80% of
+        // expected), but repeated avoidances of one suit multiply and
+        // over-count it. At half strength it was worth only 0.0001.
+        // The harness turns it on with --avoid-signal.
+        this.avoidSignal = false;
         // (Firme detection now always uses getRemainingTilesInSuit; the
         // previous useAccurateFirmeCount flag was a transitional gate around
         // the off-by-one bug fix, confirmed non-regressive in a 500-match
@@ -323,13 +333,13 @@ export class SmartAI {
                 }
 
                 // INFERENCE 2b: Team-contextual affinity signal to PlayerViews.
-                // Only fires when the tile actually had the avoided suit (real choice was made).
                 // Replaces the context-free 0.85× that PlayerView.recordPlayObservation()
                 // previously applied for end-avoidance — now weighted by partnership context:
                 //   playedOn === partnerSuit → 1.0 (expected play, no negative signal)
                 //   avoided === partnerSuit  → 0.70 (surprising avoidance, stronger signal)
                 //   neutral                  → 0.85 (standard signal)
-                if (this.playerViews && tile.hasValue(avoided)) {
+                // Gated by this.avoidSignal (off — see the constructor).
+                if (this.playerViews && this.avoidSignal) {
                     const multiplier = (playedOn === partnerSuit) ? 1.0
                                      : (avoided === partnerSuit)  ? 0.70
                                      : 0.85;
