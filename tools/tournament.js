@@ -930,13 +930,15 @@ function reportSignalHonesty(honesty, profiles) {
         // (personas with at least 20 signals of the type).
         console.log('');
         console.log('  Per persona, honesty vs Master (ln ratio / Master\'s), personas with ≥ 20 signals:');
-        console.log('  type         personas   min    25%    median  75%    max');
+        console.log('  type         personas   min    25%    median  75%    max    median 95% half-width (Stats reading)');
         for (const t of SIGNAL_TYPES) {
             const ref = honesty.ref.logRatio(t);
             const xs = profiles.filter(p => p.counts[t].n >= 20).map(p => p.logRatio(t) / ref).sort((a, b) => a - b);
             if (!ref || xs.length === 0) { console.log(`  ${t.padEnd(11)}  ${String(xs.length).padStart(8)}`); continue; }
             const q = f => xs[Math.min(xs.length - 1, Math.floor(f * xs.length))].toFixed(2).padStart(6);
-            console.log(`  ${t.padEnd(11)}  ${String(xs.length).padStart(8)}  ${q(0)} ${q(0.25)} ${q(0.5)}  ${q(0.75)} ${xs[xs.length - 1].toFixed(2).padStart(6)}`);
+            const widths = profiles.map(p => p.interval(t)).filter(Boolean).map(iv => (iv.high - iv.low) / 2).sort((a, b) => a - b);
+            const w = widths.length ? `±${widths[Math.floor(widths.length / 2)].toFixed(2)} (${widths.length} with a reading)` : '—';
+            console.log(`  ${t.padEnd(11)}  ${String(xs.length).padStart(8)}  ${q(0)} ${q(0.25)} ${q(0.5)}  ${q(0.75)} ${xs[xs.length - 1].toFixed(2).padStart(6)}    ${w}`);
         }
     }
     console.log('');
