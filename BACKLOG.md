@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-10-29 (Your signals shipped as v1.17.0)_
+_Last updated: 2026-11-04 (Suggestions added)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -15,6 +15,9 @@ _Nothing open — next items come from Medium._
 - [ ] **Pass indicators on UI (5)** — show when a player passed. `[feature]`
 - [ ] **Named AI players (UX-B)** — give the AI opponents names. `[feature]`
 - [ ] **AI thinking indicator (UX-D)** — show the AI "thinking" before it plays. `[feature]`
+- [ ] **Suggestions** — a 💬 button to send an idea or report a bug (💡 Idea / 🐞 Bug, message, optional name). Each one is emailed to the organizers and saved for an admin Suggestions screen with Mark done / Reopen. Add a Help section and a "How do I…?" entry, as in domino-tracker v1.11.0. `[feature]`
+  - 7 Fichas has no database and no admin PIN. Store suggestions in a SQLite Durable Object on the `domino-rooms` Worker (free plan), send email through SendGrid's HTTP API, and keep `SENDGRID_API_KEY`, `OPERATOR_EMAILS` and the admin PIN as Worker secrets. The endpoint is public, so cap message length and rate-limit by IP. Needs a Worker deploy.
+  - Hide the 💬 during a hand (the tiles fill the bottom of the screen). Attach the app version, screen, difficulty and language. All text in en/es.
 - [ ] **Re-run the max-cerrado harness numbers** — before v1.5.1 the harness dropped every match-ending hand, so the empirical maxima in [docs/MAX_CERRADO.md](docs/MAX_CERRADO.md) and the white paper (≈92 rigged / ≈78 natural) were sampled without the hands most likely to carry big hauls. Re-run `--max-cerrado` (with `--max-disparity-deals`, `--cooperative-losers`, `--random-losers --force-cerrar`) and update both docs if the maxima move. The exhaustive 103-pip ceiling (`tools/cerrado-search.js`) is unaffected. `[chore]`
 
 ## 🟢 Low / Nice to have
