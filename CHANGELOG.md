@@ -3,6 +3,12 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.18.1] – 2026-11-12
+
+### Fixed
+- **Genín praised the [6|6] that opens the first hand.** That tile has to be played, so it isn't a decision, but the hand-end card could still say "Your [6|6] on play 1 was the AI's top pick — nicely read." The card now picks its moment only from real decisions: a forced play (only one legal move), the opening [6|6] or later in the hand, is never praised or faulted. If nothing else stands out, the card shows its plain verdict. Play numbers still count every tile you played.
+- **Asking Genín on the forced opening** showed the [6|6] with "La Salida — open strong!", as if there were a choice. It now says the first hand always opens with the [6|6] and there's nothing to decide.
+
 ## [1.18.0] – 2026-11-12
 
 ### Changed

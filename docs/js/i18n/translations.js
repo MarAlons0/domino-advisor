@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.18.0',
+        'app.version': 'v1.18.1',
         'app.createdBy': 'Created by',
 
         // Players
@@ -446,6 +446,7 @@ export const translations = {
         'advice.playRight': 'Play on Right',
         'advice.onlyMove': "Really? There's only one move!",
         'advice.firstTile': 'La Salida — open strong!',
+        'advice.forcedOpening': 'The first hand always opens with the [6|6] — nothing to decide.',
         'advice.mustPass': 'Nothing to play — you must pass.',
 
         // Brief strategy (Genín speech bubble)
@@ -640,7 +641,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.18.0',
+        'app.version': 'v1.18.1',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -1079,6 +1080,7 @@ export const translations = {
         'advice.playRight': 'Juega a la Der',
         'advice.onlyMove': '¿En serio? ¡Solo hay una jugada!',
         'advice.firstTile': 'La Salida — ¡abre fuerte!',
+        'advice.forcedOpening': 'La primera mano siempre sale con el [6|6] — no hay nada que decidir.',
         'advice.mustPass': 'No hay jugada — tienes que pasar.',
 
         // Brief strategy (Genín speech bubble)

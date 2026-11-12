@@ -1669,8 +1669,12 @@ class DominoApp {
         const isFirstTile = state.chain.isEmpty();
         const validMoves = this.game.getValidMoves();
         const isOnlyMove = validMoves.length === 1 && !isFirstTile;
+        // The first hand must open with the [6|6]: no choice to advise on.
+        const isForcedOpening = validMoves.length === 1 && isFirstTile;
 
-        if (isOnlyMove) {
+        if (isForcedOpening) {
+            this.speechReason.textContent = t('advice.forcedOpening');
+        } else if (isOnlyMove) {
             // Sassy mode
             this.speechReason.textContent = t('advice.onlyMove');
             this.speechReason.classList.add('sassy');

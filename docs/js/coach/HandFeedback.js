@@ -21,6 +21,7 @@
 // phrases follow the current language instead of the one active at play time.
 
 import { impactOf, byImpact } from './MatchLessons.js';
+import { MatchHistory } from '../models/MatchHistory.js';
 
 const EDGE_THRESHOLD = 3; // |inferred edge| below this is "ambiguous" (matches AI MIN_EDGE)
 
@@ -190,7 +191,10 @@ export function buildHandFeedback(hand, data, humanSeat = 0) {
     const outcome = { result, margin, reason: data.reason };
     const actualTeamResult = result === 'won' ? margin : (result === 'lost' ? -margin : 0);
 
-    const humanPlays = humanPlaysWithIndex(hand);
+    // Only real decisions can be the hand's moment: a forced play (one legal
+    // move, e.g. the [6|6] that must open the first hand) is neither praised
+    // nor faulted. Numbering still counts every play you made.
+    const humanPlays = humanPlaysWithIndex(hand).filter(h => !MatchHistory.isForced(h.play));
     const moment =
         cerrarMoment(humanPlays, actualTeamResult)
         || scoreGapMoment(humanPlays)
