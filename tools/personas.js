@@ -22,6 +22,16 @@ import { Rules } from '../docs/js/engine/Rules.js';
 // the next habit gets its chance, and finally the brain's own pick.
 export const HABITS = ['close', 'holdBack', 'leadLongest', 'partnerSupport', 'suitLoyalty', 'doublesEarly', 'heavyFirst'];
 
+// Habits outside the population: 0 for every persona unless a run sets them
+// (--persona-habits). They get the first chance to decide a move, and while 0
+// they draw nothing from the persona's RNG, so seeded personas play the same
+// matches as before these existed.
+//   holdDoubleCtx — negative: keep a playable double while the partner is on
+//   that number, or is out of it and ahead (docs/DESIGN.md 0i).
+export const TEST_HABITS = ['holdDoubleCtx'];
+const ALL_HABITS = [...TEST_HABITS, ...HABITS];
+const isOff = (name, w) => w === 0 && TEST_HABITS.includes(name);
+
 // Placeholder population (docs/DESIGN.md): habit strength ~ N(mean, sd),
 // clamped. holdBack is a mixture — most players don't do it, some do a lot.
 const POPULATION = {
@@ -78,6 +88,7 @@ export function drawPersona(seed, override = {}) {
             habits[name] = clamp(mean + sd * normal(rng), -1, 1);
         }
     }
+    for (const name of TEST_HABITS) habits[name] = 0;
     return {
         seed,
         brain: rng() < MASTER_SHARE ? 'master' : 'experienced',
@@ -128,7 +139,7 @@ export class PersonaPlayer {
             graded: 0, agreed: 0, // the app's grades: optimal + good = agreement
             // The same, split by where the move came from.
             bySource: { brain: { graded: 0, agreed: 0 }, habit: { graded: 0, agreed: 0 }, lapse: { graded: 0, agreed: 0 } },
-            habit: Object.fromEntries(HABITS.map(n => [n, { seen: 0, fired: 0 }])),
+            habit: Object.fromEntries(ALL_HABITS.map(n => [n, { seen: 0, fired: 0 }])),
         };
     }
 
@@ -138,8 +149,9 @@ export class PersonaPlayer {
         // The brain plays with Genín's reward, so agreement is on the app's scale.
         ai.ismctsRewardShaping[this.seat] = 'margin';
         this.w = {};
-        for (const name of HABITS) {
-            this.w[name] = clamp(this.persona.habits[name] * Math.exp(MATCH_DRIFT_SD * normal(this.rng)), -1, 1);
+        for (const name of ALL_HABITS) {
+            const base = this.persona.habits[name] ?? 0;
+            this.w[name] = isOff(name, base) ? 0 : clamp(base * Math.exp(MATCH_DRIFT_SD * normal(this.rng)), -1, 1);
         }
         this.noise = this.persona.noise * Math.exp(NOISE_DRIFT_SD * normal(this.rng));
         this.tilted = false;
@@ -189,11 +201,12 @@ export class PersonaPlayer {
 
         this.stats.decisions++;
         const ranked = this._rank(legal, brainMove, state);
-        for (const name of HABITS) {
+        for (const name of ALL_HABITS) {
+            const w = this.w[name];
+            if (isOff(name, w)) continue;
             const split = this._situation(name, ranked, state);
             if (!split) continue;
             this.stats.habit[name].seen++;
-            const w = this.w[name];
             if (this.rng() >= Math.abs(w)) continue;
             this.stats.habit[name].fired++;
             const pick = (w > 0 ? split.x : split.other)[0];
@@ -269,6 +282,21 @@ export class PersonaPlayer {
             case 'close':
                 isX = (m) => { const c = chain.clone(); c.play(m.tile, m.end, seat); return c.isClosed(); };
                 break;
+            case 'holdDoubleCtx': {
+                // X = play a double that is legal now although the partner is on
+                // that number, or is out of it and ahead (SmartAI's own reading
+                // of the situation, so the clue and the habit can't disagree).
+                // A negative strength therefore HOLDS the double there.
+                if (chain.isEmpty()) return null;
+                const partnerTiles = state.hands[(seat + 2) % 4].size();
+                const hold = new Set();
+                for (const v of new Set([chain.leftEnd, chain.rightEnd])) {
+                    if (ai.doubleHoldSituation(seat, v, tiles.length - 1, partnerTiles) !== 'ordinary') hold.add(v);
+                }
+                if (hold.size === 0) return null;
+                isX = (m) => m.tile.isDouble() && hold.has(m.tile.high);
+                break;
+            }
             case 'holdBack': {
                 // Early in the hand, sitting on 4+ of one suit: play outside it.
                 const { suit, count } = longestSuit(tiles);
@@ -327,7 +355,8 @@ export function reportPersonas(players) {
         console.log(` seed ${p.seed}  ${p.brain.padEnd(11)} noise ${p.noise.toFixed(1)}  tilt ${p.tilt.toFixed(2)}` +
             `  │ agreement ${pct(s.agreed, s.graded)} (${s.graded} graded)  wins ${s.wins}/${s.matches}  hands ${pct(s.handsWon, s.hands)}` +
             `  lapses ${pct(s.lapses, s.decisions)}`);
-        console.log('   ' + HABITS.map(n => `${n} ${f2(p.habits[n])}→${pct(s.habit[n].fired, s.habit[n].seen)}`).join('  '));
+        console.log('   ' + ALL_HABITS.filter(n => !isOff(n, p.habits[n] ?? 0))
+            .map(n => `${n} ${f2(p.habits[n])}→${pct(s.habit[n].fired, s.habit[n].seen)}`).join('  '));
     }
     const sum = (k) => players.reduce((a, pl) => a + pl.stats[k], 0);
     const byBrain = (b) => players.filter(pl => pl.persona.brain === b);

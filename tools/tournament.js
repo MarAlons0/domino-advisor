@@ -22,11 +22,11 @@ globalThis.document = { querySelectorAll: () => [], documentElement: { lang: 'en
 const { Game } = await import('../docs/js/engine/Game.js');
 const { SmartAI } = await import('../docs/js/ai/SmartAI.js');
 const { HandTracker } = await import('../docs/js/ai/HandTracker.js');
-const { PlayerView } = await import('../docs/js/ai/PlayerView.js');
+const { PlayerView, WITHHELD_DOUBLE } = await import('../docs/js/ai/PlayerView.js');
 const { Rules } = await import('../docs/js/engine/Rules.js');
 const { Tile } = await import('../docs/js/models/Tile.js');
 const { Hand } = await import('../docs/js/models/Hand.js');
-const { HABITS, drawPersona, PersonaPlayer, reportPersonas } = await import('./personas.js');
+const { HABITS, TEST_HABITS, drawPersona, PersonaPlayer, reportPersonas } = await import('./personas.js');
 const { SIGNAL_TYPES, measureSignal, SignalProfile } = await import('../docs/js/ai/SignalProfile.js');
 
 // Max-disparity 50/118 deal. There are SIX distinct 14-tile partitions that achieve
@@ -51,16 +51,41 @@ const MAX_DISPARITY_PIP6 = [
     [6,0],[5,1],[4,2],[3,3],
 ];
 
-const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind', 'flat-sampling', 'learn-signals'];
+const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind', 'flat-sampling', 'learn-signals', 'no-double-read'];
 // Plus two families: affinity-powK (e.g. affinity-pow2) samples with the suit
 // affinities raised to K; scale-TYPE-S (e.g. scale-avoid-0) reads every
 // player's signals of that type with the multiplier raised to S.
 const AFFINITY_POW = /^affinity-pow(\d+(?:\.\d+)?)$/;
 const SIGNAL_SCALE = /^scale-([a-zA-Z]+)-(\d+(?:\.\d+)?)$/;
-const isVariant = v => VARIANTS.includes(v) || AFFINITY_POW.test(v) || SIGNAL_SCALE.test(v);
+// And double-read[-SPEC]: read the withheld-double clue (docs/DESIGN.md 0i)
+// with other weights than the shipped ones (v1.18.0: every seat at 0.35, a
+// persona's seat through the human table; `no-double-read` turns it off).
+// SPEC is also what --double-read takes:
+//   (none) | W            every player at one weight (default 0.35)
+//   human  | human-O:P:A  seat 0 — the human's seat — with a table by situation
+//                         (ordinary : partner on the suit : partner out of it
+//                         and ahead; default 0.35:1:1), the other seats at 0.35
+const DOUBLE_READ = /^double-read(?:-(.+))?$/;
+const DOUBLE_READ_SPEC = /^(?:(\d+(?:\.\d+)?)|human(?:-(\d+(?:\.\d+)?):(\d+(?:\.\d+)?):(\d+(?:\.\d+)?))?)?$/;
+function withheldDoubleTables(spec = '') {
+    const m = DOUBLE_READ_SPEC.exec(spec);
+    if (!m) return null;
+    const flat = (w) => ({ ordinary: w, partnerOnSuit: w, partnerOutAhead: w });
+    if (!spec.startsWith('human')) {
+        const table = m[1] ? flat(parseFloat(m[1])) : WITHHELD_DOUBLE.flat;
+        return [table, table, table, table];
+    }
+    const human = m[2]
+        ? { ordinary: parseFloat(m[2]), partnerOnSuit: parseFloat(m[3]), partnerOutAhead: parseFloat(m[4]) }
+        : WITHHELD_DOUBLE.human;
+    return [human, WITHHELD_DOUBLE.flat, WITHHELD_DOUBLE.flat, WITHHELD_DOUBLE.flat];
+}
+const isDoubleRead = v => DOUBLE_READ.test(v) && withheldDoubleTables(DOUBLE_READ.exec(v)[1]) !== null;
+const isVariant = v => VARIANTS.includes(v) || AFFINITY_POW.test(v) || SIGNAL_SCALE.test(v) || isDoubleRead(v);
+const VARIANT_FAMILIES = 'affinity-powK, scale-TYPE-S, double-read[-SPEC]';
 
 function parseArgs(argv) {
-    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, probLayers: false, signalPowers: [], signalHonesty: false, sharedProfile: false, signalAblation: null, avoidSignal: false, probOut: null, probMerge: null, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, persona: false, personas: 10, season: 10, personaSeed: 1, personaNoise: null, personaPlain: false, variant: 'mc-pass', allVariant: null };
+    const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, probLayers: false, signalPowers: [], signalHonesty: false, sharedProfile: false, signalAblation: null, doubleRead: null, doubleReadOut: null, doubleReadMerge: null, personaHabits: null, avoidSignal: false, probOut: null, probMerge: null, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, persona: false, personas: 10, season: 10, personaSeed: 1, personaNoise: null, personaPlain: false, variant: 'mc-pass', allVariant: null };
     for (let i = 2; i < argv.length; i++) {
         const a = argv[i];
         if (a === '--games') opts.games = parseInt(argv[++i], 10);
@@ -91,6 +116,15 @@ function parseArgs(argv) {
         else if (a === '--signal-honesty') opts.signalHonesty = true;
         else if (a === '--shared-profile') opts.sharedProfile = true;
         else if (a === '--avoid-signal') opts.avoidSignal = true;
+        else if (a === '--double-read') opts.doubleRead = argv[++i].split(',');
+        else if (a === '--double-read-out') opts.doubleReadOut = argv[++i];
+        else if (a === '--double-read-merge') { opts.doubleReadMerge = argv.slice(i + 1); break; }
+        else if (a === '--persona-habits') {
+            opts.personaHabits = Object.fromEntries(argv[++i].split(',').map(kv => {
+                const [name, value] = kv.split('=');
+                return [name, parseFloat(value)];
+            }));
+        }
         else if (a === '--signal-ablation') {
             const [type, scale = '0'] = argv[++i].split(':');
             opts.signalAblation = { type, scale: parseFloat(scale) };
@@ -99,7 +133,7 @@ function parseArgs(argv) {
             console.log('Usage: node tools/tournament.js [--games N] [--difficulty LEVEL] [--ab] [--variant NAME] [--instrument] [--verbose]');
             console.log('  --ab            Champion (current code) vs Challenger (a variant). Challenger');
             console.log('                  team alternates each match to cancel seat bias.');
-            console.log(`  --variant NAME  Challenger variant for --ab. One of: ${VARIANTS.join(', ')}, affinity-powK, scale-TYPE-S.`);
+            console.log(`  --variant NAME  Challenger variant for --ab. One of: ${VARIANTS.join(', ')}, ${VARIANT_FAMILIES}.`);
             console.log('                    mc-pass       MC-derived pass/block probabilities.');
             console.log('                    no-def-close  Disable defensive cuadrar (block only at pip advantage).');
             console.log('                    def-close-1   Defensive close only when an opponent has 1 tile left.');
@@ -158,6 +192,20 @@ function parseArgs(argv) {
             console.log('  --signal-ablation TYPE[:S]  Shadow views for all seats read signals of TYPE at');
             console.log('                  strength S (default 0 = ignore them); every prediction is scored');
             console.log('                  by the real view and its shadow on the same positions.');
+            console.log('  --double-read SPEC[,SPEC...]');
+            console.log('                  Paired check of the withheld-double clue (docs/DESIGN.md 0i): for');
+            console.log('                  each SPEC, shadow views read the clue that way on the same');
+            console.log('                  positions the real views play (the real views don\'t read it, as');
+            console.log('                  before v1.18.0). SPEC: W (every player at weight W),');
+            console.log('                  human (seat 0 at 0.35:1:1, the rest at 0.35) or human-O:P:A.');
+            console.log('                  --double-read-out FILE saves the totals; --double-read-merge');
+            console.log('                  FILE... (last option) sums saved shards and reports.');
+            console.log('                  Play reads the clue since v1.18.0 (every seat at 0.35; a persona\'s');
+            console.log('                  seat as human). --ab variants: no-double-read turns it off for the');
+            console.log('                  challenger seats; double-read[-SPEC] reads it with another SPEC.');
+            console.log('  --persona-habits NAME=W,...');
+            console.log('                  Set habit strengths for every persona, e.g. the context-dependent');
+            console.log('                  double holder: doublesEarly=0.7,holdDoubleCtx=-0.9.');
             console.log('  --hand-points   Report the distribution of points per hand (decided hands +');
             console.log('                  ties). Source data for the match-equity table in');
             console.log('                  docs/js/ai/MatchEquity.js (BACKLOG 0g.3b).');
@@ -165,12 +213,24 @@ function parseArgs(argv) {
         }
     }
     if (opts.ab && !isVariant(opts.variant)) {
-        console.error(`Unknown variant "${opts.variant}". Choose one of: ${VARIANTS.join(', ')}, affinity-powK, scale-TYPE-S`);
+        console.error(`Unknown variant "${opts.variant}". Choose one of: ${VARIANTS.join(', ')}, ${VARIANT_FAMILIES}`);
         process.exit(1);
     }
     if (opts.allVariant && !isVariant(opts.allVariant)) {
-        console.error(`Unknown --all-variant "${opts.allVariant}". Choose one of: ${VARIANTS.join(', ')}, affinity-powK, scale-TYPE-S`);
+        console.error(`Unknown --all-variant "${opts.allVariant}". Choose one of: ${VARIANTS.join(', ')}, ${VARIANT_FAMILIES}`);
         process.exit(1);
+    }
+    for (const spec of opts.doubleRead || []) {
+        if (!withheldDoubleTables(spec)) {
+            console.error(`Unknown --double-read spec "${spec}". Use W, human or human-O:P:A.`);
+            process.exit(1);
+        }
+    }
+    for (const name of Object.keys(opts.personaHabits || {})) {
+        if (![...HABITS, ...TEST_HABITS].includes(name) || Number.isNaN(opts.personaHabits[name])) {
+            console.error(`Bad --persona-habits entry "${name}". Habits: ${[...HABITS, ...TEST_HABITS].join(', ')}`);
+            process.exit(1);
+        }
     }
     return opts;
 }
@@ -182,6 +242,9 @@ function applyVariant(variant, ai, playerViews, seat) {
             break;
         case 'no-def-close':
             ai.defensiveCloseThreshold[seat] = 0; // never defensively close
+            break;
+        case 'no-double-read':
+            playerViews[seat].withheldDouble = null; // as before v1.18.0
             break;
         case 'def-close-1':
             ai.defensiveCloseThreshold[seat] = 1; // only when opponent has 1 tile
@@ -266,17 +329,22 @@ function applyVariant(variant, ai, playerViews, seat) {
             // scale-TYPE-S: read every player's TYPE signals at strength S.
             const sc = SIGNAL_SCALE.exec(variant);
             if (sc) playerViews[seat].signalScales = [0, 1, 2, 3].map(() => ({ [sc[1]]: parseFloat(sc[2]) }));
+            // double-read[-SPEC]: these seats read the withheld-double clue.
+            const dr = DOUBLE_READ.exec(variant);
+            if (dr) playerViews[seat].withheldDouble = withheldDoubleTables(dr[1]);
         }
     }
 }
 
-function setupMatch(difficulty, challengerSeats = null, variant = null, allVariant = null, avoidSignal = false) {
+function setupMatch(difficulty, challengerSeats = null, variant = null, allVariant = null, avoidSignal = false, humanSeats = []) {
     const game = new Game();
     const ai = new SmartAI();
     ai.avoidSignal = avoidSignal;
     const handTracker = new HandTracker();
     ai.setHandTracker(handTracker);
     const playerViews = [0, 1, 2, 3].map(i => new PlayerView(i, handTracker));
+    // As in the app: a person's seat (here, the persona's) is read as a person's.
+    if (humanSeats.length) for (const view of playerViews) view.setHumanSeats(humanSeats);
     if (allVariant) {
         for (let seat = 0; seat < 4; seat++) applyVariant(allVariant, ai, playerViews, seat);
     } else if (challengerSeats && variant) {
@@ -448,11 +516,15 @@ function makeShadowViews(game, handTracker, playerViews, seats) {
     const shadows = new Map();
     for (const seat of seats) {
         const shadow = new PlayerView(seat, handTracker);
+        shadow.withheldDouble = playerViews[seat].withheldDouble;
         shadows.set(seat, shadow);
-        // SmartAI sends the avoid / cuadrar signals to the four real views only.
+        // SmartAI sends the avoid / cuadrar signals and the withheld-double
+        // clue to the four real views only.
         const view = playerViews[seat];
         const apply = view.applyAffinitySignal.bind(view);
         view.applyAffinitySignal = (...args) => { apply(...args); shadow.applyAffinitySignal(...args); };
+        const applyDouble = view.applyWithheldDouble.bind(view);
+        view.applyWithheldDouble = (...args) => { applyDouble(...args); shadow.applyWithheldDouble(...args); };
     }
     const onPlay = game.onPlay;
     game.onPlay = (data) => {
@@ -551,13 +623,104 @@ function setupSignalAblation({ game, handTracker, playerViews, ablation, acc }) 
     };
 }
 
-function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, probLayers = null, pipAcc = null, cerradoAcc = null, cooperativeLosers = false, maxDisparityDeals = false, randomLosers = false, forceCerrar = false, personaPlayer = null, signalSink = null, seat0Profile = null, seat0Acc = null, signalAblation = null, ablationAcc = null, avoidSignal = false }) {
-    const { game, ai, handTracker, playerViews } = setupMatch(difficulty, challengerSeats, variant, allVariant, avoidSignal);
+// Paired check of the withheld-double clue (--double-read SPEC,...;
+// docs/DESIGN.md 0i). The real views play and predict without the clue (arm
+// 0, as before v1.18.0); for each SPEC a set of shadow views reads the clue that way on the same
+// positions. Scored per arm: every tile-holding prediction (all, and those
+// about seat 0), and — right after each clue — the chance given to the player
+// holding the double against the truth, by who played and the situation.
+// Each clue also counts how often the double was held against what tile
+// counts and passes predict (the clue's raw strength).
+function newDoubleReadAcc(specs) {
+    return { arms: ['real', ...specs], matches: 0, tiles: {}, clues: {}, events: {} };
+}
+function setupDoubleRead({ game, handTracker, playerViews, specs, acc }) {
+    // The real views play and predict without the clue: they are the "not
+    // reading" arm, and the positions are the ones the 0i tables were made on.
+    for (const view of playerViews) view.withheldDouble = null;
+    const arms = [playerViews];
+    const handStarts = [];
+    for (const spec of specs) {
+        const { shadows, handStart } = makeShadowViews(game, handTracker, playerViews, [0, 1, 2, 3]);
+        const tables = withheldDoubleTables(spec);
+        for (const shadow of shadows.values()) shadow.withheldDouble = tables;
+        arms.push([0, 1, 2, 3].map(seat => shadows.get(seat)));
+        handStarts.push(handStart);
+    }
+    const zero = () => arms.map(() => 0);
+    // Every view hears every clue, so one listener on view 0 hears each once.
+    let pending = [];
+    const heard = playerViews[0].applyWithheldDouble.bind(playerViews[0]);
+    playerViews[0].applyWithheldDouble = (player, suit, situation) => {
+        heard(player, suit, situation);
+        pending.push({ player, suit, situation });
+    };
+    const scoreTiles = (group, sqErr) => {
+        const b = (acc.tiles[group] ??= { n: 0, se: zero() });
+        b.n++;
+        for (let a = 0; a < arms.length; a++) b.se[a] += sqErr[a];
+    };
+    return {
+        handStart(state) {
+            pending = [];
+            for (const handStart of handStarts) handStart(state);
+        },
+        // Called before each decision: the last play is applied everywhere.
+        snapshot(state) {
+            for (const { player, suit, situation } of pending) {
+                const double = new Tile(suit, suit);
+                const key = double.toKey();
+                const holds = (q) => state.hands[q].has(double);
+                if (state.hands[player].size() === 0) continue;
+                const actual = holds(player) ? 1 : 0;
+                const who = player === 0 ? 'seat 0' : 'seats 1-3';
+                let pool = 0;
+                for (let q = 0; q < 4; q++) {
+                    if (q === player || !handTracker.deadSuits[q].has(suit)) pool += state.hands[q].size();
+                }
+                for (const label of [`${who} · ${situation}`, `${who} · any`]) {
+                    const e = (acc.events[label] ??= { n: 0, held: 0, expected: 0 });
+                    e.n++; e.held += actual; e.expected += state.hands[player].size() / pool;
+                    const c = (acc.clues[label] ??= { n: 0, actual: 0, pred: zero(), se: zero() });
+                    for (let viewer = 0; viewer < 4; viewer++) {
+                        if (viewer === player || playerViews[viewer].ownTileKeys.has(key)) continue;
+                        c.n++; c.actual += actual;
+                        for (let a = 0; a < arms.length; a++) {
+                            const pr = arms[a][viewer].getProbability(player, double);
+                            c.pred[a] += pr; c.se[a] += (pr - actual) ** 2;
+                        }
+                    }
+                }
+            }
+            pending = [];
+            const sqErr = zero();
+            for (let viewer = 0; viewer < 4; viewer++) {
+                for (const tile of handTracker.allTiles) {
+                    const key = tile.toKey();
+                    if (handTracker.knownLocations.get(key) === 'played' || playerViews[viewer].ownTileKeys.has(key)) continue;
+                    for (let p = 0; p < 4; p++) {
+                        if (p === viewer) continue;
+                        const actual = state.hands[p].has(tile) ? 1 : 0;
+                        for (let a = 0; a < arms.length; a++) sqErr[a] = (arms[a][viewer].getProbability(p, tile) - actual) ** 2;
+                        scoreTiles('all', sqErr);
+                        if (p === 0) scoreTiles('seat 0', sqErr);
+                    }
+                }
+            }
+        },
+    };
+}
+
+function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam = null, variant = null, allVariant = null, decisionSink = null, closeSink = null, probAcc = null, probLayers = null, pipAcc = null, cerradoAcc = null, cooperativeLosers = false, maxDisparityDeals = false, randomLosers = false, forceCerrar = false, personaPlayer = null, signalSink = null, seat0Profile = null, seat0Acc = null, signalAblation = null, ablationAcc = null, doubleRead = null, doubleReadAcc = null, avoidSignal = false }) {
+    const { game, ai, handTracker, playerViews } = setupMatch(difficulty, challengerSeats, variant, allVariant, avoidSignal, personaPlayer ? [0] : []);
     if (personaPlayer) personaPlayer.startMatch(ai);
     const learning = setupSignalLearning({ game, handTracker, playerViews, signalSink, seat0Profile, seat0Acc,
         learnSeats: variant === 'learn-signals' && challengerSeats ? challengerSeats : [] });
     const ablation = signalAblation
         ? setupSignalAblation({ game, handTracker, playerViews, ablation: signalAblation, acc: ablationAcc })
+        : { handStart() {}, snapshot() {} };
+    const doubleCheck = doubleReadAcc
+        ? setupDoubleRead({ game, handTracker, playerViews, specs: doubleRead, acc: doubleReadAcc })
         : { handStart() {}, snapshot() {} };
     // Track each player's most recent decision so a close can be classified as
     // deliberate (had ≥2 legal moves) vs forced (closing tile was the only move).
@@ -655,6 +818,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
     initTrackersForHand(handTracker, playerViews, game.getState());
     learning.handStart(game.getState());
     ablation.handStart(game.getState());
+    doubleCheck.handStart(game.getState());
     // Snapshot team pip totals at the start of each hand so cerrado samples
     // can record the losing team's *initial* pips (and the pip dump). Updated
     // again whenever a new hand is dealt below.
@@ -676,6 +840,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
             if (pipAcc) capturePipSnapshot(ai, playerViews, state, pipAcc);
             learning.snapshot(state);
             ablation.snapshot(state);
+            doubleCheck.snapshot(state);
             const t0 = process.hrtime.bigint();
             // Per-seat dispatch. Seats 1 and 3 (team B) may use random or
             // cooperative behavior; seats 0 and 2 (team A) may use force-cerrar.
@@ -716,6 +881,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
             initTrackersForHand(handTracker, playerViews, game.getState());
             learning.handStart(game.getState());
             ablation.handStart(game.getState());
+            doubleCheck.handStart(game.getState());
             const h = game.getState().hands;
             initialTeamPips = [h[0].pipCount() + h[2].pipCount(), h[1].pipCount() + h[3].pipCount()];
         } else {
@@ -727,6 +893,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
         throw new Error(`Match did not terminate within ${MAX_TICKS} ticks`);
     }
     if (personaPlayer) personaPlayer.endMatch(matchResult.winner, game.getMatchHistory());
+    if (doubleReadAcc) doubleReadAcc.matches++;
 
     if (verbose) {
         const tag = challengerTeam !== null
@@ -999,6 +1166,57 @@ function reportSignalAblation(acc, ablation) {
         console.log(`  ${`${bin * 10}–${bin * 10 + 10}%`.padEnd(8)} ${cell(r)}  ${cell(s)}`);
     }
     console.log(`  totals ${real.total.n} ${real.total.brier.toFixed(4)} ${shadow.total.brier.toFixed(4)} ${real.total.ll.toFixed(4)} ${shadow.total.ll.toFixed(4)}`);
+    console.log('');
+}
+
+// Sum saved --double-read-out shards (same SPEC list) into one accumulator,
+// keeping each shard's seat-0 and all-tile deltas to show the spread.
+function mergeDoubleRead(shards) {
+    const sum = (into, from) => {
+        for (const [k, v] of Object.entries(from)) {
+            if (typeof v === 'number') into[k] = (into[k] ?? 0) + v;
+            else if (Array.isArray(v) && typeof v[0] === 'number') into[k] = v.map((x, i) => x + (into[k]?.[i] ?? 0));
+            else if (v && typeof v === 'object' && !Array.isArray(v)) sum(into[k] ??= {}, v);
+        }
+    };
+    const merged = { arms: shards[0].arms, matches: 0, tiles: {}, clues: {}, events: {}, shards: [] };
+    for (const shard of shards) {
+        if (shard.arms.join() !== merged.arms.join()) throw new Error('--double-read-merge: shards were run with different SPEC lists');
+        sum(merged, { matches: shard.matches, tiles: shard.tiles, clues: shard.clues, events: shard.events });
+        merged.shards.push(shard.tiles);
+    }
+    return merged;
+}
+
+function reportDoubleRead(acc) {
+    const { arms } = acc;
+    const sign = (x, d) => (x >= 0 ? '+' : '') + x.toFixed(d);
+    const pc = (x) => `${(100 * x).toFixed(0)}%`.padStart(5);
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(` Withheld-double clue: real views vs shadows reading ${arms.slice(1).join(', ')} (${acc.matches} matches, same positions)`);
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(' Brier on tile-holding predictions (arm − real; lower is better):');
+    for (const [group, b] of Object.entries(acc.tiles)) {
+        console.log(`  ${group === 'all' ? 'all tiles' : `about ${group}`}  (${b.n.toLocaleString()} predictions)   real ${(b.se[0] / b.n).toFixed(5)}`);
+        for (let a = 1; a < arms.length; a++) {
+            let line = `    ${arms[a].padEnd(22)} ${sign((b.se[a] - b.se[0]) / b.n, 5)}`;
+            if (acc.shards) {
+                const deltas = acc.shards.map(t => (t[group].se[a] - t[group].se[0]) / t[group].n);
+                line += `   better in ${deltas.filter(d => d < 0).length}/${deltas.length} shards (${sign(Math.min(...deltas), 5)} to ${sign(Math.max(...deltas), 5)})`;
+            }
+            console.log(line);
+        }
+    }
+    console.log('');
+    console.log(' After a clue: how often the player held the double vs tile counts and passes,');
+    console.log(' and the chance each arm gave it (as seen by the players who don\'t hold it):');
+    console.log(`  ${'who · situation'.padEnd(30)} ${'clues'.padStart(7)}  held/chance   truth  ${arms.map(a => a.padStart(8)).join(' ')}`);
+    for (const label of Object.keys(acc.events).sort()) {
+        const e = acc.events[label], c = acc.clues[label];
+        const preds = c && c.n ? arms.map((_, a) => pc(c.pred[a] / c.n).padStart(8)).join(' ') : '';
+        console.log(`  ${label.padEnd(30)} ${String(e.n).padStart(7)}  ${pc(e.held / e.expected).padStart(11)}   ${c && c.n ? pc(c.actual / c.n) : '    –'}  ${preds}`);
+    }
     console.log('');
 }
 
@@ -1863,11 +2081,19 @@ if (opts.probMerge) {
     reportProbLayers(merged);
     process.exit(0);
 }
+if (opts.doubleReadMerge) {
+    reportDoubleRead(mergeDoubleRead(opts.doubleReadMerge.map(file => JSON.parse(readFileSync(file, 'utf8')))));
+    process.exit(0);
+}
 // --persona: M players, each for a season of K matches in a row.
 const personaPlayers = opts.persona
-    ? Array.from({ length: opts.personas }, (_, k) => new PersonaPlayer(drawPersona(opts.personaSeed * 1000 + k, opts.personaPlain
-        ? { brain: 'master', habits: Object.fromEntries(HABITS.map(n => [n, 0])), noise: 0.01 }
-        : opts.personaNoise != null ? { noise: opts.personaNoise } : {})))
+    ? Array.from({ length: opts.personas }, (_, k) => {
+        const persona = drawPersona(opts.personaSeed * 1000 + k, opts.personaPlain
+            ? { brain: 'master', habits: Object.fromEntries(HABITS.map(n => [n, 0])), noise: 0.01 }
+            : opts.personaNoise != null ? { noise: opts.personaNoise } : {});
+        if (opts.personaHabits) persona.habits = { ...persona.habits, ...opts.personaHabits };
+        return new PersonaPlayer(persona);
+    })
     : null;
 if (personaPlayers) opts.games = opts.personas * opts.season;
 console.log(`Running ${opts.games} matches at difficulty=${opts.difficulty}${opts.ab ? ` (A/B: ${opts.variant})` : ''}${opts.allVariant ? ` (all-seats: ${opts.allVariant})` : ''}${opts.instrument ? ' (instrumented)' : ''}${opts.probAccuracy ? ' (prob-accuracy)' : ''}${opts.probLayers ? ' (prob-layers)' : ''}${opts.pipAccuracy ? ' (pip-accuracy)' : ''}${opts.maxCerrado ? ' (max-cerrado)' : ''}${opts.cooperativeLosers ? ' (coop-losers)' : ''}${opts.maxDisparityDeals ? ' (max-disparity)' : ''}...`);
@@ -1884,6 +2110,7 @@ const sharedProfile = personaPlayers && opts.sharedProfile ? new SignalProfile()
 const learnAB = !!personaPlayers && opts.ab && opts.variant === 'learn-signals';
 const seat0Acc = learnAB ? { on: new ProbAccumulator(), off: new ProbAccumulator() } : null;
 const ablationAcc = opts.signalAblation ? { real: new ProbAccumulator(), shadow: new ProbAccumulator() } : null;
+const doubleReadAcc = opts.doubleRead ? newDoubleReadAcc(opts.doubleRead) : null;
 const probAcc = opts.probAccuracy && !probLayers ? new ProbAccumulator() : null;
 const pipAcc = opts.pipAccuracy ? new PipAccumulator() : null;
 const cerradoAcc = opts.maxCerrado ? new CerradoAccumulator() : null;
@@ -1922,6 +2149,7 @@ for (let i = 0; i < opts.games; i++) {
     if (signalHonesty) perMatchOpts = { ...perMatchOpts, signalSink: signalHonesty };
     if (seat0Acc) perMatchOpts = { ...perMatchOpts, seat0Acc };
     if (ablationAcc) perMatchOpts = { ...perMatchOpts, signalAblation: opts.signalAblation, ablationAcc };
+    if (doubleReadAcc) perMatchOpts = { ...perMatchOpts, doubleReadAcc };
     matches.push(runMatch(perMatchOpts));
 }
 const elapsed = (Date.now() - start) / 1000;
@@ -1932,6 +2160,10 @@ if (personaPlayers) reportPersonas(personaPlayers);
 if (signalHonesty) reportSignalHonesty(signalHonesty, personaProfiles);
 if (learnAB) reportSeat0Learning(seat0Acc, personaProfiles || [sharedProfile]);
 if (ablationAcc) reportSignalAblation(ablationAcc, opts.signalAblation);
+if (doubleReadAcc) {
+    reportDoubleRead(doubleReadAcc);
+    if (opts.doubleReadOut) writeFileSync(opts.doubleReadOut, JSON.stringify(doubleReadAcc));
+}
 if (opts.ab && personaPlayers) reportPersonaAB(matches, opts.variant);
 else if (opts.ab) reportAB(matches, opts.variant);
 if (opts.instrument) reportInstrumentation(decisions);
