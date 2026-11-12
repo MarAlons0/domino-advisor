@@ -388,6 +388,9 @@ export class RoomEngine {
             this.ai.setDifficulty(i, level);
             this.ai.randomizeTolerance[i] = level === 'master' ? 5 : 0; // as in single player
         });
+        // The AI seats read a person's doubles as a person's (docs/DESIGN.md 0i).
+        const humans = this.meta.seats.flatMap((s, i) => (s.kind === 'human' ? [i] : []));
+        for (const view of this.views) view.setHumanSeats(humans);
     }
 
     /** Fresh trackers for a new hand (mirrors main.js / the harness). */

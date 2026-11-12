@@ -251,8 +251,51 @@ export class SmartAI {
             return;
         }
 
+        this._sendWithheldDouble(playerIndex, tile, (end === 'left') ? leftEnd : rightEnd);
+
         // Analyze play choice for inferences
         this.analyzePlayChoice(playerIndex, tile, end, leftEnd, rightEnd);
+    }
+
+    /**
+     * The public situation a player is in with respect to the double of
+     * `suit`, which decides how much not playing it says (docs/DESIGN.md 0i):
+     *   'partnerOutAhead' — the partner has passed on the suit and has no
+     *                       more tiles left than the player;
+     *   'partnerOnSuit'   — the partner's signaled suit is this one;
+     *   'ordinary'        — anything else.
+     * @param {number} playerIndex
+     * @param {number} suit - 0-6
+     * @param {number} playerTiles - tiles the player holds once the play is made
+     * @param {number} partnerTiles - tiles the partner holds
+     */
+    doubleHoldSituation(playerIndex, suit, playerTiles, partnerTiles) {
+        const partner = GameState.getPartner(playerIndex);
+        if (this.inferredDeadSuits[partner].has(suit)) {
+            return partnerTiles <= playerTiles ? 'partnerOutAhead' : 'ordinary';
+        }
+        return this.signaledSuits[partner] === suit ? 'partnerOnSuit' : 'ordinary';
+    }
+
+    /**
+     * Withheld-double clue: a non-double played onto an end `suit` while the
+     * double of that suit is still out. The double was playable, so the
+     * player doesn't hold it or chose to keep it. Sent to every view; each
+     * reads it through its own withheldDouble tables.
+     * @private
+     */
+    _sendWithheldDouble(playerIndex, tile, suit) {
+        if (!this.playerViews || !this.handTracker || tile.isDouble()) return;
+        const tracker = this.handTracker;
+        if (tracker.playedTiles.has(`${suit}-${suit}`)) return;
+        // Tile counts once this play is made, whichever of SmartAI and the
+        // HandTracker hears about it first.
+        const playerTiles = tracker.tileCounts[playerIndex] - (tracker.playedTiles.has(tile.toKey()) ? 0 : 1);
+        const partnerTiles = tracker.tileCounts[GameState.getPartner(playerIndex)];
+        const situation = this.doubleHoldSituation(playerIndex, suit, playerTiles, partnerTiles);
+        for (const view of this.playerViews) {
+            view.applyWithheldDouble(playerIndex, suit, situation);
+        }
     }
 
     /**

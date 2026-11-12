@@ -11,6 +11,21 @@
  * HandTracker, plus Bayesian adjustments for other players' suit preferences.
  * Computer views (players 1-3) treat the human's tiles as unknown.
  */
+
+// How a view reads the withheld-double clue (docs/DESIGN.md 0i): the sampling
+// weight on a player holding V|V after they play a non-double onto an end V
+// with V|V still out, by the public situation SmartAI reports. Below 1 = less
+// likely than tile counts say; 1 = the play says nothing; never 0.
+export const WITHHELD_DOUBLE = {
+    // After such a play Master holds V|V half as often as tile counts and
+    // passes predict; 0.35 read best of 0.2 / 0.35 / 0.5.
+    flat:  { ordinary: 0.35, partnerOnSuit: 0.35, partnerOutAhead: 0.35 },
+    // A human may keep V|V on purpose while their partner is on V (to extend
+    // V on both ends once the partner squares) or when the partner is out of
+    // V and ahead — no clue there; the ordinary reading everywhere else.
+    human: { ordinary: 0.35, partnerOnSuit: 1, partnerOutAhead: 1 },
+};
+
 export class PlayerView {
     /**
      * @param {number} playerIndex - Which player this view belongs to (0-3)
@@ -79,6 +94,17 @@ export class PlayerView {
         // (1 = the default reading); null reads the player like everyone else.
         this.signalScales = [null, null, null, null];
 
+        // Withheld-double clue (docs/DESIGN.md 0i): withheldDouble[p] is the
+        // table (see WITHHELD_DOUBLE) this view reads player p with. Every
+        // player is read as an AI seat until setHumanSeats says who is a
+        // person; null turns the clue off (a null entry, for that player).
+        // Unlike the suit affinities this is about one tile: tileFactors[p]
+        // maps a tile key to a weight that multiplies the sampler's weight
+        // for p holding it.
+        this.withheldDouble = [0, 1, 2, 3].map(() => WITHHELD_DOUBLE.flat);
+        this.tileFactors = [new Map(), new Map(), new Map(), new Map()];
+        this._hasTileFactors = false;
+
         // Optional listener (player, suit, type, multiplier), called on every
         // suit signal this view reads — how the signal stream is observed.
         this.onSignal = null;
@@ -103,6 +129,10 @@ export class PlayerView {
      */
     resetAffinities() {
         this.affinities = this._createAffinityMatrix();
+        if (this._hasTileFactors) {
+            for (const factors of this.tileFactors) factors.clear();
+            this._hasTileFactors = false;
+        }
         this.isFirstPlay = true;
         this._locationCache = null;
         this._locationCacheGeneration = -1;
@@ -168,6 +198,37 @@ export class PlayerView {
      */
     applyAffinitySignal(player, suit, multiplier, type) {
         this._signal(player, suit, multiplier, type);
+    }
+
+    /**
+     * Say which seats people sit in: their withheld doubles are read with the
+     * human table, every other seat's with the flat one (see WITHHELD_DOUBLE).
+     * @param {number[]} seats - Player indices (0-3)
+     */
+    setHumanSeats(seats) {
+        this.withheldDouble = [0, 1, 2, 3].map(p => (seats.includes(p) ? WITHHELD_DOUBLE.human : WITHHELD_DOUBLE.flat));
+    }
+
+    /**
+     * Withheld-double clue from SmartAI: `player` played a non-double onto an
+     * end showing `suit` while the double of that suit was still out — it was
+     * playable, so they don't hold it or chose to keep it. Ignored unless
+     * this view reads the clue for that player (see withheldDouble).
+     * The lowest weight seen in the hand stands: repeats don't compound (the
+     * avoided-end signal over-counted that way), and a later play in a
+     * situation that says nothing doesn't erase an earlier one that did.
+     * @param {number} player - Who played (0-3)
+     * @param {number} suit - The end value played on (0-6)
+     * @param {string} situation - 'ordinary' | 'partnerOnSuit' | 'partnerOutAhead'
+     */
+    applyWithheldDouble(player, suit, situation) {
+        const weight = this.withheldDouble?.[player]?.[situation];
+        if (weight === undefined) return;
+        const key = `${suit}-${suit}`;
+        const prev = this.tileFactors[player].get(key);
+        this.tileFactors[player].set(key, prev === undefined ? weight : Math.min(prev, weight));
+        this._hasTileFactors = true;
+        this._mcGeneration = -1; // the marginals depend on the sampling weights
     }
 
     // ==================== Properties (MonteCarloEvaluator compatibility) ====================
@@ -757,11 +818,13 @@ export class PlayerView {
         return Math.sqrt(a1 * a2);
     }
 
-    /** Sampler weight for `player` holding `tile` (see useAffinitySampling, affinityPower). @private */
+    /** Sampler weight for `player` holding `tile` (see useAffinitySampling, affinityPower, tileFactors). @private */
     _samplingWeight(player, tile) {
         if (!this.useAffinitySampling) return 1;
         const affinity = this._getTileAffinity(player, tile);
-        return this.affinityPower === 1 ? affinity : affinity ** this.affinityPower;
+        const weight = this.affinityPower === 1 ? affinity : affinity ** this.affinityPower;
+        if (!this._hasTileFactors) return weight;
+        return weight * (this.tileFactors[player].get(tile.toKey()) ?? 1);
     }
 
     /**

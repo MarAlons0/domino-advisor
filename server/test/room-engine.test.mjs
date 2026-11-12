@@ -9,6 +9,7 @@ import { Chain } from '../../docs/js/models/Chain.js';
 import { Hand } from '../../docs/js/models/Hand.js';
 import { Rules } from '../../docs/js/engine/Rules.js';
 import { TileSet } from '../../docs/js/engine/TileSet.js';
+import { WITHHELD_DOUBLE } from '../../docs/js/ai/PlayerView.js';
 
 const TILE = new Map(TileSet.create().map(t => [t.toKey(), t]));
 
@@ -162,12 +163,16 @@ test('disconnect: grace period, host gives seat to AI, player reclaims it', () =
     const t = new Table();
     const host = t.join('Host'), away = t.join('Away');
     t.send(host, { type: 'start' });                          // seats 2,3 → AI
+    // The AI reads a person's withheld doubles as a person's, an AI seat's as the AI's.
+    const readAs = () => t.engine.views[2].withheldDouble.map(table => (table === WITHHELD_DOUBLE.human ? 'human' : 'ai'));
+    assert.deepEqual(readAs(), ['human', 'human', 'ai', 'ai']);
     away.connected = false; t.engine.disconnect(away.pid); t.deliver();
     t.send(host, { type: 'replaceWithAI', seat: away.seat });
     assert.ok(host.errors.includes('cannot-replace'), 'too early');
     t.clock += DISCONNECT_GRACE_MS;
     t.send(host, { type: 'replaceWithAI', seat: 1 });
     assert.equal(t.engine.meta.seats[1].kind, 'ai');
+    assert.deepEqual(readAs(), ['human', 'ai', 'ai', 'ai']);
     // The match can continue with only the host acting.
     for (let i = 0; i < 60 && host.phase === 'playing'; i++) { const m = host.move(); if (!m) break; t.send(host, m); }
     // Reconnect with the saved token → seat comes back.
@@ -175,6 +180,7 @@ test('disconnect: grace period, host gives seat to AI, player reclaims it', () =
     const r = t.engine.connect({ token: away.token }); t.deliver();
     assert.equal(r.playerId, away.pid);
     assert.equal(t.engine.meta.seats[1].kind, 'human');
+    assert.deepEqual(readAs(), ['human', 'human', 'ai', 'ai']);
     assert.equal(t.engine.players?.[away.pid]?.seat ?? t.engine.meta.players[away.pid].seat, 1);
 });
 

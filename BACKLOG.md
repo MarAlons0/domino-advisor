@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-11-04 (Suggestions added)_
+_Last updated: 2026-11-12 (withheld-double reading shipped as v1.18.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -38,6 +38,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Read a withheld double (0i)** — a player who plays another tile onto V while V|V is still out holds V|V half as often as chance says; the AI now lowers that chance (never to zero), and for a person not at all when their partner is on V, or is out of V and ahead: Master 53.1% vs the previous version (CI 51.0–55.3), hand-reading Brier −0.0012 — v1.18.0
 - [x] **Show the player their style profile** — Stats → Your signals: how readable your leads, new numbers and cuadrars are compared with Master, with likely ranges — v1.17.0
 - [x] **Avoided-end signal never fires** — fixed so it can fire, then measured: honest (players hold 80% of the expected tiles in the suit they avoid) but repeated avoidances over-count, so it makes hand-reading slightly worse (Brier +0.0002) and is worth ~0.0001 at best; kept off as `SmartAI.avoidSignal = false` (play unchanged, no release). Harness `--signal-ablation`, `--avoid-signal`, `scale-TYPE-S` variants. See [docs/DESIGN.md](docs/DESIGN.md).
 - [x] **Learn the human's style of play and adapt to it (0h)** — phase 1 built and tested on persona seasons: personas' signals are less honest than Master's and the learner finds it, but reading their tiles doesn't improve (Brier −0.00003) and win rate doesn't move (−0.7 ± 5.1); not used in play, phase 2 shelved (no release). See [docs/DESIGN.md](docs/DESIGN.md).

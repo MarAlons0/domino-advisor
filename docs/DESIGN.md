@@ -784,6 +784,201 @@ search's visit counts instead, and the "harness/production parity" backlog item'
 
 ---
 
+### 0i. Reading a Withheld Double
+**Priority:** Medium. **Status (2026-11-12):** shipped in v1.18.0. Master reading the clue won 53.1% ± 2.2% against Master not reading it. Every view reads it: AI seats at one weight, seats people sit in through the human table.
+**Complexity:** Low
+**Depends on:** the sampler (0g.5, k = 3 from the 0c follow-up). Related: 0h (reading the human),
+the avoided-end signal (0h phase 1).
+
+**The clue.** A player plays a non-double onto an end showing V while V|V is still out. V|V was
+playable, so they either don't hold it or chose to keep it. Nothing read this before: the suit
+affinities move a whole suit up or down, and this is about one tile.
+
+**How it is read.** `SmartAI._sendWithheldDouble` reports every such play to the four views,
+with the public situation it happened in (below). Each view reads it through `withheldDouble`,
+one table per player: the flat table unless `setHumanSeats` named that seat as a person's
+(`null` turns the clue off). The view multiplies its sampling weight for that player holding
+V|V by the table's weight for the situation (`PlayerView.tileFactors`, applied in
+`_samplingWeight`). The sampler feeds both the ISMCTS determinizations and the marginals behind
+`getProbability`, so one weight covers both.
+- The weight is an odds multiplier, never 0. With three possible holders, 0.35 turns a 33%
+  chance into about 15%, 0.5 into 20%, and 1 leaves it alone.
+- The lowest weight seen in the hand stands. Repeats don't compound, which is what made the
+  avoided-end signal over-count, and a later play that says nothing doesn't erase an earlier
+  one that did.
+
+**Situations.** Mario's own play (2026-11-11): he plays a double right away, except that he may
+keep V|V while his partner is on V (if the partner squares to V, he can extend V on both ends
+and make the opponents pass or spend their V tiles), or when his partner, who is ahead for the
+team, has no V tiles. So the clue should lower the chance, never remove it, and say less in
+those two situations. `SmartAI.doubleHoldSituation` classifies each play from public information:
+
+| Situation | Definition | `WITHHELD_DOUBLE.flat` (AI seats) | `WITHHELD_DOUBLE.human` |
+|---|---|---|---|
+| `partnerOnSuit` | the partner's signaled suit is V | 0.35 | 1 (no clue) |
+| `partnerOutAhead` | the partner has passed on V and holds no more tiles than the player | 0.35 | 1 (no clue) |
+| `ordinary` | anything else | 0.35 | 0.35 |
+
+**Measurements (2026-11-12).** Every number comes from `tools/tournament.js`, 8 parallel
+shards per run; the commands are at the end. Sections 1–4 were measured on v1.17.0 with the
+clue as a challenger variant, before it was turned on; 5 and 6 were added for the v1.18.0
+release (6 from the released code, with the clue on by default).
+
+*1. How much the play says.* "Held / chance" is how often the player held V|V right after the
+clue, relative to what tile counts and passes predict. 100% means the play says nothing.
+
+| Who made the play | Clues per match | Any situation | Ordinary | Partner on V | Partner out of V and ahead |
+|---|---|---|---|---|---|
+| Master (self-play, 200 matches, all seats) | 58 | 49% | 51% | 33% | 85% (47 clues) |
+| Default personas (seat 0, 224 matches) | 15 | 61% | 60% | 70% | too few (8) |
+| Persona that never holds a double | 13 | 35% | 34% | 39% | too few (12) |
+| Persona that holds in the two situations | 13 | 46% | 33% | 115% | 123% (42 clues) |
+
+- The clue is strong and frequent: Master holds the double half as often as chance says, about
+  58 times a match. For comparison, the avoided-end signal stood at 80% and "new number" at 120%.
+- Master does the opposite of Mario when its partner is on V: it plays the double sooner (33%).
+  So Master's habits can't stand in for a human's here.
+- The default personas, which have no holding habit at all, already give a slightly weaker clue
+  when their partner is on V (70%, 376 clues) than otherwise (60%).
+- "Partner out of V and ahead" comes up for any one player about once in 10 to 25 matches. It
+  can't be measured or learned per player in any reasonable time; it is kept as "no clue" on
+  Mario's word.
+
+*The two test personas* (`--persona-habits`): both play doubles early (`doublesEarly=0.7`); the
+holder also has `holdDoubleCtx=-0.9`, a test habit outside the population that keeps a playable
+double in the two situations about nine times in ten. The habit and the clue share
+`doubleHoldSituation`, so they can't disagree about what the situation is.
+
+*2. Hand-reading.* Paired: shadow views read the clue on the same positions the real views
+play (`--double-read`). Brier score of the tile-holding predictions, reading − not reading;
+lower is better. Every arm beat "not reading" in 8 of 8 shards.
+
+| Run | Predictions scored | Flat 0.35 | Human table for seat 0 | Human table − flat |
+|---|---|---|---|---|
+| Master self-play (200 matches) | all tiles | **−0.00121** | n/a | n/a |
+| Seat 0 = default personas (224) | about seat 0 | −0.00097 | −0.00107 | −0.00010 (better in 5 of 8 shards) |
+| Seat 0 = never holds (224) | about seat 0 | −0.00152 | −0.00143 | +0.00009 (worse in 7 of 8) |
+| Seat 0 = holds in the two situations (416) | about seat 0 | −0.00127 | −0.00153 | **−0.00026** (better in 8 of 8) |
+
+- For scale: cubing the affinities (k = 1 → 3, v1.16.0) was worth 0.0023, and the whole
+  suit-signal layer is worth 0.0048. This one clue is worth 0.0012.
+- Other weights on the same Master positions: 0.5 gives −0.00109, 0.2 gives −0.00115. 0.35 is the
+  best of the three, and the curve is flat around it.
+- The human table costs 0.00009 against a player who never holds, a third of what it gains
+  against one who does. Against the default personas the two readings are level.
+
+What each reading says right after the clue, for the persona that holds (seat 0's clues, seen by
+the players who don't hold the double):
+
+| Situation | Truth | Not reading | Flat 0.35 | Human table |
+|---|---|---|---|---|
+| Ordinary (4,825 clues) | 11% | 26% | 15% | 15% |
+| Partner on V (731) | 37% | 26% | 15% | 27% |
+| Partner out of V and ahead (42) | 71% | 63% | 57% | 63% |
+
+When the partner is on V the flat reading moves the wrong way: it says 15% where the truth is
+37%. The human table stays at the no-clue value there, which is closer.
+A table fitted to this persona on a separate run (`human-0.29:1.27:1.19`) reaches −0.00169, only
+0.00016 better than the 0.35 : 1 : 1 table. That is the most per-player learning could add for a
+player who holds nine times out of ten, so the fixed table is the right place to start.
+
+*3. Win rate.* Master reading the clue (flat 0.35, `double-read`) against current Master:
+**53.1% ± 2.2%** (1,063 of 2,000 matches, CI 51.0–55.3; as team A 51.7%, as B 54.6%; all 8
+shards between 50.8% and 56.0%).
+
+*4. Against personas.* Master opponents reading the clue (`double-read-human`: the persona in
+seat 0 through the human table, the other seats flat) on alternate matches:
+
+| Seat 0 | Opponents current | Opponents reading the clue | Difference |
+|---|---|---|---|
+| Default personas (1,520 matches) | 71.3% (542 of 760) | 72.2% (549 of 760) | +0.9 ± 4.5 |
+| Persona that holds in the two situations (1,520) | 71.2% (541 of 760) | 72.9% (554 of 760) | +1.7 ± 4.5 |
+
+Neither is significant by itself, and a run this size can't confirm a 3-point gain. Both point
+the same way as self-play, so reading the clue does not mislead against human-like play,
+including a player who holds doubles on purpose.
+
+*5. The other levels.* The app lets each AI seat be Beginner or Experienced, and the 0.35 was
+fitted to Master's play. Same paired check, each level playing itself (200 matches each,
+all seats):
+
+| Level | Clues per match | Held / chance (any) | Ordinary | Partner on V | Flat 0.35 | 0.5 | 0.7 |
+|---|---|---|---|---|---|---|---|
+| Beginner | 85 | 45% | 46% | 38% | **−0.00162** | −0.00143 | −0.00095 |
+| Experienced | 46 | 32% | 33% | 2% (514 clues) | **−0.00195** | −0.00157 | −0.00097 |
+
+- Every arm beat "not reading" in 8 of 8 shards at both levels, and 0.35 is the best of the
+  three. So one flat table serves every AI seat; no table per level.
+- Experienced almost never keeps a double while its partner is on that number (2%). A lower
+  weight there would read it better, but that is 2.6 clues a match.
+- Beginner picks by its own hand only, and still holds the double less than half as often as
+  chance says.
+
+*6. From the shipped setup.* With the clue on by default (v1.18.0), the same A/B from the other
+side: the challenger does not read it (`no-double-read`), 2,000 matches per level.
+
+| Level | Not reading vs reading | By seat assignment | Shards |
+|---|---|---|---|
+| Master | **47.0% ± 2.2%** (941 of 2,000, CI 44.9–49.2) | 47.8% / 46.3% | 43–52% (two of eight at 50% or above) |
+| Experienced | 50.7% ± 2.2% (1,015 of 2,000, CI 48.6–52.9) | 51.0% / 50.5% | 49–54% |
+
+- Master: the mirror image of run 3 (53.1%). The two independent runs together give the reader
+  2,122 of 4,000 = 53.1% ± 1.5% (CI 51.5–54.6).
+- Experienced plays the same with or without the clue, as it did when the affinities were
+  cubed (v1.16.0, 50.6%).
+
+**Decision (Mario, 2026-11-12).** Turned on, v1.18.0. The reading is better in every shard of
+every run, Master wins about 3 points more against itself, and nothing gets worse against
+personas.
+
+**How it is on.**
+- `PlayerView`: `withheldDouble` defaults to the flat table for all four players, so anything
+  that builds views reads the clue. `setHumanSeats(seats)` swaps in the human table.
+- `main.js`: seat 0 is a person. At a table with friends, every seat a person sits in, kept up
+  to date with the lobby (`_applyTableLabels`). Genín reads the table through the same views,
+  so his advice, the "Why?" percentages and the grades change with it, as they did in v1.16.0.
+- `server/src/RoomEngine.js` (multiplayer AI seats): the human table for every seat a person
+  sits in, updated when the AI takes over a seat or a player comes back (`_setDifficulties`).
+  The `domino-rooms` Worker bundles this code, so the AI seats there read the clue only once
+  the Worker is redeployed.
+- Harness: play reads the clue as the app does (a persona's seat as a person's). The
+  `no-double-read` variant is the pre-v1.18.0 behaviour; `--double-read` still plays without the
+  clue so its numbers stay comparable with the tables above.
+
+**Not done.**
+- *Per-player learning.* A `SignalProfile`-style count per situation (0h phase 1) could move a
+  player's weights off the table. The ordinary weight would be half-learned in about 3 matches
+  and "partner on V" in about 17 (2 clues a match, shrinkage n / (n + 30)). The fitted-table
+  result above caps the gain at about 0.0002.
+- *The same clue on the other end.* When V is open and a player plays on the other end, V|V was
+  playable too. Not measured.
+- *Other reasons a human holds a double.* Mario named two and said there are others. The table
+  only has to be less wrong than the flat reading; it never rules the double out.
+
+**Reproduce** (each run 8 times in parallel with a different `--persona-seed`, then summed).
+Since v1.18.0 play reads the clue, so the A/Bs are run from the other side: the challenger is
+`no-double-read` and the expected result is the mirror image (6). For the persona A/B (4), use
+`--variant no-double-read` in place of `double-read-human`. On v1.17.0 plus the harness, the
+variants below are the originals.
+```bash
+# 6. From v1.18.0: the challenger does not read the clue (8 × 250; add --difficulty experienced)
+node tools/tournament.js --ab --variant no-double-read --games 250
+# 3. Master win rate (8 × 250), before v1.18.0
+node tools/tournament.js --ab --variant double-read --games 250
+# 1–2. Master self-play reading (8 × 25); merge with --double-read-merge FILE...
+node tools/tournament.js --games 25 --double-read 0.35,0.5,0.2 --double-read-out FILE
+# 5. The other levels (8 × 25 each)
+node tools/tournament.js --games 25 --difficulty beginner --double-read 0.35,0.5,0.7 --double-read-out FILE
+# 1–2. Personas in seat 0 (8 × 7 personas × 4 matches; 13 personas for the holder)
+node tools/tournament.js --persona --personas 7 --season 4 --persona-seed S --double-read 0.35,human --double-read-out FILE
+#    never holds:  add --persona-habits doublesEarly=0.7
+#    holds:        add --persona-habits doublesEarly=0.7,holdDoubleCtx=-0.9  (and the arm human-0.29:1.27:1.19)
+# 4. Persona win rate (8 × 19 personas × 10 matches), with and without the holder's habits
+node tools/tournament.js --persona --personas 19 --season 10 --persona-seed S --ab --variant double-read-human
+```
+
+---
+
 ### 1. Configurable AI Strategy Weights
 **Priority:** Low
 **Complexity:** Medium

@@ -3,6 +3,21 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.18.0] – 2026-11-12
+
+### Changed
+- **The AI notices a double that wasn't played.** When a player puts another tile on an end showing, say, 5 while the 5|5 is still out, the 5|5 would have fit there. So they probably don't hold it. The AI used to ignore this. It now lowers that player's chance of holding the double, to about half and never to zero, because players do sometimes keep a double. In testing, a player who makes such a play holds the double half as often as the tile counts suggest, and it comes up about 58 times a match. Master reads hands more accurately (Brier 0.2040 → 0.2028). In a 2,000-match A/B against the previous version, Master won **53.1% ± 2.2%** of matches (CI 51.0–55.3; 51.7% / 54.6% by seat assignment). This covers the AI partner and opponents and the AI seats at multiplayer tables. Experienced plays the same as before (in the same test at that level, the version that doesn't read the clue won 50.7% ± 2.2%).
+- **It reads a person differently from the AI.** You may keep a double on purpose: while your partner is playing that number (if they square the board to it, you can extend it on both ends and make the opponents pass or spend their tiles of that number), or when your partner is out of that number and ahead. In those two situations the AI draws no conclusion from your play. Everywhere else it reads you as above. The AI itself doesn't hold doubles there (Master plays the double sooner when its partner is on the number), so AI seats are read the same way in every situation. Against test players who keep doubles in those two situations, this reads their tiles better in 8 of 8 runs. Against one who never keeps a double it costs a third as much.
+- **Genín reads the table the same way**, so his advice, the "Why?" percentages and the play grades come from the sharper reads. At a table with friends he reads each friend as a person and each AI seat as the AI.
+
+### Changed (internal)
+- `SmartAI._sendWithheldDouble` reports each such play to the four views with its public situation (`doubleHoldSituation`: `ordinary`, `partnerOnSuit`, `partnerOutAhead`). `PlayerView.applyWithheldDouble` turns it into a sampling weight for that one tile (`tileFactors`, applied in `_samplingWeight`), so ISMCTS determinization and the marginals behind `getProbability` both see it. The lowest weight seen in a hand stands, so repeats don't compound.
+- Weights (`WITHHELD_DOUBLE`): `flat` is 0.35 in every situation, for AI seats; `human` is 0.35 / 1 / 1. A weight of 0.35 turns a 33% chance into about 15%. `PlayerView.setHumanSeats` names the seats people sit in: seat 0 in single player; in multiplayer the lobby's seats on the client and the room's seats on the server (`RoomEngine._setDifficulties`, kept current when the AI takes over a seat).
+- Measured per level, each playing itself: after the clue the double is held 49% as often as chance says by Master, 32% by Experienced, 45% by Beginner. Flat 0.35 was the best weight tried at every level and better than not reading in 8 of 8 shards (Brier −0.0012 / −0.0020 / −0.0016).
+- Re-run from the released code with the challenger not reading the clue: Master 47.0% ± 2.2% (CI 44.9–49.2), the mirror image. The two runs together give the reader 53.1% ± 1.5% of 4,000 matches.
+- Against human-like test players, Master opponents won +0.9 ± 4.5 points more (default personas) and +1.7 ± 4.5 (a persona that keeps doubles in the two situations): not significant alone, same direction as self-play.
+- Harness: `--double-read SPEC,...` paired check, `no-double-read` and `double-read[-SPEC]` variants, `--persona-habits`, and a test habit `holdDoubleCtx` in `tools/personas.js` that is off in the normal population (seeded personas are unchanged). Everything is in docs/DESIGN.md, section 0i.
+
 ## [1.17.0] – 2026-10-29
 
 ### Added

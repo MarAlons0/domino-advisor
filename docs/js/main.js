@@ -73,6 +73,11 @@ class DominoApp {
         // Create per-player probability views with Bayesian suit affinity inference
         this.playerViews = [0, 1, 2, 3].map(i => new PlayerView(i, this.handTracker));
         this.ai.setPlayerViews(this.playerViews);
+        // A person may keep a double on purpose where the AI wouldn't, so the
+        // views read your doubles through their own table (docs/DESIGN.md 0i).
+        // At a table with friends that is every seat a person sits in
+        // (_applyTableLabels).
+        for (const view of this.playerViews) view.setHumanSeats([0]);
 
         // Your style (Stats → Your signals): every view hears every suit
         // signal, so view 0's listener catches yours once. They are measured
@@ -197,6 +202,9 @@ class DominoApp {
             }
         }
         GameState.nameOverrides = names;
+        // Genín reads a friend's doubles as a person's, an AI seat's as the AI's.
+        const humans = [0, 1, 2, 3].filter(local => lobby.seats[(local + me) % 4].kind === 'human');
+        for (const view of this.playerViews) view.setHumanSeats(humans);
     }
 
     /** A hand (or match) started or resumed in the room. @private */
