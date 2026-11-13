@@ -1,5 +1,14 @@
 # 7 Fichas multiplayer rooms — Cloudflare Worker on the FREE plan.
 # Bundles the game engine from ../docs/js (one source of truth with the app).
+# Also takes the app's suggestions & bug reports (src/suggestions.js).
+#
+# Secrets for suggestions (set each once with `npx --yes wrangler@4.61.0 secret put NAME`;
+# for `npm run dev`, copy .dev.vars.example to .dev.vars):
+#   ADMIN_PIN            opens the admin Suggestions screen. Not set → nobody gets in.
+#   SENDGRID_API_KEY     } email each suggestion to the organizers. Either one not
+#   OPERATOR_EMAILS      } set → suggestions are saved but not emailed. Comma-separated.
+#   SENDGRID_FROM_EMAIL  optional: a sender verified in SendGrid (default: the first
+#                        address in OPERATOR_EMAILS).
 name = "domino-rooms"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
@@ -8,10 +17,18 @@ compatibility_date = "2025-09-01"
 name = "ROOMS"
 class_name = "GameRoom"
 
+[[durable_objects.bindings]]
+name = "SUGGESTIONS"
+class_name = "SuggestionBox"
+
 # Free plan: SQLite-backed Durable Objects only
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GameRoom"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["SuggestionBox"]
 
 [observability]
 enabled = true

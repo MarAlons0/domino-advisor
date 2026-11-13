@@ -14,6 +14,7 @@ const INDEX = [
     ['after', [['debrief', 'help-debrief'], ['styleAnalysis', 'help-debrief'], ['stats', 'help-settings']]],
     ['friends', [['createRoom', 'help-friends'], ['seats', 'help-friends'], ['reconnect', 'help-friends'], ['reactions', 'help-friends'], ['rematch', 'help-friends']]],
     ['strategy', [['tips', 'help-strategy']]],
+    ['feedback', [['suggest', 'help-suggest']]],
 ];
 
 const HIGHLIGHT_MS = 2000;

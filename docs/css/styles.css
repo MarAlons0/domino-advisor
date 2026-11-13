@@ -4145,3 +4145,181 @@ body.multiplayer .react-btn:disabled { opacity: 0.5; }
 @media (prefers-reduced-motion: reduce) {
     .help-section { transition: none; }
 }
+
+/* ============================================================
+   Suggestions & bugs: the 💬 button, its form, the admin inbox
+   ============================================================ */
+.suggest-fab {
+    position: fixed;
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: 1085; /* over every window except Help (1090 / 1100) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 50%;
+    background: #16213e;
+    border: 1px solid #00d4ff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    font-size: 20px;
+    line-height: 1;
+}
+.suggest-fab:hover, .suggest-fab:focus-visible { background: #1f2f57; }
+/* While a hand is being played the tiles fill the bottom of the screen; the
+   debrief and the inbox have their own buttons in that corner. */
+body.in-hand .suggest-fab,
+.debrief-modal.visible ~ .suggest-fab,
+.inbox-modal.visible ~ .suggest-fab { display: none; }
+
+/* The form sits over the window it was opened from, and under Help (its "?"). */
+#suggest-overlay { z-index: 1086; }
+.suggest-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1087;
+    display: none;
+    flex-direction: column;
+    width: 92%;
+    max-width: 420px;
+    max-height: 92vh;
+    background: #16213e;
+    border: 1px solid #333;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.suggest-modal.visible { display: flex; }
+
+.suggest-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 20px 20px;
+    overflow-y: auto;
+}
+.suggest-body[hidden] { display: none; }
+
+.suggest-kinds {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: #0a1628;
+    border-radius: 8px;
+}
+.suggest-kind {
+    flex: 1;
+    padding: 8px;
+    background: transparent;
+    color: #9fb4d9;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+}
+.suggest-kind:hover { background: rgba(255, 255, 255, 0.06); }
+.suggest-kind.active, .suggest-kind.active:hover { background: #0f3460; color: #fff; }
+
+.suggest-message {
+    min-height: 110px;
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.4;
+}
+.suggest-note {
+    margin: 0;
+    color: #7f93b5;
+    font-size: 12px;
+    line-height: 1.4;
+}
+.suggest-actions { display: flex; gap: 8px; }
+.suggest-actions > button { flex: 1; }
+/* The plain buttons' cyan hover would hide these outlined and link-style ones. */
+.suggest-modal .mp-secondary:hover, .inbox-modal .mp-secondary:hover { background: rgba(0, 212, 255, 0.12); }
+.inbox-modal .mp-link:hover, .settings-admin .mp-link:hover { background: none; color: #ccc; }
+.suggest-modal .close-btn:hover, .inbox-modal .close-btn:hover { background: none; }
+
+.suggest-thanks { align-items: center; text-align: center; }
+.suggest-thanks-icon { font-size: 34px; line-height: 1; }
+.suggest-thanks h3 { margin: 0; color: #fff; font-size: 1.1rem; }
+.suggest-thanks p { margin: 0 0 6px; color: #9fb4d9; font-size: 14px; }
+.suggest-thanks button { align-self: stretch; }
+
+/* Settings: the organizers' way in */
+.settings-admin {
+    margin-top: 16px;
+    padding-top: 10px;
+    border-top: 1px solid #0f3460;
+    text-align: center;
+}
+
+/* Admin inbox */
+.inbox-modal { max-width: 560px; }
+.inbox-sub { margin: 2px 0 0; color: #888; font-size: 12px; }
+.inbox-pin-form { display: flex; flex-direction: column; gap: 10px; }
+.inbox-empty { margin: 0; padding: 20px 0; text-align: center; color: #888; }
+.inbox-done-toggle, .inbox-lock { align-self: center; }
+
+.inbox-card {
+    padding: 12px;
+    background: #0f1b33;
+    border: 1px solid #22335a;
+    border-radius: 10px;
+}
+.inbox-card.done { opacity: 0.6; }
+.inbox-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.inbox-kind {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.inbox-kind.idea { background: rgba(240, 192, 64, 0.15); color: #f0c040; }
+.inbox-kind.bug { background: rgba(255, 107, 107, 0.15); color: #ff8f8f; }
+.inbox-when { color: #7f93b5; font-size: 12px; }
+.inbox-text {
+    margin: 0;
+    color: #eee;
+    font-size: 14px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.inbox-card-foot {
+    display: flex;
+    flex-wrap: wrap; /* on a phone the button drops under the details */
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+    color: #9fb4d9;
+    font-size: 12px;
+}
+.inbox-who { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.inbox-who code {
+    padding: 1px 5px;
+    background: #0a1628;
+    border-radius: 4px;
+    font-size: 11px;
+}
+.inbox-details { display: block; margin-top: 2px; color: #7f93b5; }
+.inbox-toggle {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 6px 12px;
+    background: #1f9d55;
+    color: #fff;
+    border-radius: 999px;
+    font-size: 12px;
+}
+.inbox-toggle:hover { background: #24b662; }
+.inbox-toggle.reopen, .inbox-toggle.reopen:hover { background: #33415f; color: #ddd; }

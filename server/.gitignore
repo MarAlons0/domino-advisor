@@ -1,3 +1,5 @@
 # wrangler dev/deploy build cache and local state
 .wrangler/
 node_modules/
+# local secrets for wrangler dev (see .dev.vars.example)
+.dev.vars

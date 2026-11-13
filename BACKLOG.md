@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-11-12 (v1.19.0 shipped; PWA and AI thinking indicator moved to Shipped)_
+_Last updated: 2026-11-13 (v1.20.0: Suggestions moved to Shipped)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -13,9 +13,6 @@ _Nothing open — next items come from Medium._
 - [ ] **Position analyzer (3)** — analyze a board position for the best plays. `[feature]`
 - [ ] **Pass indicators on UI (5)** — keep showing, next to each player, which numbers they have passed on. Today a "Pass" badge flashes for 4 seconds and after that the pass is only in the log. `[feature]`
 - [ ] **Named AI players (UX-B)** — give the AI opponents names. `[feature]`
-- [ ] **Suggestions** — a 💬 button to send an idea or report a bug (💡 Idea / 🐞 Bug, message, optional name). Each one is emailed to the organizers and saved for an admin Suggestions screen with Mark done / Reopen. Add a Help section and a "How do I…?" entry, as in domino-tracker v1.11.0. `[feature]`
-  - 7 Fichas has no database and no admin PIN. Store suggestions in a SQLite Durable Object on the `domino-rooms` Worker (free plan), send email through SendGrid's HTTP API, and keep `SENDGRID_API_KEY`, `OPERATOR_EMAILS` and the admin PIN as Worker secrets. The endpoint is public, so cap message length and rate-limit by IP. Needs a Worker deploy.
-  - Hide the 💬 during a hand (the tiles fill the bottom of the screen). Attach the app version, screen, difficulty and language. All text in en/es.
 - [ ] **Re-run the max-cerrado harness numbers** — before v1.5.1 the harness dropped every match-ending hand, so the empirical maxima in [docs/MAX_CERRADO.md](docs/MAX_CERRADO.md) and the white paper (≈92 rigged / ≈78 natural) were sampled without the hands most likely to carry big hauls. Re-run `--max-cerrado` (with `--max-disparity-deals`, `--cooperative-losers`, `--random-losers --force-cerrar`) and update both docs if the maxima move. The exhaustive 103-pip ceiling (`tools/cerrado-search.js`) is unaffected. `[chore]`
 
 ## 🟢 Low / Nice to have
@@ -36,6 +33,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Suggestions** — 💬 button to send an idea or report a bug (💡 Idea / 🐞 Bug, message, optional name), emailed to the organizers and saved for an admin inbox with Mark done / Reopen (Settings, admin PIN); Help section and "How do I…?" entry; en/es. Stored in a SQLite Durable Object on the `domino-rooms` Worker — v1.20.0
 - [x] **Scale the search's exploration to the reward (0j)** — Master's search assumed win/lose results, so at most match scores it explored two to three times more widely than works best; the exploration now follows how much a hand can move the match odds: Master 52.2% vs the previous version over 8,000 matches (CI 51.1–53.3); Genín unchanged — v1.19.0
 - [x] **Genín praised the forced opening [6|6]** — the hand-end card skips forced plays (one legal move); asking Genín on the forced opening says there's nothing to decide — v1.18.1
 - [x] **Read a withheld double (0i)** — a player who plays another tile onto V while V|V is still out holds V|V half as often as chance says; the AI now lowers that chance (never to zero), and for a person not at all when their partner is on V, or is out of V and ahead: Master 53.1% vs the previous version (CI 51.0–55.3), hand-reading Brier −0.0012 — v1.18.0

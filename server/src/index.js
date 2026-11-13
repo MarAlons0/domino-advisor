@@ -2,11 +2,14 @@
 //   POST /rooms               → { code }   create a room
 //   GET  /rooms/CODE/info     → { exists, phase, seats }
 //   GET  /rooms/CODE/ws       → WebSocket into that room's GameRoom
+//   /suggestions…             → suggestions & bug reports (suggestions.js)
 // See docs/MULTIPLAYER.md.
 
 import { GameRoom } from './GameRoom.js';
+import { SuggestionBox } from './SuggestionBox.js';
+import { handleSuggestions } from './suggestions.js';
 
-export { GameRoom };
+export { GameRoom, SuggestionBox };
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I
 const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
@@ -27,8 +30,8 @@ function corsHeaders(origin) {
     if (!origin || !ALLOWED_ORIGINS.has(origin)) return {};
     return {
         'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Pin',
         'Vary': 'Origin',
     };
 }
@@ -44,7 +47,7 @@ const json = (body, status, headers) => new Response(JSON.stringify(body), {
 });
 
 export default {
-    async fetch(request, env) {
+    async fetch(request, env, ctx) {
         const url = new URL(request.url);
         const origin = request.headers.get('Origin');
         const cors = corsHeaders(origin);
@@ -69,6 +72,10 @@ export default {
             if (m[2] === 'ws') return room.fetch(new Request('https://room/ws', request));
             const r = await room.fetch('https://room/info');
             return json(await r.json(), r.status, cors);
+        }
+
+        if (url.pathname === '/suggestions' || url.pathname.startsWith('/suggestions/')) {
+            return handleSuggestions(request, env, ctx, url, cors);
         }
 
         return json({ error: 'not-found' }, 404, cors);

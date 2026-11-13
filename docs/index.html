@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>7 Fichas v1.19.0</title>
+    <title>7 Fichas v1.20.0</title>
     <meta name="theme-color" content="#00d4ff">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-    <link rel="stylesheet" href="css/styles.css?v=47">
+    <link rel="stylesheet" href="css/styles.css?v=48">
 </head>
 <body>
     <header class="app-header">
         <div class="brand">
-            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.19.0</span></h1>
+            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.20.0</span></h1>
             <p class="subtitle" data-i18n="app.subtitle">Partnership Dominoes vs. AI</p>
         </div>
         <p class="attribution"><span data-i18n="app.createdBy">Created by</span> <a href="https://looking4nature.com" target="_blank" rel="noopener">Mario Alonso</a></p>
@@ -400,6 +400,15 @@
                     <li data-i18n="help.strategy.count" data-i18n-html><strong>Count tiles</strong> - There are 7 tiles per suit. Track what's been played.</li>
                 </ul>
             </section>
+
+            <section class="help-section" id="help-suggest">
+                <h3><span data-i18n="help.suggest.title">Suggestions &amp; Bugs</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <ul>
+                    <li data-i18n="help.suggest.send" data-i18n-html><strong>Send one</strong> - Tap the <strong>💬</strong> in the bottom-right corner (it's hidden while a hand is being played and in the match debrief). Choose <em>💡 Idea</em> or <em>🐞 Bug</em>, write what you have in mind, and tap <em>Send</em>. Adding your name is optional.</li>
+                    <li data-i18n="help.suggest.goes" data-i18n-html><strong>What is sent</strong> - Your message, with the app version, the screen you were on, the AI levels and your language. The organizers get it by email.</li>
+                    <li data-i18n="help.suggest.admin" data-i18n-html><strong>Organizers</strong> - Read everything in Settings (⚙) under <em>Suggestions inbox</em> (admin PIN), and tap <em>Mark done</em> once it's handled.</li>
+                </ul>
+            </section>
         </div>
     </div>
 
@@ -440,6 +449,9 @@
                         <button class="diff-btn active" data-player="3" data-level="master" data-i18n="settings.difficulty.master">Master</button>
                     </div>
                 </div>
+            </div>
+            <div class="settings-admin">
+                <button type="button" class="mp-link" id="open-inbox-btn" data-i18n="inbox.open">Suggestions inbox (admin)</button>
             </div>
         </div>
     </div>
@@ -673,9 +685,52 @@
         </div>
     </div>
 
+    <!-- Suggestions inbox (admin PIN): opened from Settings or …/?admin=suggestions -->
+    <div class="modal-overlay" id="inbox-overlay"></div>
+    <div class="mp-modal inbox-modal" id="inbox-modal" role="dialog" aria-modal="true" aria-labelledby="inbox-title">
+        <div class="stats-header">
+            <div>
+                <h2 id="inbox-title" data-i18n="inbox.title">Suggestions &amp; bugs</h2>
+                <p class="inbox-sub" data-i18n="inbox.subtitle">Sent with the 💬 button. Newest first.</p>
+            </div>
+            <div class="header-actions"><button type="button" class="help-ctx" data-help="help-suggest" title="Help" data-i18n-title="help.ctx" aria-label="Help">?</button><button id="inbox-close" class="close-btn" aria-label="Close">&times;</button></div>
+        </div>
+        <div class="mp-body" id="inbox-body"></div>
+    </div>
+
+    <!-- Suggestions & bugs: the 💬 button (hidden during a hand, and over the debrief and the inbox) and its form -->
+    <button id="suggest-fab" class="suggest-fab" type="button" title="Suggestions &amp; bugs" data-i18n-title="suggest.title" aria-label="Suggestions &amp; bugs" aria-haspopup="dialog">💬</button>
+    <div class="modal-overlay" id="suggest-overlay"></div>
+    <div class="suggest-modal" id="suggest-modal" role="dialog" aria-modal="true" aria-labelledby="suggest-title">
+        <div class="stats-header">
+            <h2 id="suggest-title" data-i18n="suggest.title">Suggestions &amp; bugs</h2>
+            <div class="header-actions"><button type="button" class="help-ctx" data-help="help-suggest" title="Help" data-i18n-title="help.ctx" aria-label="Help">?</button><button type="button" id="suggest-close" class="close-btn" aria-label="Close">&times;</button></div>
+        </div>
+        <form class="suggest-body" id="suggest-form" novalidate>
+            <div class="suggest-kinds" role="radiogroup" aria-labelledby="suggest-title">
+                <button type="button" class="suggest-kind active" data-kind="idea" role="radio" aria-checked="true" data-i18n="suggest.kind.idea">💡 Idea</button>
+                <button type="button" class="suggest-kind" data-kind="bug" role="radio" aria-checked="false" data-i18n="suggest.kind.bug">🐞 Bug</button>
+            </div>
+            <textarea id="suggest-message" class="mp-input suggest-message" rows="5" maxlength="2000"></textarea>
+            <input id="suggest-name" class="mp-input" maxlength="100" autocomplete="off" placeholder="Your name (optional)" data-i18n-placeholder="suggest.name" aria-label="Your name (optional)">
+            <p class="suggest-note" data-i18n="suggest.note">Sent with the app version, the screen you were on, the AI levels and your language.</p>
+            <p class="mp-message" id="suggest-error" role="alert"></p>
+            <div class="suggest-actions">
+                <button type="button" class="mp-secondary" id="suggest-cancel" data-i18n="suggest.cancel">Cancel</button>
+                <button type="submit" class="mp-primary" id="suggest-send" data-i18n="suggest.send">Send</button>
+            </div>
+        </form>
+        <div class="suggest-body suggest-thanks" id="suggest-thanks" hidden>
+            <div class="suggest-thanks-icon" aria-hidden="true">🙏</div>
+            <h3 data-i18n="suggest.thanks.title">Thanks!</h3>
+            <p data-i18n="suggest.thanks.text">The organizers will take a look.</p>
+            <button type="button" class="mp-primary" id="suggest-done" data-i18n="btn.close">Close</button>
+        </div>
+    </div>
+
     <div id="badge-toast-container"></div>
 
-    <script type="module" src="js/main.js?v=43"></script>
+    <script type="module" src="js/main.js?v=44"></script>
     <script>
       if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         // On the first visit after a release, the previous version's service worker may have

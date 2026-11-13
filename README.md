@@ -564,6 +564,7 @@ Two further references that informed the integration design:
 - **Lifetime Stats & Badges**: Trophy icon opens a stats modal with match history, hand breakdown, cerrado records, and coaching metrics. Twelve achievement badges unlock as you hit milestones and appear as toast notifications.
 - **Tile Attribution**: Toggle "Show who played" to overlay semi-transparent color masks (cyan/red/purple/yellow) on each chain tile, identifying its player at a glance. Desktop also shows a shape indicator (●■▲◆) for a second visual cue.
 - **Claude Integration**: AI-powered play style analysis in the debrief. Nothing to set up: it goes through 7 Fichas' own server (the `domino-api` Cloudflare Worker), which holds the API key.
+- **Suggestions & Bug Reports**: A 💬 button (hidden while a hand is being played) sends an idea or a bug report to the organizers, with the app version, screen, AI levels and language. Each one is saved on the `domino-rooms` Cloudflare Worker and emailed; organizers read them under Settings → *Suggestions inbox* (admin PIN) and mark them done. The Worker's secrets are listed in `server/wrangler.toml`.
 - **PWA / Installable**: Add to home screen on iPhone (Safari) or Android (Chrome) — runs full-screen with no browser chrome and works offline after first load
 - **Bilingual**: Full English/Spanish support
 - **Mobile-Optimized**: Portrait-mode layout stacks the header vertically so buttons never overlap the title

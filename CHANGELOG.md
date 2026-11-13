@@ -3,6 +3,21 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.20.0] – 2026-11-13
+
+### Added
+- **Suggestions & bug reports.** A 💬 button in the bottom-right corner opens a short form: 💡 Idea or 🐞 Bug, a message (up to 2,000 characters) and an optional name. Each one is saved and emailed to the organizers, together with the app version, the screen it was sent from, the AI levels and the language. The button is hidden while a hand is being played, because the tiles fill the bottom of the screen, and over the match debrief, which has its own buttons in that corner. It is there on the start screen, on the hand-end and match-end cards, and over Settings, Stats and the room. If a message can't be sent, it stays in the form.
+- **Suggestions inbox** for the organizers: Settings → *Suggestions inbox (admin)*, or the direct link `…/?admin=suggestions` that each email carries. It asks for the admin PIN and lists the open items newest first, each with **Mark done**; done items are behind *Show N done*, each with **Reopen**. The PIN is kept on the device until the server refuses it or you tap *Forget the PIN on this device*.
+- **Help**: a new section, "Suggestions & Bugs", and a "How do I…?" entry under Feedback.
+- All of it in English and Spanish.
+
+### Changed (internal)
+- Server (`domino-rooms` Worker): `POST /suggestions` (anyone), `GET /suggestions` and `PATCH /suggestions/ID` (admin, `X-Admin-Pin` header). Suggestions are stored in a new SQLite Durable Object, `SuggestionBox` (migration `v2`; free plan). CORS now also allows `PATCH` and the `X-Admin-Pin` header; the origin check is unchanged. The Worker has to be deployed before the site.
+- Limits on the public endpoint: 5 messages per 10 minutes and 30 per day from one sender (one IPv4 address or one IPv6 /64, kept only as a hash and for a day at most), 300 saved per day from everyone together, and a 16 KB request body. Ten wrong PINs from one sender close the inbox to that sender for 15 minutes.
+- Email goes through SendGrid's HTTP API: one request per suggestion, with a separate copy for each address in `OPERATOR_EMAILS`, and at most 50 suggestions emailed per day (later ones are saved and listed, not emailed). A failed email never loses the suggestion.
+- Worker secrets: `ADMIN_PIN`, `SENDGRID_API_KEY`, `OPERATOR_EMAILS` and, optionally, `SENDGRID_FROM_EMAIL` (default: the first operator address). Without `ADMIN_PIN` the inbox is closed to everyone; without the email secrets, suggestions are saved but not emailed. `server/.dev.vars.example` has local values for `wrangler dev`.
+- Tests: `server/test/suggestions.test.mjs` (14 tests) runs the Worker's own handler on Node's SQLite, with SendGrid replaced by a recorder: submit, length cap, rate limits, admin list, Mark done / Reopen, wrong and missing PIN, missing secrets, CORS.
+
 ## [1.19.0] – 2026-11-12
 
 ### Changed

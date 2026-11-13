@@ -24,6 +24,8 @@ import { RemoteGame } from './multiplayer/RemoteGame.js';
 import { MultiplayerSession } from './multiplayer/MultiplayerSession.js';
 import { LobbyUI } from './ui/LobbyUI.js';
 import { HelpUI } from './ui/HelpUI.js';
+import { SuggestUI } from './ui/SuggestUI.js';
+import { SuggestionsAdminUI } from './ui/SuggestionsAdminUI.js';
 import { REACTIONS, reactionText } from './multiplayer/reactions.js';
 
 // Check for debug mode via URL parameter (?debug=ai)
@@ -479,6 +481,10 @@ class DominoApp {
         // Initialize help modal handlers
         this.helpUI = new HelpUI();
 
+        // Suggestions & bugs: the 💬 button and form, and the admin inbox (from Settings)
+        this.suggestUI = new SuggestUI({ getContext: () => this._suggestContext() });
+        this.inboxUI = new SuggestionsAdminUI({ onOpen: () => this.settingsUI.hide() });
+
         // Initialize language toggle
         this._initLanguageToggle();
 
@@ -496,6 +502,34 @@ class DominoApp {
                 this.updateOpenEnds(state.chain);
             }
         });
+    }
+
+    /**
+     * What goes with a suggestion: the screen the player is on (the topmost open
+     * window, else where the match stands) and the AI levels. Plain English
+     * labels — they are read by the organizers, not shown to the player. @private
+     */
+    _suggestContext() {
+        const open = (id) => document.getElementById(id)?.classList.contains('visible');
+        const phase = this.game.getState()?.gamePhase;
+        const windows = [['help-modal', 'help'], ['inbox-modal', 'inbox'], ['stats-modal', 'stats'], ['mp-modal', 'room'],
+            ['settings-modal', 'settings'], ['debrief-modal', 'debrief'], ['quiz-modal', 'quiz'],
+            ['message-box', phase === 'matchOver' ? 'match end' : 'hand end']];
+        const screen = windows.find(([id]) => open(id))?.[1]
+            || { waiting: 'start', playing: 'hand', handOver: 'between hands', matchOver: 'match over' }[phase] || 'table';
+
+        const seats = ['opp1', 'partner', 'opp2'];
+        let levels;
+        const lobby = this.multiplayer?.lobby;
+        if (lobby) {
+            const me = this.multiplayer.mySeat() ?? 0;
+            levels = seats.map((_, i) => { const x = lobby.seats[(i + 1 + me) % 4]; return x.kind === 'ai' ? x.level : x.kind; });
+        } else {
+            const saved = StorageService.get('7fichas_difficulty') || {};
+            levels = seats.map(seat => saved[seat] || 'master');
+        }
+        const difficulty = seats.map((seat, i) => `${seat} ${levels[i]}`).join(' · ');
+        return { screen, difficulty: this.multiplayer ? `friends · ${difficulty}` : difficulty };
     }
 
     _initLanguageToggle() {
@@ -804,6 +838,8 @@ class DominoApp {
 
     updateUI(state) {
         if (this.multiplayer) this._updateTurnTimer();
+        // While a hand is being played the tiles fill the bottom of the screen: no 💬 there.
+        document.body.classList.toggle('in-hand', state.gamePhase === 'playing');
         // Update scores
         this.teamAScore.textContent = state.scores.match[0];
         this.teamBScore.textContent = state.scores.match[1];
