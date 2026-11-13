@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-11-12 (forced-opening fix shipped as v1.18.1)_
+_Last updated: 2026-11-12 (search exploration scaling shipped as v1.19.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -38,6 +38,8 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Scale the search's exploration to the reward (0j)** — Master's search assumed win/lose results, so at most match scores it explored two to three times more widely than works best; the exploration now follows how much a hand can move the match odds: Master 52.2% vs the previous version over 8,000 matches (CI 51.1–53.3); Genín unchanged — v1.19.0
+- [x] **Match equity that knows who opens next (0k)** — built and tested: the hand's winner opens the next hand and the opening team wins 58.6% of them, but Master counting that won 50.9% ± 1.5% of 4,000 matches, and scoring a pip-tied cerrado for the closer in the search (as the rules do, 1.9% of hands) measured 50.0%; both kept off (no release). Harness variants `reward-match-salida`, `tie-close`. See [docs/DESIGN.md](docs/DESIGN.md).
 - [x] **Genín praised the forced opening [6|6]** — the hand-end card skips forced plays (one legal move); asking Genín on the forced opening says there's nothing to decide — v1.18.1
 - [x] **Read a withheld double (0i)** — a player who plays another tile onto V while V|V is still out holds V|V half as often as chance says; the AI now lowers that chance (never to zero), and for a person not at all when their partner is on V, or is out of V and ahead: Master 53.1% vs the previous version (CI 51.0–55.3), hand-reading Brier −0.0012 — v1.18.0
 - [x] **Show the player their style profile** — Stats → Your signals: how readable your leads, new numbers and cuadrars are compared with Master, with likely ranges — v1.17.0

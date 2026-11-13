@@ -3,6 +3,20 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.19.0] – 2026-11-12
+
+### Changed
+- **Master weighs its options more sharply.** Master picks a move by playing the hand out many times in simulation, and it has to split those simulations between the move that looks best so far and the ones it has tried less. Since v1.14.0 it judges a hand by what it does to the chance of winning the match, and one hand usually moves that chance only a little. The setting that splits the simulations still assumed plain win-or-lose results, so Master spread them almost evenly over its moves and gave its best candidates too little attention. The split now follows how much the hand can change the match at the current score: more focus in most hands, and the same wide look as before late in a close match, when one hand decides everything. Over 8,000 matches against the previous version, Master won **52.2% ± 1.1%** (CI 51.1–53.3). This covers the AI partner and opponents at Master and the AI seats at multiplayer tables. Beginner and Experienced don't use this search and play as before.
+- **Genín is unchanged.** His advice, the "Why?" percentages and the play grades come from hand-level win rates, which already use the full range, so none of his numbers move.
+
+### Changed (internal)
+- `ismcts()` takes the UCB exploration constant as a fourth argument. `ISMCTSGameState.rewardRange()` returns the gap between winning and losing a 21-point hand under the reward in use: for `match`, 0.23 at 0–0, 0.34 at 50–50 and 1 at 80–80; 1 for the win/loss rewards. `SmartAI.ismctsExploreAuto` (now on) multiplies `ismctsExploration` (0.7071) by that range, held between 0.1 and 1.
+- The 52.2% is four 2,000-match runs of the same comparison: 53.2% and 52.9% with the scaling as the challenger, then 50.6% and 52.1% from the released code with the old fixed constant as the challenger (it won 49.5% and 47.9%). The four agree within chance.
+- Sweep, one 2,000-match run each against the fixed constant: scaled from base 0.35 44.0%, 0.5 49.4%, 1.0 53.8%, 1.4 48.9%; a fixed 0.2 with no scaling 47.9%. The scaling is what helps, and the textbook base 0.7071 sits on a plateau, so no constant was tuned.
+- Against human-like test players, Master opponents won +1.6 ± 4.6 points more with the scaling (1,520 matches): not significant alone, same direction as self-play.
+- Built and measured in the same round, left off (docs/DESIGN.md 0k). A match-equity table that knows the hand's winner opens the next hand (`matchEquityOpening`, reward `'match-salida'`; the opening team wins 58.6% of later hands): 50.9% ± 1.5% over 4,000 matches. Scoring a pip-tied cerrado for the closer in the search, as the rules do (`ismctsTieToCloser`; 1.9% of hands): 50.0% ± 2.2%.
+- Harness: variants `explore-C` (fixed; `explore-0.7071` is the behaviour before this version), `explore-auto-C`, `reward-match-salida` and `tie-close`, which can be joined with `+`. `--all-variant` with `--ab` is now the base for both teams with the challenger's variant on top (it used to drop the challenger's variant). `--hand-points` also reports the opening team's share of hands and the pip-tied cerrados. Everything is in docs/DESIGN.md, sections 0j and 0k.
+
 ## [1.18.1] – 2026-11-12
 
 ### Fixed

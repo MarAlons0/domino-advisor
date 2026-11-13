@@ -67,3 +67,61 @@ export function matchEquity(mine, theirs) {
     if (theirs >= TARGET) return 0;
     return equity[mine * TARGET + theirs];
 }
+
+// --- Who opens the next hand (experiment, docs/DESIGN.md 0k) -----------------
+//
+// The table above treats every hand as a coin flip. But the team that wins a
+// hand opens the next one, and the opening team wins more than half of them.
+// So winning a hand is worth its points plus the opening of the next hand.
+//
+// matchEquityOpening adds "who opens" to the state. Points per hand are still
+// drawn from HAND_POINTS whoever wins. Not used in play: Master with it won
+// 50.9% ± 1.5% of 4,000 matches, no gain that size can show.
+
+// The opening team's share of the decided hands after the first, in Master
+// self-play: 2,417 of 4,118 on v1.17.0, then 2,395 of 4,091 (58.5%) on v1.18.1
+// (`node tools/tournament.js --games 300 --hand-points`, twice).
+export const OPENER_WIN_RATE = 0.587;
+
+// [they open, I open] → equity[mine * TARGET + theirs]; built on first use.
+let openingEquity = null;
+
+function buildOpeningTable(pOpen) {
+    const pts = [];
+    const prob = [];
+    let total = 0;
+    for (let x = 1; x < HAND_POINTS.length; x++) total += HAND_POINTS[x];
+    for (let x = 1; x < HAND_POINTS.length; x++) {
+        if (HAND_POINTS[x] > 0) { pts.push(x); prob.push(HAND_POINTS[x] / total); }
+    }
+
+    const tables = [new Float64Array(TARGET * TARGET), new Float64Array(TARGET * TARGET)];
+    const at = (iOpen, a, b) => (a >= TARGET ? 1 : b >= TARGET ? 0 : tables[iOpen][a * TARGET + b]);
+    for (let a = TARGET - 1; a >= 0; a--) {
+        for (let b = TARGET - 1; b >= 0; b--) {
+            let win = 0;   // I win the hand, so I open the next one
+            let lose = 0;  // they win it and open
+            for (let i = 0; i < pts.length; i++) {
+                win += prob[i] * at(1, a + pts[i], b);
+                lose += prob[i] * at(0, a, b + pts[i]);
+            }
+            tables[1][a * TARGET + b] = pOpen * win + (1 - pOpen) * lose;
+            tables[0][a * TARGET + b] = (1 - pOpen) * win + pOpen * lose;
+        }
+    }
+    return tables;
+}
+
+/**
+ * matchEquity, knowing which team opens the next hand.
+ * @param {number} mine
+ * @param {number} theirs
+ * @param {boolean} iOpen - true when the `mine` team opens the next hand
+ * @returns {number} in [0, 1]
+ */
+export function matchEquityOpening(mine, theirs, iOpen) {
+    if (mine >= TARGET) return 1;
+    if (theirs >= TARGET) return 0;
+    if (!openingEquity) openingEquity = buildOpeningTable(OPENER_WIN_RATE);
+    return openingEquity[iOpen ? 1 : 0][mine * TARGET + theirs];
+}

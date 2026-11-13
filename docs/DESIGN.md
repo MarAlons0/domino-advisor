@@ -979,6 +979,178 @@ node tools/tournament.js --persona --personas 19 --season 10 --persona-seed S --
 
 ---
 
+### 0j. Search Exploration Scaled to the Reward
+**Priority:** Medium. **Status (2026-11-12):** shipped in v1.19.0. Master with it won 52.2% ± 1.1% of 8,000 matches against Master without it.
+**Complexity:** Low
+**Depends on:** the `match` reward (0g.3b).
+
+**The problem.** The search picks which move to try next with UCB1: the move's average result
+plus an exploration bonus, `C · sqrt(ln n / visits)`. `C` is fixed at 0.7071, the textbook value
+for results that span all of 0 to 1 (win or lose). Since v1.14.0 the result is the chance of
+winning the match after the hand, and one hand moves that chance only so far. So the bonus is
+large next to the differences between moves, and the search spreads its visits almost evenly.
+How selective it is depends on the match score by accident:
+
+| Match score | Reward range (win a 21-point hand − lose one) | 0.7071 relative to the range |
+|---|---|---|
+| 0–0 | 0.23 | 3.0 |
+| 50–50 | 0.34 | 2.1 |
+| 60–30 | 0.28 | 2.5 |
+| 70–70 | 0.41 | 1.7 |
+| 80–80 | 1.00 | 0.71 |
+| 90–10 | 0.10 | 7.0 |
+
+Measured on v1.17.0 (67,000 Master decisions): with three legal moves the best one got 42% of
+the visits at typical scores (72% of all decisions), against 58% when the range was full. Even
+would be 33%.
+
+**The change.** `ISMCTSGameState.rewardRange()` returns the range in the table for the reward
+in use (1 for the win/loss rewards). With `SmartAI.ismctsExploreAuto` the search uses
+`C × range`, with the range held between 0.1 and 1, so the exploration is the same relative to
+the reward at every score. `ismcts()` takes the constant as a fourth argument.
+
+**Win rate (2026-11-12).** 2,000 matches per run (8 shards × 250).
+
+*1. The sweep.* Master with the variant against Master v1.18.1 (fixed 0.7071), before the
+scaling was turned on.
+
+| Variant | Exploration relative to the reward | Result | By seat assignment |
+|---|---|---|---|
+| `explore-auto-0.35` (scaled, base 0.35) | 0.35 at every score | 44.0% ± 2.2% (881, CI 41.9–46.2) | 43.1% / 45.0% |
+| `explore-auto-0.5` | 0.5 | 49.4% ± 2.2% (987, CI 47.2–51.5) | 48.4% / 50.3% |
+| **`explore-auto`** (base 0.7071) | 0.71 | **53.2% ± 2.2%** (1,064, CI 51.0–55.4) | 52.7% / 53.7% |
+| `explore-auto`, second run | 0.71 | **52.9% ± 2.2%** (1,058, CI 50.7–55.1) | 53.5% / 52.3% |
+| `explore-auto-1` | 1.0 | 53.8% ± 2.2% (1,077, CI 51.7–56.0) | 55.2% / 52.5% |
+| `explore-auto-1.4` | 1.4 | 48.9% ± 2.2% (978, CI 46.7–51.1) | 50.6% / 47.2% |
+| `explore-0.2` (fixed, not scaled) | 0.9 at 0–0, 0.2 at 80–80 | 47.9% ± 2.2% (959, CI 45.8–50.1) | 48.2% / 47.7% |
+| v1.18.1 (fixed 0.7071) | 3.0 at 0–0, 0.71 at 80–80 | 50% (the reference) | |
+
+- The second `explore-auto` run was made because the first was the best of six variants. Seven
+  of eight shards were above 50% in the first run and six of eight in the second.
+- The gain comes from the scaling. A fixed 0.2 is about what the scaling gives at typical
+  scores, and it loses: late in a close match one hand decides everything, the range is full,
+  and 0.2 explores too little there.
+- 0.71 to 1.0 is a plateau, with clear drops at half the base (44.0%) and at double (48.9%).
+  The textbook 0.7071 is on the plateau, so there is no new constant to tune. Base 1.0 is one
+  run, and the four runs at 0.7071 (below) range from 50.6% to 53.2%, so the two bases are not
+  separable at this size.
+- The earlier 56.0% for the `match` reward over `margin` (0g.3b) was won while exploring two to
+  three times more, at most scores, than the best setting found here.
+
+*2. From the shipped setup.* With the scaling on by default (v1.19.0), the same A/B from the
+other side: the challenger plays the old fixed constant (`explore-0.7071`).
+
+| Run | Fixed constant vs scaled | By seat assignment | Shards |
+|---|---|---|---|
+| First | 49.5% ± 2.2% (989 of 2,000, CI 47.3–51.6) | 48.4% / 50.5% | 47–57% (three of eight at 50% or above) |
+| Second | 47.9% ± 2.2% (958 of 2,000, CI 45.7–50.1) | 47.6% / 48.2% | 43–52% (two of eight) |
+
+*3. All four runs of the same comparison.* The scaled side won 1,064, 1,058, 1,011 and 1,042
+of 2,000: 4,175 of 8,000 = **52.2% ± 1.1%** (CI 51.1–53.3).
+- The two runs before the release gave 53.1% ± 1.5% and the two after it 51.3% ± 1.5%. The
+  four agree within chance (chi-square 3.4 on 3 degrees of freedom), so the sum is the figure
+  to use: a gain of about two points, not the three the first two runs suggested.
+- The second shipped-side run was made because the first came in above the expected mirror
+  image (46.9%). All four are counted, whatever they showed.
+
+**Against personas.** Master opponents with `explore-auto` on alternate matches, default
+personas in seat 0 (1,520 matches, on v1.18.1): opponents won 70.4% (535 of 760) without it and
+72.0% (547 of 760) with it, +1.6 ± 4.6. Not significant by itself; same direction as self-play.
+
+**Decision (Mario, 2026-11-12).** Turned on, v1.19.0. The decision was made on the first two
+runs (53.1% ± 1.5%); the shipped-side runs came after and brought the figure to 52.2% ± 1.1%.
+
+**How it is on.**
+- `SmartAI`: `ismctsExploreAuto` defaults to `[true, true, true, true]`, so every Master seat
+  searches with the scaled constant: the AI partner and opponents in the app, and the AI seats
+  at multiplayer tables once the `domino-rooms` Worker is redeployed (it bundles this code).
+- Genín's advice, the "Why?" percentages and the grades run on the `margin` reward, whose
+  range is full, so they stay as they are (checked in the browser: his searches report a
+  range of 1, the AI seats 0.23 at 0–0). Beginner and Experienced don't use the search.
+- Harness: play uses the scaling as the app does. `explore-0.7071` is the behaviour before
+  v1.19.0; `explore-C` fixes the constant at C, `explore-auto-C` scales from the base C.
+
+**Not done.**
+- *More iterations.* "1000 ≈ 5000 iterations" (v1.2.0) was measured with a win/loss reward.
+  With the search more selective, a larger budget may now pay. Not measured.
+- *A range from the position.* The range uses a 21-point hand at the current score. The real
+  spread depends on the tiles left; the search could measure it from its own results.
+
+**Reproduce** (each run 8 times in parallel, then summed). Since v1.19.0 play uses the
+scaling, so the A/B is run from the other side and the expected result is the mirror image (2).
+The sweep variants (1) still compare against whatever the default is, which is now the scaled
+0.7071; on v1.18.1 plus the harness they are the originals.
+```bash
+# 2. From v1.19.0: the challenger plays the old fixed constant (8 × 250)
+node tools/tournament.js --ab --variant explore-0.7071 --games 250
+# 1. The sweep (8 × 250 each), before v1.19.0
+node tools/tournament.js --ab --variant explore-auto --games 250      # or explore-auto-C, explore-C
+# Personas (8 × 19 personas × 10 matches); from v1.19.0 use --variant explore-0.7071
+node tools/tournament.js --persona --personas 19 --season 10 --persona-seed S --ab --variant explore-auto
+```
+
+---
+
+### 0k. Match Equity That Knows Who Opens Next
+**Priority:** Low. **Status (2026-11-12):** built and measured, off by default (play unchanged, no release). No gain that 4,000 matches can show: 50.9% ± 1.5%.
+**Complexity:** Low
+**Depends on:** `MatchEquity.js` (0g.3b).
+
+**The idea.** `MatchEquity.js` treats every hand as a coin flip. But the team that wins a hand
+opens the next one, and the opening team wins more than half of them. So winning a hand is
+worth its points plus the next opening, and the search doesn't count the second part.
+
+**The opening edge.** `--hand-points` now reports it (Master self-play, decided hands):
+
+| Hands | Opening team won | Mean points when it won / lost |
+|---|---|---|
+| First hand, opened by the 6\|6 holder (600 matches, v1.18.1) | 56.7% ± 4.0% (340 of 600) | 19.9 / 17.7 |
+| Later hands, opened by the last winner (v1.18.1) | 58.5% ± 1.5% (2,395 of 4,091) | 21.6 / 19.3 |
+| Later hands, v1.17.0 (2026-11-11) | 58.7% ± 1.5% (2,417 of 4,118) | |
+
+The two later-hand runs together: 4,812 of 8,209 = 58.6% ± 1.1%.
+
+**The change.** `matchEquityOpening(mine, theirs, iOpen)` adds "who opens" to the table's
+state, with `OPENER_WIN_RATE = 0.587`; points per hand come from the same distribution whoever
+wins. Reward `'match-salida'` scores a finished hand with it: the winner opens the next hand
+(after a hand nobody wins, the lead stays where it was).
+- Opening is worth 4.3 points of match equity at 0–0, 6.3 at 50–50 and 11.3 at 80–80.
+- It also moves the equity away from 50–50, because wins come in runs: the team on 10 against
+  90 has 8.7% averaged over who opens, against 5.6% in the coin-flip table.
+
+**Related mismatch: the pip-tied cerrado.** The rules give a cerrado with equal pips to the
+closer's team (`Rules.calculateHandResult`); the search scored it as a hand nobody wins. That
+was 91 of 4,691 hands (1.9%; 6.7% of the 1,353 cerrados). `tieToCloser` on `ISMCTSGameState`
+(`SmartAI.ismctsTieToCloser`, variant `tie-close`) scores it as the rules do.
+
+**Win rate (2026-11-12).** 2,000 matches per run, measured on v1.18.1.
+
+| Challenger | Against | Result | By seat assignment |
+|---|---|---|---|
+| `reward-match-salida` | Master v1.18.1 | 51.1% ± 2.2% (1,022, CI 48.9–53.3) | 53.6% / 48.6% |
+| `reward-match-salida+tie-close` | Master with the scaled exploration on both teams (0j; the default since v1.19.0) | 50.7% ± 2.2% (1,015, CI 48.6–52.9) | 51.2% / 50.3% |
+| `tie-close` | Master v1.18.1 | 50.0% ± 2.2% (999, CI 47.8–52.1) | 49.5% / 50.4% |
+
+- The two salida runs together: 2,037 of 4,000 = 50.9% ± 1.5% (CI 49.4–52.5). The second run
+  has a different base and the tie fix added, so the sum is a rough guide. If there is a gain
+  it is about one point, and settling that needs about 8,000 matches more (± 1.1).
+- `tie-close` changes nothing that can be measured. It is a correction, not a strength gain.
+
+**Decision.** Both left off (v1.19.0 shipped 0j only). The salida-aware table is the better
+model, but it adds a measured constant that has to be re-measured when the AI's play changes,
+for a gain this size. The harness variants stay for later tests.
+
+**Reproduce** (each run 8 times in parallel, then summed):
+```bash
+node tools/tournament.js --games 300 --hand-points                    # the opening edge (2 runs)
+node tools/tournament.js --ab --variant reward-match-salida --games 250
+node tools/tournament.js --ab --variant tie-close --games 250
+# On v1.18.1 the third run needed the scaled exploration as the base for both teams:
+node tools/tournament.js --ab --all-variant explore-auto --variant reward-match-salida+tie-close --games 250
+```
+
+---
+
 ### 1. Configurable AI Strategy Weights
 **Priority:** Low
 **Complexity:** Medium

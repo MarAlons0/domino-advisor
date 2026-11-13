@@ -8,6 +8,9 @@ import { t as tr } from '../i18n/i18n.js';
 // the AI's own (1000) so the win-rate grade is steadier (measured: fewer grade
 // changes on re-analysis) at ~+15 ms typical per play. See CHANGELOG 1.9.0.
 const GRADING_ITERATIONS = 2000;
+// Floor for ismctsExploreAuto's scaling: at lopsided match scores a hand barely
+// moves the match odds, and the search still has to tell the moves apart.
+const MIN_REWARD_RANGE = 0.1;
 // Genín (advice, the "Why?" win rates, play grades) keeps the hand-level
 // 'margin' reward while Master plays 'match' (BACKLOG 0g.3b): his percentages
 // read as "how often the hand was won", and the 5/15-point grade thresholds
@@ -106,6 +109,23 @@ export class SmartAI {
         // the v1.2.x configuration for A/Bs. Experienced/beginner seats are
         // unaffected (the gate requires difficulty === 'master').
         this.ismctsPure = [true, true, true, true];
+        // Per-seat UCB exploration constant for the search (docs/DESIGN.md
+        // 0j). 0.7071 suits results that span all of [0, 1]; the 'match'
+        // reward spans far less at most match scores (0.23 at 0–0), so the
+        // same constant explores more. With ismctsExploreAuto the constant is
+        // multiplied by the reward's range at the current match score
+        // (ISMCTSGameState.rewardRange), which keeps the exploration the same
+        // relative to the reward at every score. On since v1.19.0: 52.2% ±
+        // 1.1% of 8,000 matches against the fixed constant. Genín's searches
+        // use the 'margin' reward, whose range is full, so they don't change.
+        // Harness variants: explore-C fixes the constant (explore-0.7071 is
+        // the behaviour before v1.19.0), explore-auto-C scales from base C.
+        this.ismctsExploration = [0.7071, 0.7071, 0.7071, 0.7071];
+        this.ismctsExploreAuto = [true, true, true, true];
+        // Per-seat: the search scores a pip-tied cerrado for the closer's
+        // team, as the rules do (experiment, docs/DESIGN.md 0k). Off: it
+        // scores it as a hand nobody wins. Harness variant tie-close.
+        this.ismctsTieToCloser = [false, false, false, false];
         // Per-seat tolerance for move randomization: in the fallback path, pick
         // uniformly among moves whose finalScore is within this many points of
         // the top. Default 0 = always pick the single best move (deterministic).
@@ -666,8 +686,13 @@ export class SmartAI {
                 view: this.playerViews[playerIndex],
                 handTracker: this.handTracker,
                 rewardShaping: this.ismctsRewardShaping[playerIndex],
+                tieToCloser: this.ismctsTieToCloser[playerIndex],
             });
-            const ismctsResult = ismcts(root, this.ismctsIterations, this.ismctsRolloutPolicy[playerIndex]);
+            let exploration = this.ismctsExploration[playerIndex];
+            if (this.ismctsExploreAuto[playerIndex]) {
+                exploration *= Math.max(MIN_REWARD_RANGE, Math.min(1, root.rewardRange()));
+            }
+            const ismctsResult = ismcts(root, this.ismctsIterations, this.ismctsRolloutPolicy[playerIndex], exploration);
             const bestMoveKey = ismctsResult.bestMove;
             if (bestMoveKey && bestMoveKey !== 'pass') {
                 for (const move of scoredMoves) {

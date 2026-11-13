@@ -7,7 +7,7 @@
 
 import { Rules } from '../engine/Rules.js';
 import { Hand } from '../models/Hand.js';
-import { matchEquity } from './MatchEquity.js';
+import { matchEquity, matchEquityOpening } from './MatchEquity.js';
 
 const PASS = 'pass';
 
@@ -26,7 +26,11 @@ const REWARD_SCALE = 60;
 // score it leaves (see MatchEquity.js). Winning a hand by 20 lifts the match
 // odds from 50% to 61% at 0–0, ends the match at 90–40, and barely helps at
 // 20–85 — so the search plays safe at match point and takes risks for big
-// hauls when far behind.
+// hauls when far behind. 'match-salida' (experiment, docs/DESIGN.md 0k) also
+// counts that the hand's winner opens the next one.
+
+// A typical decided hand, in points: the mean of MatchEquity's HAND_POINTS.
+const TYPICAL_HAND = 21;
 
 export class ISMCTSGameState {
     /**
@@ -38,13 +42,21 @@ export class ISMCTSGameState {
      * @param {HandTracker} opts.handTracker - shared tracker
      * @param {string|null} [opts.rewardShaping] - null for binary win/loss
      *        (canonical), 'margin' for pip-margin-blended terminal values,
-     *        'match' for match-win probability after the hand
+     *        'match' for match-win probability after the hand, 'match-salida'
+     *        for the same knowing who opens the next hand
+     * @param {boolean} [opts.tieToCloser] - score a pip-tied cerrado for the
+     *        closer's team, as Rules.calculateHandResult does (experiment,
+     *        docs/DESIGN.md 0k); false scores it as a hand nobody wins
      */
-    constructor({ realState, observerIndex, view, handTracker, rewardShaping = null }) {
+    constructor({ realState, observerIndex, view, handTracker, rewardShaping = null, tieToCloser = false }) {
         this.observerIndex = observerIndex;
         this.view = view;
         this.handTracker = handTracker;
         this.rewardShaping = rewardShaping;
+        this.tieToCloser = tieToCloser;
+        // Who opens the next hand if nobody wins this one: Game.newHand leaves
+        // the lead with the last hand winner, or seat 0 when there is none yet.
+        this.tieOpenerTeam = (realState.lastHandWinner ?? 0) % 2;
         // Match score before this hand. 'match-blind' (harness diagnostic)
         // keeps the equity curve but pretends every hand is played at 0–0.
         this.matchScores = rewardShaping === 'match-blind' ? [0, 0] : [...realState.scores.match];
@@ -71,6 +83,8 @@ export class ISMCTSGameState {
         c.view = this.view;
         c.handTracker = this.handTracker;
         c.rewardShaping = this.rewardShaping;
+        c.tieToCloser = this.tieToCloser;
+        c.tieOpenerTeam = this.tieOpenerTeam;
         c.matchScores = this.matchScores; // never mutated, share
         c.playerToMove = this.playerToMove;
         c.chain = this.chain.clone();
@@ -148,7 +162,8 @@ export class ISMCTSGameState {
      * 1 = their team won, 0 = lost, 0.5 = tied. 'margin' mode blends the
      * winner's actual point haul (losing team's remaining pips) into the
      * terminal value — see REWARD_ALPHA/REWARD_SCALE. 'match' mode returns
-     * the team's match-win probability after the hand's points are added.
+     * the team's match-win probability after the hand's points are added;
+     * 'match-salida' the same, knowing the hand's winner opens the next one.
      * Must only be called at a terminal state.
      */
     getResult(player) {
@@ -163,14 +178,25 @@ export class ISMCTSGameState {
         }
         const team0Pips = this.hands[0].pipCount() + this.hands[2].pipCount();
         const team1Pips = this.hands[1].pipCount() + this.hands[3].pipCount();
-        if (winnerTeam === -1 && team0Pips !== team1Pips) {
-            // Blocked (or closed): lower team pip total wins.
-            winnerTeam = team0Pips < team1Pips ? 0 : 1;
+        if (winnerTeam === -1) {
+            if (team0Pips !== team1Pips) {
+                // Blocked (or closed): lower team pip total wins.
+                winnerTeam = team0Pips < team1Pips ? 0 : 1;
+            } else if (this.tieToCloser && this.chain.isClosed()) {
+                // Pip-tied cerrado: the closer's team wins. A close ends the
+                // hand at once, so the closer is whoever moved last.
+                winnerTeam = ((this.playerToMove + 3) % 4) % 2;
+            }
         }
-        if (this.rewardShaping === 'match' || this.rewardShaping === 'match-blind') {
+        if (this.rewardShaping === 'match' || this.rewardShaping === 'match-blind'
+            || this.rewardShaping === 'match-salida') {
             // The winner scores the losing team's pips; a tie scores nothing.
             const scores = [this.matchScores[0], this.matchScores[1]];
             if (winnerTeam !== -1) scores[winnerTeam] += winnerTeam === 0 ? team1Pips : team0Pips;
+            if (this.rewardShaping === 'match-salida') {
+                const opener = winnerTeam !== -1 ? winnerTeam : this.tieOpenerTeam;
+                return matchEquityOpening(scores[myTeam], scores[1 - myTeam], opener === myTeam);
+            }
             return matchEquity(scores[myTeam], scores[1 - myTeam]);
         }
         if (winnerTeam === -1) return 0.5;
@@ -181,6 +207,25 @@ export class ISMCTSGameState {
         const signed = win === 1 ? points : -points;
         const m = Math.max(-1, Math.min(1, signed / REWARD_SCALE));
         return REWARD_ALPHA * win + (1 - REWARD_ALPHA) * (0.5 + 0.5 * m);
+    }
+
+    /**
+     * How much of [0, 1] this hand's results span: the gap between winning and
+     * losing a typical hand under the reward in use. The match rewards use a
+     * small part of the range at most scores (0.23 at 0–0, all of it at
+     * 80–80); the win/loss rewards use nearly all of it, reported as 1.
+     * SmartAI scales the search's exploration by this (ismctsExploreAuto,
+     * docs/DESIGN.md 0j).
+     */
+    rewardRange() {
+        const [a, b] = this.matchScores;
+        if (this.rewardShaping === 'match-salida') {
+            return matchEquityOpening(a + TYPICAL_HAND, b, true) - matchEquityOpening(a, b + TYPICAL_HAND, false);
+        }
+        if (this.rewardShaping === 'match' || this.rewardShaping === 'match-blind') {
+            return matchEquity(a + TYPICAL_HAND, b) - matchEquity(a, b + TYPICAL_HAND);
+        }
+        return 1;
     }
 
     /** @private */

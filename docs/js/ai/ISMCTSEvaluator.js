@@ -105,13 +105,16 @@ function rolloutPick(state, legalMoves, policy) {
  * @param {number} itermax     - number of search iterations (200-1000 typical)
  * @param {string} [rolloutPolicy='random'] - 'random' | 'decisive' | 'greedy'
  *          (see rolloutPick; affects only the simulation phase)
+ * @param {number} [exploration=0.7071] - UCB1 exploration constant. The default
+ *          assumes results spread over the whole of [0, 1]; a reward that only
+ *          uses part of that range explores more at the same constant.
  * @returns {{ bestMove: string|null, rootStats: Array<{move:string, visits:number, wins:number, winRate:number}> }}
  *          - bestMove: most-visited root child's move key (null if no legal moves)
  *          - rootStats: per-root-child stats, sorted by visits descending. For the
  *            no-moves and forced-single-move cases this is empty / a single entry
  *            with zero visits respectively, since no real search ran.
  */
-export function ismcts(rootstate, itermax, rolloutPolicy = 'random') {
+export function ismcts(rootstate, itermax, rolloutPolicy = 'random', exploration = 0.7071) {
     const root = new Node();
     const rootMoves = rootstate.getMoves();
     if (rootMoves.length === 0) {
@@ -133,7 +136,7 @@ export function ismcts(rootstate, itermax, rolloutPolicy = 'random') {
         // non-terminal node.
         let legalMoves = state.getMoves();
         while (legalMoves.length > 0 && node.untriedMoves(legalMoves).length === 0) {
-            node = node.ucbSelectChild(legalMoves);
+            node = node.ucbSelectChild(legalMoves, exploration);
             state.doMove(node.move);
             legalMoves = state.getMoves();
         }
