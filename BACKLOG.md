@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-11-12 (search exploration scaling shipped as v1.19.0)_
+_Last updated: 2026-11-12 (v1.19.0 shipped; PWA and AI thinking indicator moved to Shipped)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -7,14 +7,12 @@ _Last updated: 2026-11-12 (search exploration scaling shipped as v1.19.0)_
 _Nothing open — next items come from Medium._
 
 ## 🟡 Medium
-- [ ] **PWA (installable app)** — service worker + manifest for home-screen install / offline. `[feature]`
 - [ ] **AI enhancements (0)** — validate any weight/strategy change with the A/B tournament harness. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Team-contextual play inference (0b)** — infer partner/opponent hands from play to sharpen advice. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Design of experiments for scoring weights (0d)** — structured tuning of AI scoring weights. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Position analyzer (3)** — analyze a board position for the best plays. `[feature]`
-- [ ] **Pass indicators on UI (5)** — show when a player passed. `[feature]`
+- [ ] **Pass indicators on UI (5)** — keep showing, next to each player, which numbers they have passed on. Today a "Pass" badge flashes for 4 seconds and after that the pass is only in the log. `[feature]`
 - [ ] **Named AI players (UX-B)** — give the AI opponents names. `[feature]`
-- [ ] **AI thinking indicator (UX-D)** — show the AI "thinking" before it plays. `[feature]`
 - [ ] **Suggestions** — a 💬 button to send an idea or report a bug (💡 Idea / 🐞 Bug, message, optional name). Each one is emailed to the organizers and saved for an admin Suggestions screen with Mark done / Reopen. Add a Help section and a "How do I…?" entry, as in domino-tracker v1.11.0. `[feature]`
   - 7 Fichas has no database and no admin PIN. Store suggestions in a SQLite Durable Object on the `domino-rooms` Worker (free plan), send email through SendGrid's HTTP API, and keep `SENDGRID_API_KEY`, `OPERATOR_EMAILS` and the admin PIN as Worker secrets. The endpoint is public, so cap message length and rate-limit by IP. Needs a Worker deploy.
   - Hide the 💬 during a hand (the tiles fill the bottom of the screen). Attach the app version, screen, difficulty and language. All text in en/es.
@@ -39,7 +37,6 @@ _Nothing open — next items come from Medium._
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
 - [x] **Scale the search's exploration to the reward (0j)** — Master's search assumed win/lose results, so at most match scores it explored two to three times more widely than works best; the exploration now follows how much a hand can move the match odds: Master 52.2% vs the previous version over 8,000 matches (CI 51.1–53.3); Genín unchanged — v1.19.0
-- [x] **Match equity that knows who opens next (0k)** — built and tested: the hand's winner opens the next hand and the opening team wins 58.6% of them, but Master counting that won 50.9% ± 1.5% of 4,000 matches, and scoring a pip-tied cerrado for the closer in the search (as the rules do, 1.9% of hands) measured 50.0%; both kept off (no release). Harness variants `reward-match-salida`, `tie-close`. See [docs/DESIGN.md](docs/DESIGN.md).
 - [x] **Genín praised the forced opening [6|6]** — the hand-end card skips forced plays (one legal move); asking Genín on the forced opening says there's nothing to decide — v1.18.1
 - [x] **Read a withheld double (0i)** — a player who plays another tile onto V while V|V is still out holds V|V half as often as chance says; the AI now lowers that chance (never to zero), and for a person not at all when their partner is on V, or is out of V and ahead: Master 53.1% vs the previous version (CI 51.0–55.3), hand-reading Brier −0.0012 — v1.18.0
 - [x] **Show the player their style profile** — Stats → Your signals: how readable your leads, new numbers and cuadrars are compared with Master, with likely ranges — v1.17.0
@@ -73,5 +70,7 @@ _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
 - [x] **Information Set MCTS at Master level (0f)** — v1.2.0
 - [x] **Cuadrar pip-advantage threshold** — v1.1.2
 - [x] **Calibration recalibration for tile probabilities (0e)** — v1.1.1
+- [x] **AI thinking indicator (UX-D)** — v1.0.1
+- [x] **PWA (installable app)** — v1.0.0
 - [x] **Fixed chain position (stable tile layout, UX-X)** — v0.4.6
 - [x] **AI tournament harness & A/B testing framework**

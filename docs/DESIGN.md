@@ -68,7 +68,7 @@ Track lifetime player statistics, surface them on a dedicated stats page, and aw
 
 ---
 
-### STATS-2. PWA (Progressive Web App)
+### ~~STATS-2. PWA (Progressive Web App)~~ *(completed v1.0.0, Mar 2026)*
 **Priority:** Medium
 **Complexity:** Low
 **Vision:** Installable iPhone/Android app without requiring App Store
@@ -1214,6 +1214,8 @@ Save and replay completed games for study.
 
 Show visual indicators when players have passed on specific suits.
 
+**Status (Nov 2026):** partly built. A "Pass" badge flashes on the player's position for 4 seconds when they pass (v0.3.5, v0.3.6), and the pass goes in the log. Still to do: the requirements below, a display that stays and shows which numbers each player has passed on.
+
 **Requirements:**
 - Display near each player's position
 - Show which numbers they've passed on
@@ -1365,7 +1367,7 @@ Play a satisfying "slam" animation when a player plays the [6|6] or dominoes (pl
 
 ---
 
-### UX-D. AI Thinking Indicator
+### ~~UX-D. AI Thinking Indicator~~ *(completed v1.0.1, Mar 2026; delay shortened from 9 s to 6 s)*
 **Priority:** Medium
 **Complexity:** Low
 
