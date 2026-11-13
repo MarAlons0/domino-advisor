@@ -51,7 +51,7 @@ const MAX_DISPARITY_PIP6 = [
     [6,0],[5,1],[4,2],[3,3],
 ];
 
-const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind', 'flat-sampling', 'learn-signals', 'no-double-read'];
+const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind', 'flat-sampling', 'learn-signals', 'no-double-read', 'reward-match-salida', 'tie-close'];
 // Plus two families: affinity-powK (e.g. affinity-pow2) samples with the suit
 // affinities raised to K; scale-TYPE-S (e.g. scale-avoid-0) reads every
 // player's signals of that type with the multiplier raised to S.
@@ -81,8 +81,16 @@ function withheldDoubleTables(spec = '') {
     return [human, WITHHELD_DOUBLE.flat, WITHHELD_DOUBLE.flat, WITHHELD_DOUBLE.flat];
 }
 const isDoubleRead = v => DOUBLE_READ.test(v) && withheldDoubleTables(DOUBLE_READ.exec(v)[1]) !== null;
-const isVariant = v => VARIANTS.includes(v) || AFFINITY_POW.test(v) || SIGNAL_SCALE.test(v) || isDoubleRead(v);
-const VARIANT_FAMILIES = 'affinity-powK, scale-TYPE-S, double-read[-SPEC]';
+// And the search's exploration constant (docs/DESIGN.md 0j). Since v1.19.0 it
+// is 0.7071 times the reward's range at the current match score. explore-C
+// fixes it at C with no scaling (explore-0.7071 is the behaviour before
+// v1.19.0); explore-auto-C scales from the base C (explore-auto: 0.7071, a
+// no-op now).
+const EXPLORE = /^explore-(?:(auto)(?:-(\d+(?:\.\d+)?))?|(\d+(?:\.\d+)?))$/;
+const isOneVariant = v => VARIANTS.includes(v) || AFFINITY_POW.test(v) || SIGNAL_SCALE.test(v) || isDoubleRead(v) || EXPLORE.test(v);
+// Variants combine with '+', e.g. reward-match-salida+tie-close.
+const isVariant = v => typeof v === 'string' && v.split('+').every(isOneVariant);
+const VARIANT_FAMILIES = 'affinity-powK, scale-TYPE-S, double-read[-SPEC], explore-C, explore-auto[-C]; join several with +';
 
 function parseArgs(argv) {
     const opts = { games: 50, difficulty: 'master', verbose: false, ab: false, instrument: false, probAccuracy: false, probLayers: false, signalPowers: [], signalHonesty: false, sharedProfile: false, signalAblation: null, doubleRead: null, doubleReadOut: null, doubleReadMerge: null, personaHabits: null, avoidSignal: false, probOut: null, probMerge: null, pipAccuracy: false, maxCerrado: false, cooperativeLosers: false, maxDisparityDeals: false, randomLosers: false, forceCerrar: false, handPoints: false, persona: false, personas: 10, season: 10, personaSeed: 1, personaNoise: null, personaPlain: false, variant: 'mc-pass', allVariant: null };
@@ -140,6 +148,18 @@ function parseArgs(argv) {
             console.log('                    pip-close     Boost late-game pip-dumping before a likely close.');
             console.log('                    lookahead2    2-ply search (move + opponent reply) on most-likely deal.');
             console.log('                    rand5/rand10  Randomize among moves within 5/10 pts of the top score.');
+            console.log('                    explore-C            Fix the search\'s exploration constant at C, not');
+            console.log('                                         scaled by the reward\'s range at the match score');
+            console.log('                                         (explore-0.7071: as before v1.19.0).');
+            console.log('                    explore-auto-C       Scaled, from the base C (0.7071 in play).');
+            console.log('                    reward-match-salida  The match reward, knowing the hand\'s winner');
+            console.log('                                         opens the next hand.');
+            console.log('                    tie-close            The search scores a pip-tied cerrado for the');
+            console.log('                                         closer\'s team, as the rules do.');
+            console.log('                    A+B                  Several variants together.');
+            console.log('  --all-variant NAME');
+            console.log('                  A variant every seat plays. With --ab it is the base for both');
+            console.log('                  teams, and the challenger\'s --variant goes on top of it.');
             console.log('  --instrument    Collect per-decision records; report priority breakdown,');
             console.log('                  factor histogram, score margins, and closing effectiveness.');
             console.log('  --prob-accuracy Snapshot per-view tile-holding predictions before each play;');
@@ -236,6 +256,10 @@ function parseArgs(argv) {
 }
 
 function applyVariant(variant, ai, playerViews, seat) {
+    if (variant.includes('+')) {
+        for (const part of variant.split('+')) applyVariant(part, ai, playerViews, seat);
+        return;
+    }
     switch (variant) {
         case 'mc-pass':
             playerViews[seat].useMcDerivedPassProb = true;
@@ -312,6 +336,16 @@ function applyVariant(variant, ai, playerViews, seat) {
             // match score".
             ai.ismctsRewardShaping[seat] = 'match-blind';
             break;
+        case 'reward-match-salida':
+            // 0k: the 'match' reward, knowing the hand's winner opens the next
+            // hand (MatchEquity.matchEquityOpening).
+            ai.ismctsRewardShaping[seat] = 'match-salida';
+            break;
+        case 'tie-close':
+            // 0k: the search scores a pip-tied cerrado for the closer's team,
+            // as Rules.calculateHandResult does.
+            ai.ismctsTieToCloser[seat] = true;
+            break;
         case 'flat-sampling':
             // 0g.5: deals for ISMCTS determinization (and the MC marginals)
             // drawn without the suit affinities — hard constraints only.
@@ -332,6 +366,12 @@ function applyVariant(variant, ai, playerViews, seat) {
             // double-read[-SPEC]: these seats read the withheld-double clue.
             const dr = DOUBLE_READ.exec(variant);
             if (dr) playerViews[seat].withheldDouble = withheldDoubleTables(dr[1]);
+            // explore-C | explore-auto[-C]: the search's exploration constant.
+            const ex = EXPLORE.exec(variant);
+            if (ex) {
+                ai.ismctsExploreAuto[seat] = !!ex[1];
+                if (ex[2] || ex[3]) ai.ismctsExploration[seat] = parseFloat(ex[2] || ex[3]);
+            }
         }
     }
 }
@@ -345,9 +385,12 @@ function setupMatch(difficulty, challengerSeats = null, variant = null, allVaria
     const playerViews = [0, 1, 2, 3].map(i => new PlayerView(i, handTracker));
     // As in the app: a person's seat (here, the persona's) is read as a person's.
     if (humanSeats.length) for (const view of playerViews) view.setHumanSeats(humanSeats);
+    // --all-variant is the base every seat plays; with --ab the challenger's
+    // variant goes on top of it for the challenger seats.
     if (allVariant) {
         for (let seat = 0; seat < 4; seat++) applyVariant(allVariant, ai, playerViews, seat);
-    } else if (challengerSeats && variant) {
+    }
+    if (challengerSeats && variant) {
         for (const seat of challengerSeats) {
             applyVariant(variant, ai, playerViews, seat);
         }
@@ -746,6 +789,13 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
             points: data.points,
             dominoPlayer: data.dominoPlayer,
             closingPlayer: data.closingPlayer,
+            // Who opened the hand; the first hand's opener is whoever holds 6|6.
+            opener: game.matchHistory.currentHand.startingPlayer,
+            firstHand: game.matchHistory.currentHand.handNumber === 1,
+            pipTie: (() => {
+                const h = game.getState().hands;
+                return h[0].pipCount() + h[2].pipCount() === h[1].pipCount() + h[3].pipCount();
+            })(),
         });
 
         if (cerradoAcc && data.reason === 'closed') {
@@ -997,16 +1047,27 @@ function report(stats, opts) {
 
 // --hand-points: how many points a hand is worth. A tie (blocked, equal pips)
 // scores nothing. The per-point counts line is what MatchEquity.js's
-// HAND_POINTS table was pasted from.
+// HAND_POINTS table was pasted from, and the opening team's share of the later
+// hands is its OPENER_WIN_RATE.
 function reportHandPoints(matches) {
     const counts = [];
     let ties = 0;
     let decided = 0;
+    // Hands the opening team won / lost, and the points scored each way.
+    const opener = { first: { won: 0, lost: 0, ptsWon: 0, ptsLost: 0 }, later: { won: 0, lost: 0, ptsWon: 0, ptsLost: 0 } };
+    let tiedCloses = 0, closes = 0;
     for (const m of matches) {
         for (const h of m.handResults) {
+            if (h.reason === 'closed') {
+                closes++;
+                if (h.pipTie) tiedCloses++; // the rules give these to the closer's team
+            }
             if (h.winningTeam < 0) { ties++; continue; }
             decided++;
             counts[h.points] = (counts[h.points] || 0) + 1;
+            const o = h.firstHand ? opener.first : opener.later;
+            if (h.winningTeam === h.opener % 2) { o.won++; o.ptsWon += h.points; }
+            else { o.lost++; o.ptsLost += h.points; }
         }
     }
     for (let i = 0; i < counts.length; i++) counts[i] = counts[i] || 0;
@@ -1026,6 +1087,18 @@ function reportHandPoints(matches) {
         console.log(`    ${String(lo).padStart(3)}–${String(lo + 9).padEnd(3)}  ${String(n).padStart(5)}  (${pct(n, decided)})`);
     }
     console.log(`  Per-point counts:    ${JSON.stringify(counts)}`);
+    console.log('');
+    console.log('  Who opened the hand (decided hands):');
+    for (const [label, o] of [['First hand (6|6 holder)', opener.first], ['Later hands (last winner)', opener.later]]) {
+        const n = o.won + o.lost;
+        if (n === 0) continue;
+        const p = o.won / n;
+        const ci = 1.96 * Math.sqrt(p * (1 - p) / n);
+        console.log(`    ${label.padEnd(26)} opening team won ${o.won}/${n}  (${(100 * p).toFixed(1)}% ± ${(100 * ci).toFixed(1)}%)` +
+            `, mean points ${(o.ptsWon / Math.max(1, o.won)).toFixed(1)} when it won, ${(o.ptsLost / Math.max(1, o.lost)).toFixed(1)} when it lost`);
+    }
+    console.log(`  Opener counts:       ${JSON.stringify(opener)}`);
+    console.log(`  Cerrados:            ${closes}, pip-tied (to the closer) ${tiedCloses}  (${pct(tiedCloses, decided + ties)} of hands)`);
     console.log('');
 }
 
