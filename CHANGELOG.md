@@ -3,6 +3,16 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.20.1] – 2026-11-13
+
+### Changed
+- **Suggestion emails go through Brevo.** v1.20.0 could only email the organizers through SendGrid, which no longer has a free tier, so the emails were never switched on. The server now sends through Brevo first (the free service TripPlanner and Bird Tracker already use) and keeps SendGrid as a fallback, tried only if Brevo is not set up or refuses the message. Nothing changes in the app: suggestions were being saved and listed in the inbox all along.
+
+### Changed (internal)
+- `server/src/email.js`: providers are tried in order, Brevo then SendGrid, each only if its key is set. New Worker secrets `BREVO_API_KEY` and, optionally, `BREVO_FROM_EMAIL` (default: the first address in `OPERATOR_EMAILS`); the sender has to be one verified in Brevo. With Brevo, all organizers are on one message; with SendGrid each still gets a separate copy. A refused email is now logged with the provider's own reason.
+- Tests: 4 more in `server/test/suggestions.test.mjs` (33 server tests in all): Brevo first, Brevo alone, fallback to SendGrid when Brevo refuses or cannot be reached, no usable recipient.
+- Worker-only change: the site files differ from v1.20.0 only in the version number.
+
 ## [1.20.0] – 2026-11-13
 
 ### Added

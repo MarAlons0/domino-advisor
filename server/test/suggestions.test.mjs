@@ -1,7 +1,8 @@
 // Suggestions & bug reports, through the Worker's own fetch handler: the real
 // routing, validation, SuggestionBox and SuggestionStore, with Node's SQLite in
-// place of the Durable Object's and SendGrid replaced by a recorder. No request
-// leaves the machine: the stand-in fetch throws on any address but SendGrid's.
+// place of the Durable Object's and the email providers (Brevo, SendGrid)
+// replaced by a recorder. No request leaves the machine: the stand-in fetch
+// throws on any address but theirs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -30,14 +31,18 @@ function setup(t, secrets = { ADMIN_PIN: PIN, SENDGRID_API_KEY: 'SG.test-key', O
     box.store.now = () => clock.t;
     env.SUGGESTIONS = { idFromName: (name) => name, get: () => ({ fetch: (url, init) => box.fetch(new Request(url, init)) }) };
 
+    // Every request a provider answered, in order. `mail` is SendGrid's answer
+    // and `mail.brevo` Brevo's; `fail` makes that provider unreachable.
     const emails = [];
-    const mail = { status: 202, fail: false };
+    const mail = { status: 202, fail: false, brevo: { status: 201, fail: false } };
     const realFetch = globalThis.fetch;
     globalThis.fetch = async (url, init) => {
-        assert.equal(String(url), 'https://api.sendgrid.com/v3/mail/send', 'the only outside call is SendGrid');
-        if (mail.fail) throw new TypeError('network down');
-        emails.push({ headers: init.headers, body: JSON.parse(init.body) });
-        return new Response(null, { status: mail.status });
+        const provider = { 'https://api.brevo.com/v3/smtp/email': 'brevo', 'https://api.sendgrid.com/v3/mail/send': 'sendgrid' }[String(url)];
+        assert.ok(provider, `the only outside calls are the email providers, not ${url}`);
+        const answer = provider === 'brevo' ? mail.brevo : mail;
+        if (answer.fail) throw new TypeError('network down');
+        emails.push({ provider, headers: init.headers, body: JSON.parse(init.body) });
+        return new Response(answer.status < 300 ? null : '{"message":"refused"}', { status: answer.status });
     };
     t.after(() => { globalThis.fetch = realFetch; });
 
@@ -131,6 +136,69 @@ test('submit: saved even when email is not set up, is refused by SendGrid, or th
     down.mail.fail = true;
     assert.equal((await down.send({ message: 'network down' })).status, 201);
     assert.equal((await down.list()).length, 1);
+});
+
+const BOTH = { ADMIN_PIN: PIN, BREVO_API_KEY: 'brevo-test-key', SENDGRID_API_KEY: 'SG.test-key', OPERATOR_EMAILS: 'ana@example.com, ben@example.com' };
+
+test('email: Brevo goes first when its key is set, and SendGrid is then left alone', async (t) => {
+    const { send, emails } = setup(t, BOTH);
+    assert.equal((await send({ kind: 'bug', message: 'The Pass button stayed off.', name: 'Ana', version: 'v1.20.1' })).status, 201);
+
+    assert.deepEqual(emails.map(e => e.provider), ['brevo']);
+    const { headers, body } = emails[0];
+    assert.equal(headers['api-key'], 'brevo-test-key');
+    assert.equal(headers.Authorization, undefined, 'Brevo takes an api-key header, not Bearer');
+    assert.deepEqual(body.sender, { email: 'ana@example.com', name: '7 Fichas' }, 'defaults to the first operator');
+    assert.deepEqual(body.to, [{ email: 'ana@example.com' }, { email: 'ben@example.com' }]);
+    assert.equal(body.subject, '7 Fichas: new bug report');
+    assert.match(body.textContent, /^Bug report from Ana:\n\nThe Pass button stayed off\./);
+    assert.match(body.textContent, /App v1\.20\.1/);
+    assert.match(body.textContent, /\?admin=suggestions/);
+    assert.equal(body.htmlContent, undefined, 'plain text only');
+});
+
+test('email: Brevo alone is enough, and BREVO_FROM_EMAIL is used when set', async (t) => {
+    const { send, emails } = setup(t, {
+        ADMIN_PIN: PIN, BREVO_API_KEY: 'brevo-test-key', OPERATOR_EMAILS: 'ana@example.com', BREVO_FROM_EMAIL: 'noreply@example.com',
+        SENDGRID_FROM_EMAIL: 'other@example.com',
+    });
+    assert.equal((await send({ message: 'hello' })).status, 201);
+    assert.deepEqual(emails.map(e => e.provider), ['brevo']);
+    assert.equal(emails[0].body.sender.email, 'noreply@example.com');
+    assert.deepEqual(emails[0].body.to, [{ email: 'ana@example.com' }]);
+});
+
+test('email: when Brevo refuses or cannot be reached, SendGrid is tried; the suggestion is saved either way', async (t) => {
+    const refused = setup(t, BOTH);
+    refused.mail.brevo.status = 401;
+    assert.equal((await refused.send({ message: 'wrong Brevo key' })).status, 201);
+    assert.deepEqual(refused.emails.map(e => e.provider), ['brevo', 'sendgrid']);
+    assert.equal(refused.emails[1].headers.Authorization, 'Bearer SG.test-key');
+
+    const down = setup(t, BOTH);
+    down.mail.brevo.fail = true;
+    assert.equal((await down.send({ message: 'Brevo unreachable' })).status, 201);
+    assert.deepEqual(down.emails.map(e => e.provider), ['sendgrid'], 'only SendGrid answered');
+
+    const bothRefuse = setup(t, BOTH);
+    bothRefuse.mail.brevo.status = 401;
+    bothRefuse.mail.status = 403;
+    assert.equal((await bothRefuse.send({ message: 'nobody takes it' })).status, 201);
+    assert.deepEqual(bothRefuse.emails.map(e => e.provider), ['brevo', 'sendgrid']);
+    assert.equal((await bothRefuse.list()).length, 1);
+
+    const brevoOnly = setup(t, { ADMIN_PIN: PIN, BREVO_API_KEY: 'brevo-test-key', OPERATOR_EMAILS: 'ana@example.com' });
+    brevoOnly.mail.brevo.status = 400;
+    assert.equal((await brevoOnly.send({ message: 'sender not verified' })).status, 201);
+    assert.deepEqual(brevoOnly.emails.map(e => e.provider), ['brevo'], 'no SendGrid key, no second try');
+    assert.equal((await brevoOnly.list()).length, 1);
+});
+
+test('email: a Brevo key without any usable recipient sends nothing', async (t) => {
+    const { send, emails, list } = setup(t, { ADMIN_PIN: PIN, BREVO_API_KEY: 'brevo-test-key', OPERATOR_EMAILS: ' , not-an-address' });
+    assert.equal((await send({ message: 'no usable recipient' })).status, 201);
+    assert.equal(emails.length, 0);
+    assert.equal((await list()).length, 1);
 });
 
 test('length cap: 2,000 characters pass, 2,001 do not; empty, bad kind, bad JSON and huge bodies are refused', async (t) => {

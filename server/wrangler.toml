@@ -2,13 +2,17 @@
 # Bundles the game engine from ../docs/js (one source of truth with the app).
 # Also takes the app's suggestions & bug reports (src/suggestions.js).
 #
-# Secrets for suggestions (set each once with `npx --yes wrangler@4.61.0 secret put NAME`;
+# Secrets for suggestions (set each once with
+# `npx --yes wrangler@4.61.0 secret put NAME --name domino-rooms`, which works from any folder;
 # for `npm run dev`, copy .dev.vars.example to .dev.vars):
 #   ADMIN_PIN            opens the admin Suggestions screen. Not set → nobody gets in.
-#   SENDGRID_API_KEY     } email each suggestion to the organizers. Either one not
-#   OPERATOR_EMAILS      } set → suggestions are saved but not emailed. Comma-separated.
-#   SENDGRID_FROM_EMAIL  optional: a sender verified in SendGrid (default: the first
+#   OPERATOR_EMAILS      who gets an email for each suggestion. Comma-separated.
+#   BREVO_API_KEY        sends that email through Brevo (free tier, 300 a day).
+#   BREVO_FROM_EMAIL     optional: a sender verified in Brevo (default: the first
 #                        address in OPERATOR_EMAILS).
+#   SENDGRID_API_KEY     optional fallback, tried only if Brevo is not set or fails
+#   SENDGRID_FROM_EMAIL  (SendGrid has no free tier any more).
+#   No OPERATOR_EMAILS, or neither key → suggestions are saved but not emailed.
 name = "domino-rooms"
 main = "src/index.js"
 compatibility_date = "2025-09-01"

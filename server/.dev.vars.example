@@ -6,6 +6,7 @@
 ADMIN_PIN=7fichas-local
 # Leave the email secrets out locally and no email is sent (suggestions are
 # still saved). To try real email, add your own:
-# SENDGRID_API_KEY=
 # OPERATOR_EMAILS=
-# SENDGRID_FROM_EMAIL=
+# BREVO_API_KEY=
+# BREVO_FROM_EMAIL=
+# (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL work too, as a fallback.)
