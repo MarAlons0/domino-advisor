@@ -51,7 +51,7 @@ const MAX_DISPARITY_PIP6 = [
     [6,0],[5,1],[4,2],[3,3],
 ];
 
-const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind', 'flat-sampling', 'learn-signals', 'no-double-read', 'reward-match-salida', 'tie-close'];
+const VARIANTS = ['mc-pass', 'no-def-close', 'def-close-1', 'pip-close', 'lookahead2', 'rand5', 'rand10', 'no-det-backstop', 'rollout-decisive', 'rollout-greedy', 'reward-margin', 'pure-ismcts', 'pure-margin', 'legacy-hybrid', 'reward-binary', 'reward-match', 'reward-match-blind', 'flat-sampling', 'learn-signals', 'no-double-read', 'reward-match-salida', 'tie-close', 'kill-salida'];
 // Plus two families: affinity-powK (e.g. affinity-pow2) samples with the suit
 // affinities raised to K; scale-TYPE-S (e.g. scale-avoid-0) reads every
 // player's signals of that type with the multiplier raised to S.
@@ -345,6 +345,11 @@ function applyVariant(variant, ai, playerViews, seat) {
             // 0k: the search scores a pip-tied cerrado for the closer's team,
             // as Rules.calculateHandResult does.
             ai.ismctsTieToCloser[seat] = true;
+            break;
+        case 'kill-salida':
+            // 0l: matar la salida — against the other team's leader, cover
+            // the salida number unless one of the four exceptions applies.
+            ai.killSalida[seat] = true;
             break;
         case 'flat-sampling':
             // 0g.5: deals for ISMCTS determinization (and the MC marginals)
@@ -953,7 +958,7 @@ function runMatch({ verbose, difficulty, challengerSeats = null, challengerTeam 
                     `(team ${matchResult.winner} wins) over ${handResults.length} hands${tag}`);
     }
 
-    return { matchResult, handResults, totalMoves, totalPasses, aiTimings, challengerTeam };
+    return { matchResult, handResults, totalMoves, totalPasses, aiTimings, challengerTeam, killSalidaCounts: ai.killSalidaCounts };
 }
 
 function aggregate(matches) {
@@ -1103,6 +1108,52 @@ function reportHandPoints(matches) {
 }
 
 // --persona --ab: the opponents' match win rate with and without the variant.
+// Matar la salida (docs/DESIGN.md 0l): how often the rule restricted a move
+// or stepped aside, and the hands it is about — those the other team opened.
+// Persona A/B: seats 1, 3 against the persona's team, with and without the
+// rule. Self-play A/B: the challenger in hands the champion opened, against
+// the champion in hands the challenger opened (equal if the rule does nothing).
+function reportKillSalida(matches, persona) {
+    const tally = {};
+    for (const m of matches) {
+        for (const seat of m.killSalidaCounts || []) {
+            for (const [k, n] of Object.entries(seat)) tally[k] = (tally[k] || 0) + n;
+        }
+    }
+    const rate = (pairs) => {
+        const n = pairs.length, won = pairs.filter(Boolean).length;
+        const p = n ? won / n : 0;
+        return { n, won, p, se: n ? Math.sqrt(p * (1 - p) / n) : 0 };
+    };
+    const f = (x) => (100 * x).toFixed(1);
+    const line = (label, r) => console.log(` ${label}${r.won}/${r.n}  (${f(r.p)}% ± ${f(1.96 * r.se)}%)`);
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(' Matar la salida: rule activity and hands opened by the other team');
+    console.log('═══════════════════════════════════════════════════════════');
+    const total = Object.values(tally).reduce((a, b) => a + b, 0);
+    console.log(` Decisions where it applied: ${total} (restricted ${tally.applied || 0}; stepped aside: ` +
+        ['leaderBehind', 'partnerSuit', 'hangDouble', 'firme', 'teamOwns'].map(k => `${k} ${tally[k] || 0}`).join(', ') + ')');
+    if (persona) {
+        // Team 1 is the persona's opponents in both arms.
+        const hands = (withVariant, openerTeam) => matches
+            .filter(m => (m.challengerTeam === 1) === withVariant)
+            .flatMap(m => m.handResults.filter(h => h.opener % 2 === openerTeam).map(h => h.winningTeam === 1));
+        line('Opponents won, persona team opened, current:   ', rate(hands(false, 0)));
+        line('Opponents won, persona team opened, with rule: ', rate(hands(true, 0)));
+        line('Opponents won, they opened, current:           ', rate(hands(false, 1)));
+        line('Opponents won, they opened, with rule:         ', rate(hands(true, 1)));
+    } else {
+        const ch = (m, h) => h.winningTeam === m.challengerTeam;
+        const champ = (m, h) => h.winningTeam === 1 - m.challengerTeam;
+        line('Challenger won, champion opened (rule fires):  ',
+            rate(matches.flatMap(m => m.handResults.filter(h => h.opener % 2 !== m.challengerTeam).map(h => ch(m, h)))));
+        line('Champion won, challenger opened (no rule):     ',
+            rate(matches.flatMap(m => m.handResults.filter(h => h.opener % 2 === m.challengerTeam).map(h => champ(m, h)))));
+    }
+    console.log('');
+}
+
 function reportPersonaAB(matches, variant) {
     const arm = (withVariant) => {
         const ms = matches.filter(m => (m.challengerTeam === 1) === withVariant);
@@ -2239,6 +2290,7 @@ if (doubleReadAcc) {
 }
 if (opts.ab && personaPlayers) reportPersonaAB(matches, opts.variant);
 else if (opts.ab) reportAB(matches, opts.variant);
+if (opts.ab && opts.variant.split('+').includes('kill-salida')) reportKillSalida(matches, !!personaPlayers);
 if (opts.instrument) reportInstrumentation(decisions);
 if (opts.instrument) reportClosing(closes);
 if (probAcc) reportProbAccuracy(probAcc);

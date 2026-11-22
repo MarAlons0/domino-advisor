@@ -1151,6 +1151,142 @@ node tools/tournament.js --ab --all-variant explore-auto --variant reward-match-
 
 ---
 
+### 0l. Matar la Salida (Kill the Leader's Number)
+**Priority:** Medium. **Status (2026-11-21):** built and measured, off by default (play unchanged, no release). Against personas it cost the opponents 2.6 points of the hands the persona's team opened (CI −4.9 to −0.3); self-play neutral.
+**Complexity:** Low
+**Depends on:** the search (0f, 0g.4); `SmartAI.playerSalida`, `signaledSuits`; `PlayerView`'s sampled deals.
+
+**The idea (Mario, 2026-11-21).** At a table of people, the leader's two opponents cover
+("kill") the leader's salida number whenever it shows, unless there is a very strong reason
+not to. While the salida stays open the leader almost never passes, and that usually decides
+the hand for the leader's team.
+
+**The game that raised it (v1.20.1).** Mario led [1|1]. Opp 1 and Partner each had one legal
+move ([5|1], [6|5]), so the board showed 6 | 1. Opp 2, the last to play before Mario, could
+cover the 1 with [4|1], [3|1] or [6|1] and played [6|6] instead; it covered the 1 on its next
+turn. Its search gave [4|1] on the 1 end 28 of 1,000 visits.
+- Since 0g.4 the search picks every Master move; the static factors only explain it. The
+  search's playouts are random, so the leader doesn't keep pushing the salida in them, and the
+  cost of leaving it open doesn't show.
+- The static `oppSuitAvoidance` (−20 per opponent suit left showing) can't tell covering from
+  feeding: [4|1] (covers the 1) and [6|1] on the 6 end (1 on both ends) both scored −20.
+
+**The rule.** `SmartAI.killSalida`, per seat, default off; `_killSalidaFilter`.
+- It applies when the leader is on the other team, the salida number S shows on an end, the
+  leader hasn't passed on S or chosen not to play it (`inferredDeadSuits`, `killedOwnSuit`),
+  and some but not all candidate moves leave fewer ends on S.
+- Only those moves stay in play, plus any that close the board (a close ends the hand, so S no
+  longer matters). Master restricts the search's first move (`ismcts(…, rootFilter)`); below
+  the first move everything is searched as before. Experienced filters its candidates before
+  P3/P4 and the scorer. Beginner is unaffected.
+- The salida number is the double's number, or the higher number of a non-double salida (as
+  `playerSalida` records it).
+
+Mario's exceptions; any one steps aside:
+
+| Exception | Test |
+|---|---|
+| `leaderBehind` | The leader is no longer ahead of both players on my team. Ahead = fewer plays until they could domino, counted from now with my move made: fewer tiles, and on a tie whoever plays sooner. |
+| `partnerSuit` | Every covering tile leaves the leader's partner's signaled number on its end. |
+| `hangDouble` | I have fewer tiles than my partner, and a double I can play now has one or two other tiles of its number still out: enough for someone to cover that end, too few to bring it back. With none out, nobody else can cover it. |
+| `firme` / `teamOwns` | I hold every remaining S, or neither opponent holds an S in at least 85% of my view's sampled deals. The open S then makes the leader pass. |
+
+The `hangDouble` test differs from the reading first agreed ("the double's number isn't
+showing after I cover"): with a double that can be played now, covering S on the other end
+always leaves its number showing, so that reading could never fire.
+
+**Check** (the v1.20.1 position replayed, 20 searches each): rule off, Opp 2 played [6|6] 20
+times; rule on, it covered the 1 every time, [6|1] 18 times (which also puts 6 on both ends
+and keeps [6|6] playable), [3|1] once, [4|1] once. With Opp 2 holding every remaining 1,
+`firme` stepped aside and it played [6|6].
+
+**Results (2026-11-21, v1.20.1 plus the rule).**
+
+| Run | Count | With the rule | Without | Difference |
+|---|---|---|---|---|
+| Personas: matches (seats 1, 3 take the rule on alternate matches; 8 × 25 personas × 10) | 2,000 matches | opponents 68.5% (685 of 1,000) | 71.9% (719 of 1,000) | −3.4 ± 4.0 |
+| ↳ hands the persona's team opened (where the rule acts) | 6,917 hands | 45.0% (1,572 of 3,491) | 47.6% (1,631 of 3,426) | −2.6 ± 2.3 |
+| ↳ hands the opponents opened (control) | 7,954 hands | 64.8% (2,548 of 3,934) | 65.2% (2,622 of 4,020) | −0.5 ± 2.1 |
+| Pushier personas (`--persona-habits suitLoyalty=0.6`, same seeds): matches | 2,000 matches | opponents 69.6% (696 of 1,000) | 72.6% (726 of 1,000) | −3.0 ± 4.0 |
+| ↳ hands the persona's team opened | 6,643 hands | 46.8% (1,561 of 3,338) | 49.0% (1,620 of 3,305) | −2.3 ± 2.4 |
+| ↳ hands the opponents opened (control) | 8,093 hands | 65.5% (2,595 of 3,963) | 66.2% (2,736 of 4,130) | −0.8 ± 2.1 |
+| Self-play: matches (8 × 250) | 2,000 matches | 49.0% ± 2.2 (981) | | 47.3% / 50.8% by seat assignment |
+| ↳ hands the other side opened | 15,279 hands | rule side 38.9% (2,993 of 7,702) | no-rule side 39.7% (3,007 of 7,577) | −0.8 ± 1.5 |
+
+- Persona shards, in points: +4.0, −7.2, +4.0, −8.8, −0.8, −3.2, −10.4, −4.8.
+- How often it acted, persona run (1,000 matches with the rule): it restricted 3,062
+  decisions and stepped aside 701 times (`leaderBehind` 227, `partnerSuit` 228, `hangDouble`
+  4, `firme` 242, `teamOwns` 0). Self-play (2,000 matches): 6,157 restricted; 450, 396, 17,
+  581, 1.
+
+**Reading.** Against these opponents, forcing the cover costs more than it gains: about three
+restricted decisions a match, and the search's own choice was better on average. The control
+hands don't move, so the loss comes from the hands where the rule acts.
+- Caveat: the personas are Master with noise and habits. Their `suitLoyalty` habit (keep their
+  own number showing) averages 0.2, so as leaders they push the salida weakly, and the
+  convention's value comes from a leader who pushes it. This test may be blind to that gain,
+  as self-play is.
+- Pushing harder alone doesn't change it: with `suitLoyalty` at 0.6 the cost is the same
+  (−2.3 ± 2.4). The two persona runs together, as a rough guide since the personas differ:
+  45.9% (3,133 of 6,829) with the rule against 48.3% (3,251 of 6,731) without, −2.4 ± 1.7.
+- What the personas still lack (Mario, 2026-11-21): a person leads only from a number they hold
+  at least one, usually two or more, more tiles of, so an open salida always gives them a play.
+  The personas' `leadLongest` habit averages 0.3 and accepts any tile of the longest number;
+  otherwise Master's search picks the salida. So their salida promises less than a person's.
+- The personas are also far weaker than Mario: about 28% of matches and 43% of hands against
+  Master opponents, while Mario is 5–0 in matches and 31 of 46 hands (67%) since 2026-10-28.
+  Their noise makes them worse than Master by design; Mario's departures from Genín are often
+  better moves.
+- `teamOwns` almost never fires (1 in about 9,600 decisions): `firme` covers nearly all of it.
+
+**Real games: the opening edge (2026-11-21).** If leaving the salida open made a human leader
+much stronger, the team that leads should win more hands among people than in the simulations.
+Mario's group logs every hand in the domino-tracker app: who won and the points, not the moves.
+Under the group's rules (Mexican) the team that won the last hand leads the next one, and that
+team picks which partner leads. The leading team is known for every hand but the first, which
+the 6|6 holder leads.
+
+| Games | Leading team won |
+|---|---|
+| Mario's group, 65 games, 410 hands (18 sessions, 2026-01 to 2026-11) | 58.5% raw (240 of 410); **59.2% between equal teams** (95% interval 53.7–63.7%) |
+| Master self-play, later hands (0k) | 58.6% ± 1.1% |
+| Personas against Master (the current arms above, pooled) | about 59% between equal teams |
+
+- The raw rate overstates the edge, because the better team wins more hands and so leads more.
+  A model of each player's skill fitted across all games corrects for that. Simulated games with
+  no edge measure the method's own bias, and a bootstrap gives the interval.
+- Don't compare each game with itself instead: in games of 5–10 hands that check is strongly
+  biased against leading. With no edge it gives an odds ratio of about 0.52; the real games give
+  0.95, which is what a 59% edge produces.
+- The leading team also nets +5.5 points a hand (a hand is worth 21.6 points on average).
+- Reading: people's opening edge is the same as the simulator's, even though their team chooses
+  which hand leads. So the persona test isn't blind to the value of leading. It can't separate
+  the two human effects, though: leading from length raises the edge, and opponents who kill the
+  salida lower it. The game logs (v1.21.0) are where leading from length can be checked.
+- Halving the ±5 needs about four times as many hands: roughly 45 more game nights.
+- Reproduce: `python3 scripts/opening_edge.py` in the domino-tracker repo (read-only, public API).
+
+**Not done.**
+- *Leaders who lead from length.* A persona habit that leads only from a number with two or
+  more extra tiles, used most of the time, together with `suitLoyalty` 0.6.
+- *Real games, move by move.* Since v1.21.0 the app keeps the moves of finished matches (Stats →
+  Export my games; read with `tools/human-games.js`). Once there are 10–20 matches, check the
+  rule and the persona habits against Mario's play.
+- *A narrower rule.* Only each opponent's first turn after the salida, or only salidas that were
+  a choice: not the forced first-hand [6|6], and not non-double salidas, where the higher number
+  is a guess.
+- *Coach and debrief.* Genín's advice and the "Mata la salida" explanation and lesson were left
+  for after a measured gain.
+
+**Reproduce** (each run 8 times in parallel, then summed):
+```bash
+node tools/tournament.js --persona --personas 25 --season 10 --persona-seed S --ab --variant kill-salida   # S = 1..8
+node tools/tournament.js --persona --personas 25 --season 10 --persona-seed S --persona-habits suitLoyalty=0.6 --ab --variant kill-salida
+node tools/tournament.js --ab --variant kill-salida --games 250
+```
+
+---
+
 ### 1. Configurable AI Strategy Weights
 **Priority:** Low
 **Complexity:** Medium

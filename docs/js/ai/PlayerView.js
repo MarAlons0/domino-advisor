@@ -429,6 +429,30 @@ export class PlayerView {
     }
 
     /**
+     * Probability that none of `players` holds a tile with `value`: the
+     * fraction of sampled deals in which all of them lack it (joint, so it
+     * keeps the correlation the product of single-player pass probabilities
+     * ignores). Used by SmartAI's matar-la-salida rule to ask whether the
+     * remaining tiles of the leader's number are all with the observer's team.
+     * @param {number[]} players - player indices (not the observer)
+     * @param {number} value - suit value (0-6)
+     * @returns {number} Probability 0-1
+     */
+    getPlayersLackValueProbability(players, value) {
+        if (players.every(p => this.handTracker.deadSuits[p].has(value))) return 1.0;
+        this._computeMCMarginals();
+        if (this._mcDealMasks && this._mcDealMasks.length >= 50) {
+            const bit = 1 << value;
+            let count = 0;
+            for (const masks of this._mcDealMasks) {
+                if (players.every(p => (masks[p] & bit) === 0)) count++;
+            }
+            return count / this._mcDealMasks.length;
+        }
+        return players.reduce((prob, p) => prob * this.getPassProbability(p, value), 1);
+    }
+
+    /**
      * Get probability of blocking a player by making both ends show specific values.
      * @param {number} player - Player to block (0-3)
      * @param {number} value1 - First end value

@@ -16,6 +16,14 @@ const MIN_REWARD_RANGE = 0.1;
 // read as "how often the hand was won", and the 5/15-point grade thresholds
 // were calibrated on that scale.
 const COACH_REWARD_SHAPING = 'margin';
+// Matar la salida (docs/DESIGN.md 0l). Exception 1: the rule steps aside when
+// the remaining tiles of the leader's number are, with at least this
+// probability, all with my team.
+const KILL_SALIDA_TEAM_OWNS_PROB = 0.85;
+// Exception 4: a double counts as at risk of hanging when one or two other
+// tiles of its number are still out — enough for someone to cover the end,
+// too few to bring the number back. With none out, nobody else can cover it.
+const KILL_SALIDA_DOUBLE_RISK_MAX = 2;
 import { MonteCarloEvaluator } from './MonteCarloEvaluator.js';
 import { Hand } from '../models/Hand.js';
 import { ismcts } from './ISMCTSEvaluator.js';
@@ -141,6 +149,17 @@ export class SmartAI {
         // over-count it. At half strength it was worth only 0.0001.
         // The harness turns it on with --avoid-signal.
         this.avoidSignal = false;
+        // Per-seat matar-la-salida rule (docs/DESIGN.md 0l, Mario's table
+        // convention): the other team's leader still has the salida number
+        // showing → this seat may only choose among the moves that cover it,
+        // unless one of four exceptions applies (_killSalidaFilter). Master
+        // restricts the search's first move; Experienced restricts its
+        // candidates. Beginner is unaffected. Off until measured; harness
+        // variant kill-salida turns it on.
+        this.killSalida = [false, false, false, false];
+        // How often the rule fired and which exception stepped in, per seat —
+        // read by the harness (kill-salida A/Bs). Never reset by a new hand.
+        this.killSalidaCounts = [0, 1, 2, 3].map(() => ({}));
         // (Firme detection now always uses getRemainingTilesInSuit; the
         // previous useAccurateFirmeCount flag was a transitional gate around
         // the off-by-one bug fix, confirmed non-regressive in a 500-match
@@ -602,7 +621,20 @@ export class SmartAI {
         const candidateMoves = excludeCerrar
             ? validMoves.filter(m => !this._willCerrar(m, chain))
             : validMoves;
-        const evalMoves = candidateMoves.length > 0 ? candidateMoves : validMoves;
+        let evalMoves = candidateMoves.length > 0 ? candidateMoves : validMoves;
+
+        // Matar la salida (docs/DESIGN.md 0l): against the other team's leader,
+        // only the moves that cover the salida number stay in play — for the
+        // P3/P4 priorities, the static scorer and, for Master, the search's
+        // first move. Off by default (this.killSalida).
+        const killSalida = this._killSalidaFilter(evalMoves, gameState, playerIndex, chain, activeView);
+        if (killSalida) {
+            const tally = this.killSalidaCounts[playerIndex];
+            const key = killSalida.exception || 'applied';
+            tally[key] = (tally[key] || 0) + 1;
+            if (killSalida.moves) evalMoves = killSalida.moves;
+        }
+        if (DEBUG_AI) debugInfo.priorities.killSalida = killSalida;
 
         // PRIORITY 3: Check for high-confidence blocking opportunity
         const blockingMove = pureISMCTS ? null : this._findHighConfidenceBlock(evalMoves, gameState, playerIndex, chain, activeView);
@@ -692,7 +724,10 @@ export class SmartAI {
             if (this.ismctsExploreAuto[playerIndex]) {
                 exploration *= Math.max(MIN_REWARD_RANGE, Math.min(1, root.rewardRange()));
             }
-            const ismctsResult = ismcts(root, this.ismctsIterations, this.ismctsRolloutPolicy[playerIndex], exploration);
+            const rootFilter = killSalida?.moves
+                ? new Set(killSalida.moves.map(m => `${m.tile.toKey()}|${m.end}`))
+                : null;
+            const ismctsResult = ismcts(root, this.ismctsIterations, this.ismctsRolloutPolicy[playerIndex], exploration, rootFilter);
             const bestMoveKey = ismctsResult.bestMove;
             if (bestMoveKey && bestMoveKey !== 'pass') {
                 for (const move of scoredMoves) {
@@ -1003,6 +1038,12 @@ export class SmartAI {
             `Yes - ${info.priorities.blockingMove.tile} (P=${info.priorities.blockingMove.prob.toFixed(2)})` : 'No'}`);
         console.log(`4. Partner support: ${info.priorities.partnerSupport || 'No'} ${
             info.priorities.partnerSupportActive === false ? '(disabled after play 8)' : ''}`);
+        const ks = info.priorities.killSalida;
+        if (ks) {
+            console.log(`5. Matar la salida (${ks.suit}, leader seat ${ks.leader}): ${ks.moves
+                ? `Yes - ${ks.moves.map(m => `${m.tile.toString()} ${m.end}`).join(', ')}`
+                : `Skipped (${ks.exception})`}`);
+        }
         console.groupEnd();
 
         // Certainty info (if Monte Carlo was used)
@@ -1163,6 +1204,107 @@ export class SmartAI {
         }
 
         console.groupEnd();
+    }
+
+    /**
+     * Matar la salida (docs/DESIGN.md 0l). The hand's leader is whoever made
+     * the salida; while their salida number S shows on an end, the leader
+     * almost never passes. The leader's two opponents therefore cover S
+     * ("kill the hand") unless one of Mario's four exceptions applies:
+     *   leaderBehind — the leader is no longer ahead of both players on my
+     *                  team in the race to domino (fewer tiles; on a tie,
+     *                  whoever plays sooner);
+     *   partnerSuit  — every covering tile would show the number the
+     *                  leader's partner has signaled;
+     *   hangDouble   — I have fewer tiles than my partner and a double I
+     *                  can play now has only one or two other tiles of its
+     *                  number still out (KILL_SALIDA_DOUBLE_RISK_MAX);
+     *   firme / teamOwns — I hold every remaining S, or the remaining S
+     *                  tiles are all with my team with probability
+     *                  ≥ KILL_SALIDA_TEAM_OWNS_PROB (the open S then makes
+     *                  the leader pass, so it is ours to keep).
+     * Covering means leaving fewer ends on S than now (with S on both ends,
+     * covering one). Moves that close the board stay allowed: a close ends
+     * the hand, so the leader's number no longer matters.
+     *
+     * @param {Array<{tile, end}>} moves - candidate moves (≥ 2 to filter)
+     * @param {GameState} gameState
+     * @param {number} playerIndex
+     * @param {Chain} chain
+     * @param {PlayerView|HandTracker} view - the seat's view
+     * @returns {null|{suit:number, leader:number, moves?:Array, exception?:string}}
+     *          null when the rule has nothing to say (off, not the leader's
+     *          opponent, S not showing or already given up, nothing covers it,
+     *          or every move covers it); `moves` when it restricts the
+     *          choice; `exception` when it applies but steps aside.
+     * @private
+     */
+    _killSalidaFilter(moves, gameState, playerIndex, chain, view) {
+        if (!this.killSalida[playerIndex] || chain.isEmpty() || moves.length < 2) return null;
+        const leader = this.playerSalida.findIndex(s => s !== null);
+        if (leader === -1 || leader % 2 === playerIndex % 2) return null;
+        const suit = this.playerSalida[leader];
+        const onSuit = (l, r) => (l === suit ? 1 : 0) + (r === suit ? 1 : 0);
+        const showing = onSuit(chain.leftEnd, chain.rightEnd);
+        if (showing === 0) return null;
+        // The leader passed on it, or chose not to play it when they could.
+        if (this.inferredDeadSuits[leader].has(suit)) return null;
+        if (this.killedOwnSuit[leader] && this.signaledSuits[leader] === suit) return null;
+
+        const options = moves.map(m => {
+            const { newLeftEnd, newRightEnd } = this._getEndsAfterPlay(m, chain);
+            return { move: m, left: onSuit(newLeftEnd, newRightEnd) };
+        });
+        const fewest = Math.min(...options.map(o => o.left));
+        if (fewest >= showing) return null; // nothing I can play covers it
+        const covers = options.filter(o => o.left === fewest).map(o => o.move);
+        if (covers.length === moves.length) return null; // every move covers it
+
+        const found = { suit, leader };
+        const hand = gameState.hands[playerIndex];
+        const tilesOf = p => gameState.hands[p].size();
+        const partner = GameState.getPartner(playerIndex);
+        const leaderPartner = GameState.getPartner(leader);
+
+        // 3. leaderBehind. Plays until a player could domino, counting from
+        // now with this move made: their next turn is d plays away (mine is
+        // 4), then one tile per round.
+        const finish = (p, tiles) => ((p - playerIndex + 4) % 4 || 4) + 4 * (tiles - 1);
+        const leaderFinish = finish(leader, tilesOf(leader));
+        if (!(leaderFinish < finish(playerIndex, hand.size() - 1)
+              && leaderFinish < finish(partner, tilesOf(partner)))) {
+            return { ...found, exception: 'leaderBehind' };
+        }
+
+        // 2. partnerSuit — the number each covering tile leaves on its end.
+        const partnerSuit = this.signaledSuits[leaderPartner];
+        if (partnerSuit !== null && partnerSuit !== suit && !this.killedOwnSuit[leaderPartner]
+            && covers.every(m => m.tile.getOtherValue(m.end === 'left' ? chain.leftEnd : chain.rightEnd) === partnerSuit)) {
+            return { ...found, exception: 'partnerSuit' };
+        }
+
+        // Tiles of a number neither played nor in my hand.
+        const outThere = value => this.getRemainingTilesInSuit(value) - this.countSuitInHand(hand, value);
+
+        // 4. hangDouble — only when I'm my team's runner (fewer tiles; a tie
+        // goes to covering).
+        if (hand.size() < tilesOf(partner)) {
+            for (const m of moves) {
+                if (!m.tile.isDouble() || m.tile.high === suit) continue;
+                const out = outThere(m.tile.high);
+                if (out >= 1 && out <= KILL_SALIDA_DOUBLE_RISK_MAX) return { ...found, exception: 'hangDouble' };
+            }
+        }
+
+        // 1. firme / teamOwns.
+        if (outThere(suit) === 0) return { ...found, exception: 'firme' };
+        if (typeof view?.getPlayersLackValueProbability === 'function'
+            && view.getPlayersLackValueProbability([leader, leaderPartner], suit) >= KILL_SALIDA_TEAM_OWNS_PROB) {
+            return { ...found, exception: 'teamOwns' };
+        }
+
+        const allowed = moves.filter(m => covers.includes(m) || this._willCerrar(m, chain));
+        return { ...found, moves: allowed };
     }
 
     /**

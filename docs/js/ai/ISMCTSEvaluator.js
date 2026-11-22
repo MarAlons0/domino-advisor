@@ -108,15 +108,29 @@ function rolloutPick(state, legalMoves, policy) {
  * @param {number} [exploration=0.7071] - UCB1 exploration constant. The default
  *          assumes results spread over the whole of [0, 1]; a reward that only
  *          uses part of that range explores more at the same constant.
+ * @param {Set<string>|null} [rootFilter=null] - move keys the observer may
+ *          choose from at the root (e.g. SmartAI's matar-la-salida rule). The
+ *          search below the root is unrestricted. Ignored if it leaves no
+ *          legal root move.
  * @returns {{ bestMove: string|null, rootStats: Array<{move:string, visits:number, wins:number, winRate:number}> }}
  *          - bestMove: most-visited root child's move key (null if no legal moves)
  *          - rootStats: per-root-child stats, sorted by visits descending. For the
  *            no-moves and forced-single-move cases this is empty / a single entry
  *            with zero visits respectively, since no real search ran.
  */
-export function ismcts(rootstate, itermax, rolloutPolicy = 'random', exploration = 0.7071) {
+export function ismcts(rootstate, itermax, rolloutPolicy = 'random', exploration = 0.7071, rootFilter = null) {
     const root = new Node();
-    const rootMoves = rootstate.getMoves();
+    let rootMoves = rootstate.getMoves();
+    // The observer's own hand is the same in every determinization, so the
+    // root's legal moves never change and one filter serves every iteration.
+    let atRoot = null;
+    if (rootFilter) {
+        const allowed = rootMoves.filter(m => rootFilter.has(m));
+        if (allowed.length > 0 && allowed.length < rootMoves.length) {
+            rootMoves = allowed;
+            atRoot = moves => moves.filter(m => rootFilter.has(m));
+        }
+    }
     if (rootMoves.length === 0) {
         return { bestMove: null, rootStats: [] };
     }
@@ -133,8 +147,9 @@ export function ismcts(rootstate, itermax, rolloutPolicy = 'random', exploration
         const state = rootstate.cloneAndRandomize(rootstate.playerToMove);
 
         // Select: descend the tree using UCB1 while we are at a fully-expanded
-        // non-terminal node.
-        let legalMoves = state.getMoves();
+        // non-terminal node. Only the root's moves are filtered; after the
+        // first doMove the node is a child and every legal move is searched.
+        let legalMoves = atRoot ? atRoot(state.getMoves()) : state.getMoves();
         while (legalMoves.length > 0 && node.untriedMoves(legalMoves).length === 0) {
             node = node.ucbSelectChild(legalMoves, exploration);
             state.doMove(node.move);

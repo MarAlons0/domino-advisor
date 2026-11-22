@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-11-21 (v1.21.0: export my games)_
+_Last updated: 2026-11-21 (matar la salida built and measured, off)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -8,6 +8,9 @@ _Nothing open — next items come from Medium._
 
 ## 🟡 Medium
 - [ ] **AI enhancements (0)** — validate any weight/strategy change with the A/B tournament harness. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
+- [ ] 🚧 **Matar la salida (0l)** — the leader's opponents cover the leader's salida number unless one of four exceptions applies; built behind `SmartAI.killSalida` (off), but against personas it cost the opponents 2.6 points of the hands the persona's team opened (CI −4.9 to −0.3), self-play neutral. `[feature]`
+  - Personas who push their salida harder (`suitLoyalty=0.6`) gave the same cost (−2.3 ± 2.4). Next: personas who lead only from length, a narrower rule (first turn only, chosen double salidas), and real game logs. See [docs/DESIGN.md](docs/DESIGN.md).
+  - Real games (domino-tracker, 410 hands): the leading team wins 59.2% between equal teams (95% interval 53.7–63.7%), the same as Master self-play (58.6%), so the simulator isn't missing the value of leading.
 - [ ] **Team-contextual play inference (0b)** — infer partner/opponent hands from play to sharpen advice. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Design of experiments for scoring weights (0d)** — structured tuning of AI scoring weights. See [docs/DESIGN.md](docs/DESIGN.md). `[feature]`
 - [ ] **Position analyzer (3)** — analyze a board position for the best plays. `[feature]`
