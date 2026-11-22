@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-11-21 (matar la salida built and measured, off)_
+_Last updated: 2026-11-21 (v1.21.1: matar la salida built and measured, off)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 

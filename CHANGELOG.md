@@ -3,6 +3,15 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.21.1] – 2026-11-21
+
+### Changed (internal)
+- **Matar la salida, built and switched off.** A new rule for the AI: the opponents of the hand's leader cover the leader's salida number whenever it shows. They skip the cover in four cases: their team holds every remaining tile of that number (or very likely does), the cover would show a number the leader's partner signaled, the leader no longer has fewer tiles than both of them, or covering would risk hanging a double. It ships off (`SmartAI.killSalida`), so play doesn't change. In testing against personas it cost the opponents about 2.6 points of the hands it acts on, and in self-play it made no difference. Details in `docs/DESIGN.md` 0l.
+- `ISMCTSEvaluator.ismcts()` takes an optional root-move filter, so Master searches only the moves a rule allows. `PlayerView.getPlayersLackValueProbability()` gives the chance that a set of players holds none of a number. When the rule is on, the debug log shows a "Matar la salida" line.
+- `tools/tournament.js`: variant `kill-salida`, with a report of how often the rule acted, which exceptions stepped aside, and how the hands it acted on ended.
+- Real games: in Mario's group's games from the domino-tracker app (410 hands), the team that leads wins 59.2% of hands between equal teams (95% interval 53.7–63.7%). That's the same as Master playing itself (58.6%). The script is `scripts/opening_edge.py` in that repo.
+- The rooms Worker bundles the AI, but the rule is off, so the Worker needs no redeploy.
+
 ## [1.21.0] – 2026-11-21
 
 ### Added
