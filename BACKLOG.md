@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-11-13 (v1.20.1: suggestion emails through Brevo)_
+_Last updated: 2026-11-21 (v1.21.0: export my games)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -33,6 +33,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Export my games** — Stats → Export my games downloads every move of your finished single-player matches (hands dealt, plays and passes with the board ends, Genín's pick, hand results), kept on the device only; `tools/human-games.js` reads an export for the numbers the matar-la-salida work (0l) and the personas need — v1.21.0
 - [x] **Suggestion emails through Brevo** — SendGrid has no free tier any more; Brevo first, SendGrid as fallback — v1.20.1
 - [x] **Suggestions** — 💬 button to send an idea or report a bug (💡 Idea / 🐞 Bug, message, optional name), emailed to the organizers and saved for an admin inbox with Mark done / Reopen (Settings, admin PIN); Help section and "How do I…?" entry; en/es. Stored in a SQLite Durable Object on the `domino-rooms` Worker — v1.20.0
 - [x] **Scale the search's exploration to the reward (0j)** — Master's search assumed win/lose results, so at most match scores it explored two to three times more widely than works best; the exploration now follows how much a hand can move the match odds: Master 52.2% vs the previous version over 8,000 matches (CI 51.1–53.3); Genín unchanged — v1.19.0

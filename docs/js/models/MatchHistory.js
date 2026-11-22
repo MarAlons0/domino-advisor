@@ -25,6 +25,7 @@ export function winRateDropPts(turnAnalysis) {
  *   hands: [{
  *     handNumber: number,
  *     startingPlayer: number,
+ *     startingHands: string[][] | null,  // tile keys ('6-4') dealt to each seat
  *     plays: [{
  *       player: number,
  *       tile: Tile | null,
@@ -61,11 +62,14 @@ export class MatchHistory {
      * Start tracking a new hand
      * @param {number} handNumber
      * @param {number} startingPlayer
+     * @param {string[][]} [startingHands] - tile keys dealt to each seat (the game
+     *   log); null where they aren't known (multiplayer: only your own hand)
      */
-    startHand(handNumber, startingPlayer) {
+    startHand(handNumber, startingPlayer, startingHands = null) {
         this.currentHand = {
             handNumber: handNumber,
             startingPlayer: startingPlayer,
+            startingHands: startingHands,
             plays: [],
             quizResults: [],
             result: null

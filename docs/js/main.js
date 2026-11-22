@@ -12,6 +12,8 @@ import { PlayerStats } from './stats/PlayerStats.js';
 import { BadgeSystem } from './stats/BadgeSystem.js';
 import { QuizStorage } from './services/QuizStorage.js';
 import { StorageService } from './stats/StorageService.js';
+import { GameLogStore, serializeMatch } from './stats/GameLogStore.js';
+import { Rules } from './engine/Rules.js';
 import { Tile } from './models/Tile.js';
 import { Hand } from './models/Hand.js';
 import { ProbabilityAnalyzer } from './ai/ProbabilityAnalyzer.js';
@@ -1185,8 +1187,7 @@ class DominoApp {
             // Analyze the turn for mano-level feedback (AI recommendation, the
             // played move's score, and the cerrar decision) BEFORE the play
             // mutates state. Deferred to play time for multi-end tiles below.
-            const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
-                this._shownAdviceMove(this.game.getState()));
+            const analysis = this._analyzeHumanTurn(tile, end);
             this._checkSlamCondition(tile);
             this.game.playTurn(tile, end, { aiRecommendation: analysis?.recommendation ?? null, turnAnalysis: analysis });
             this.afterHumanPlay();
@@ -1210,12 +1211,24 @@ class DominoApp {
         const tile = this.selectedTile;
         // State is unchanged since the tile was selected (still the human's turn,
         // awaiting the end choice), so we analyze now with the full move known.
-        const analysis = this.ai.analyzeHumanTurn(this.game.getState(), 0, { tile, end },
-            this._shownAdviceMove(this.game.getState()));
+        const analysis = this._analyzeHumanTurn(tile, end);
         this._checkSlamCondition(tile);
         this.game.playTurn(tile, end, { aiRecommendation: analysis?.recommendation ?? null, turnAnalysis: analysis });
         this.hideEndSelection();
         this.afterHumanPlay();
+    }
+
+    /**
+     * Genín's analysis of your move, made before the play changes the state:
+     * his pick, the grade inputs and the cerrar decision. Notes whether he had
+     * shown you advice this turn (the game log keeps it). @private
+     */
+    _analyzeHumanTurn(tile, end) {
+        const state = this.game.getState();
+        const advice = this._shownAdviceMove(state);
+        const analysis = this.ai.analyzeHumanTurn(state, 0, { tile, end }, advice);
+        if (analysis) analysis.adviceShown = !!advice;
+        return analysis;
     }
 
     cancelSelection() {
@@ -1538,6 +1551,28 @@ class DominoApp {
         const mBadges = this.badgeSystem.checkMatchBadges(this.playerStats.get());
         if (mBadges.length) this.badgeToast.showBadges(mBadges);
         this.playerStats.save(this.playerStats.get());
+
+        if (!this.multiplayer) this._saveGameLog(data);
+    }
+
+    /**
+     * Keep this match's moves on the device for Stats → Export my games.
+     * Single player only (a room's other hands aren't known here). Never
+     * gets in the way of the match end. @private
+     */
+    _saveGameLog(data) {
+        try {
+            const levels = [0, 1, 2, 3].map(seat => (seat === 0 ? 'human' : this.ai.difficulties?.[seat] || null));
+            GameLogStore.add(serializeMatch(this.game.getMatchHistory(), {
+                levels,
+                finalScore: data.finalScores,
+                winner: data.winner,
+                target: Rules.MATCH_TARGET,
+                version: t('app.version').replace(/^v/, ''),
+            }));
+        } catch (e) {
+            console.warn('Could not save the game log', e);
+        }
     }
 
     showDebrief() {

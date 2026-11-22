@@ -1,6 +1,7 @@
 import { BADGES } from '../stats/BadgeSystem.js';
 import { SignalProfile, MIN_HANDS } from '../ai/SignalProfile.js';
 import { i18n, t } from '../i18n/i18n.js';
+import { GameLogStore } from '../stats/GameLogStore.js';
 
 // "Your signals": the suit signals the Stats screen reports, in order.
 const STYLE_TYPES = ['leadDouble', 'lead', 'newNumber', 'cuadrar'];
@@ -33,8 +34,16 @@ export class StatsUI {
         this.resetBtn = document.getElementById('stats-reset-btn');
         if (this.resetBtn) this.resetBtn.addEventListener('click', () => this._onReset());
 
-        // "Your signals" rows are built in the current language: rebuild on a switch.
-        i18n.onLanguageChange(() => this._renderStyle(this.playerStats.get().style));
+        // Export my games: every move of your saved matches, as a file.
+        this.exportBtn = document.getElementById('stats-export-btn');
+        if (this.exportBtn) this.exportBtn.addEventListener('click', () => this._onExport());
+
+        // "Your signals" rows and the export line are built in the current
+        // language: rebuild them on a switch.
+        i18n.onLanguageChange(() => {
+            this._renderStyle(this.playerStats.get().style);
+            this._renderExport();
+        });
 
         this.isInitialized = true;
     }
@@ -75,6 +84,8 @@ export class StatsUI {
     _render(stats) {
         const empty = document.getElementById('stats-empty');
         const body = document.getElementById('stats-body-content');
+        // Saved games outlive a stats reset, so the export shows on its own.
+        this._renderExport();
 
         if (stats.matches.played === 0) {
             if (empty) empty.style.display = 'block';
@@ -99,6 +110,38 @@ export class StatsUI {
         this._renderCoaching(stats.coaching);
         this._renderStyle(stats.style);
         this._renderBadges(stats.badges);
+    }
+
+    /** The export line, shown once a finished match is saved on this device. */
+    _renderExport() {
+        const box = document.getElementById('stats-export');
+        if (!box) return;
+        const n = GameLogStore.count();
+        box.style.display = n ? 'block' : 'none';
+        if (!n) return;
+        if (this.exportBtn) this.exportBtn.textContent = t('stats.export', n);
+        const hint = document.getElementById('stats-export-hint');
+        if (hint) hint.textContent = t('stats.export.hint');
+    }
+
+    /** Download the saved games as 7fichas-games-YYYY-MM-DD.json (local date). */
+    _onExport() {
+        try {
+            const json = GameLogStore.exportJSON(t('app.version').replace(/^v/, ''));
+            const d = new Date();
+            const pad = (x) => String(x).padStart(2, '0');
+            const name = `7fichas-games-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
+            const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+        } catch (e) {
+            console.warn('StatsUI: export failed', e);
+        }
     }
 
     _set(id, value) {

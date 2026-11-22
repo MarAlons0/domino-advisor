@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.20.1',
+        'app.version': 'v1.21.0',
         'app.createdBy': 'Created by',
 
         // Players
@@ -615,6 +615,8 @@ export const translations = {
         'stats.reset': 'Reset stats',
         'stats.reset.confirm': 'Tap again to reset (badges are kept)',
         'stats.since': 'Counting since {0}',
+        'stats.export': 'Export my games ({0})',
+        'stats.export.hint': 'Every move of your recent finished matches against the AI, as a file. They are kept on this device only and never sent anywhere. Reset stats doesn\'t delete them.',
         'stats.matches.played': 'Played',
         'stats.matches.won': 'Won',
         'stats.matches.lost': 'Lost',
@@ -688,7 +690,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.20.1',
+        'app.version': 'v1.21.0',
         'app.createdBy': 'Creado por',
 
         // Players
@@ -1296,6 +1298,8 @@ export const translations = {
         'stats.reset': 'Reiniciar estadísticas',
         'stats.reset.confirm': 'Toca de nuevo para reiniciar (las insignias se conservan)',
         'stats.since': 'Contando desde el {0}',
+        'stats.export': 'Exportar mis partidas ({0})',
+        'stats.export.hint': 'Todas las jugadas de tus últimas partidas terminadas contra la IA, en un archivo. Se guardan solo en este dispositivo y nunca se envían. Reiniciar estadísticas no las borra.',
         'stats.matches.played': 'Jugadas',
         'stats.matches.won': 'Ganadas',
         'stats.matches.lost': 'Perdidas',

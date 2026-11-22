@@ -71,7 +71,8 @@ export class Game {
 
         // Start tracking this hand
         this.handNumber++;
-        this.matchHistory.startHand(this.handNumber, this.state.currentPlayer);
+        this.matchHistory.startHand(this.handNumber, this.state.currentPlayer,
+            this.state.hands.map(h => h.getTiles().map(t => t.toKey())));
 
         this._emitStateChange();
     }

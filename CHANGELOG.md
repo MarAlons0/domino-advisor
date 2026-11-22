@@ -3,6 +3,17 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.21.0] – 2026-11-21
+
+### Added
+- **Export my games.** The app now keeps every move of your finished matches against the AI on your device: the four hands dealt, who opened, each play and pass with the board ends at that moment, Genín's pick for each of your plays (and whether you had asked him first), and how each hand ended. Stats → **Export my games** downloads them as a file, `7fichas-games-YYYY-MM-DD.json`. The newest matches are kept, up to 200 or about 1.5 million characters (roughly 150 matches). Nothing is sent anywhere, Reset stats doesn't delete them, and matches in a room with friends aren't saved. In English and Spanish.
+
+### Changed (internal)
+- New `docs/js/stats/GameLogStore.js`, localStorage key `7fichas_game_logs`. `serializeMatch()` turns a finished `MatchHistory` into the log (format 1: each move is `[seat, tile, end, leftEnd, rightEnd, coach?]`, the ends being the ones showing before the move). `add()` keeps the newest matches and, when storage is full, drops the oldest tenth and tries again; it never throws. `StorageService.set` now returns whether the write succeeded.
+- `MatchHistory.startHand()` takes the dealt hands (`startingHands`, tile keys per seat) and `Game.newHand()` passes them; multiplayer hands leave it null. The rooms Worker bundles `Game.js` but only reads the opener from its history, so it needs no redeploy.
+- `main.js` marks your turn analysis with whether Genín's advice was showing (`adviceShown`) and saves the log when a single-player match ends.
+- `tools/human-games.js <export.json> [--json]` reads an export: the salidas you chose and how many more tiles of the salida number you held, whether that number still showed after each opponent's first turn, your passes with it showing or covered, how often it was your longest number, and how often you played Genín's pick.
+
 ## [1.20.1] – 2026-11-13
 
 ### Changed

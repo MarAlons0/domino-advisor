@@ -11,11 +11,14 @@ export const StorageService = {
             return null;
         }
     },
+    /** @returns {boolean} false when the write failed (e.g. storage full) */
     set(key, value) {
         try {
             localStorage.setItem(key, JSON.stringify(value));
+            return true;
         } catch (e) {
             console.warn(`StorageService: could not write "${key}"`, e);
+            return false;
         }
     }
 };
