@@ -1,7 +1,8 @@
 # Consolidated record across devices — Design
 
-**Status:** design agreed 2026-11-25; not started (next: P0). Backlog: 🟡 Medium "Consolidated
-record across devices".
+**Status:** design agreed 2026-11-25. P0 done 2026-11-25 (`StatsMerge.js` + tests, not shipped
+yet — see [P0 results](#p0-results-2026-11-25)); next: P1. Backlog: 🟡 Medium "Consolidated record
+across devices".
 
 **Decided:**
 - Devices link with a **sync code + share link** — no accounts, logins or emails.
@@ -55,8 +56,8 @@ the device — see [Privacy](#privacy)).
 | `largestWinMargin`, `largestDeficitOvercome`, `hands.largestScore`/`largestSurrender`, cerrado `largestScore`/`largestSurrender`/`youClosedLargestScore`, `bestQuizScore` | **max** |
 | `style` (Your signals) | **add** each sum |
 | `badges` | **union** by id, keeping the earliest `earnedAt` |
-| `since` | the latest reset on any device |
-| `currentStreak`, `bestWinStreak` | **can't be added** — depend on the order of wins and losses across devices (below) |
+| `since` | set by the record: the last reset, or the earliest start among the devices that linked |
+| `currentStreak`, `bestWinStreak` | **can't be added** — depend on the order of wins and losses across devices (below); worked out again from the results on every change, never kept as a running max |
 
 Everything except the two streaks is order-independent: totals come out the same in whatever order
 the devices report. That's what makes offline play and late syncs easy.
@@ -105,8 +106,10 @@ The Stats screen shows `merge(base, pending)`. When nothing is linked, `pending`
 
 **Recording a hand or match** stays in `PlayerStats` with one change: it records into a fresh zero
 object (that *is* the delta — `max(0, x) = x` for the max fields), then merges that into `pending`.
-A new pure module `docs/js/stats/StatsMerge.js` holds `DEFAULT_STATS`, the merge rules above and
-the streak calculation. It has no browser globals, so the Worker bundles the same file.
+The pure module `docs/js/stats/StatsMerge.js` (built in P0) holds `DEFAULT_STATS`, the merge rules
+above and the streak calculation: `addStats`, `mergeBadges`, `streaks`, and for a record
+`emptyRecord`, `recordFrom(base)` (base + pending, for the screen), `addSnapshot`, `addEntries`,
+`resetRecord`. It has no browser globals, so the Worker bundles the same file.
 
 ### 3. Syncing
 
@@ -135,9 +138,16 @@ POST /records/sync
 ### 4. Server: a `StatsRecord` Durable Object
 
 - New SQLite-backed class `StatsRecord`, one instance per record (`idFromName(sha256(code))`),
-  wrangler migration `v3`. Tables: `totals` (one JSON row), `results (at, won)`, `badges (id,
-  earnedAt)`, `batches (id, device, at, receivedAt, json)` for de-duplication and debugging,
-  `devices (id, firstSeen, lastSeen)` for the "3 devices" line.
+  wrangler migration `v3`. Tables:
+  - `record` — **one JSON row**: the `StatsMerge` record (totals with badges, the results list,
+    the streak seeds, the last reset). One row keeps a sync to a few rows read however long the
+    history is (the free plan counts every row read); at ~20 bytes a match the results fit the
+    8 MB row limit for hundreds of thousands of matches.
+  - `batches (id, device, receivedAt, json)` — every batch as received, with its entries and their
+    times: de-duplication (`id`), debugging, and **rebuilding after a late reset** (§6).
+  - `snapshots (device, at, json)` — each linking device's stats with the time it linked, for the
+    same rebuild.
+  - `devices (id, firstSeen, lastSeen)` for the "3 devices" line.
 - Endpoints (all `POST`, code in the body — never in the URL):
   - `/records` → `{ code }` — create a record, with the first device's stats as its first batch.
   - `/records/sync` — as above.
@@ -164,6 +174,11 @@ Reset on any linked device resets **the record**, i.e. every device (badges kept
 up as a reset event with its time; the server zeroes the totals, clears the streak list, sets
 `since`, and drops any match entry finished **before** that time that arrives later (an offline
 device catching up); its matches after the reset still count. The two-tap reset button text becomes "Tap again to reset on all linked devices".
+
+The reset itself can arrive late, from a device that reset while offline after other devices had
+already synced matches played **after** it. So the server rebuilds: `resetRecord`, then adds back
+every stored entry and snapshot dated after the reset (`batches`, `snapshots`). A reset older than
+the record's last one changes nothing. The P0 test covers both orders.
 
 ### 7. Stats screen
 
@@ -200,9 +215,76 @@ device catching up); its matches after the reset still count. The two-tap reset 
   requests before they reach a DO; guessing a 60-bit code isn't feasible within the cap.
 - **Two tabs on one device** both write `pending` — the same last-write-wins risk as today's stats.
   Low impact; it could use the `storage` event later.
-- **Free-plan storage and row-write limits** for SQLite Durable Objects: check the current limits page
-  in P0. At personal scale (a few KB per record plus about 1 KB per match) it should be a rounding
-  error.
+- **Streak badges can come early.** While a device is offline, the others can't see its losses, so a
+  streak looks longer until it syncs. A `win_streak_*` badge earned in that gap stays: badges are never
+  taken back. The streak **numbers** always settle to the true values once everything has synced. Only
+  streak badges can be affected — every other badge reads totals that only grow (P0 test).
+- **Free-plan limits** (confirmed in P0, below): a sync writes about 5 rows and reads about 3, so
+  the 100,000 rows written a day allow roughly 20,000 syncs a day; storage is a few KB per record plus
+  about 1–2 KB per match against 1 GB per object and 5 GB per account. A rounding error at personal
+  scale.
+
+---
+
+## P0 results (2026-11-25)
+
+### Free-plan limits
+
+From Cloudflare's [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/)
+and [limits](https://developers.cloudflare.com/durable-objects/platform/limits/) pages (updated
+2026-11-13) and [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
+(2026-11-25):
+
+| Free plan | Limit |
+|---|---|
+| Durable Object requests | 100,000 a day |
+| Durable Object duration | 13,000 GB-s a day |
+| SQLite rows read / written | 5 million / 100,000 a day |
+| SQLite stored data | 5 GB per account; 1 GB per object (the limits page's FAQ; its table says 10 GB without naming the plan) |
+| One row, string or BLOB | 8 MB; one SQL statement 100 KB |
+| Worker requests | 100,000 a day; 10 ms CPU per request |
+| Over a daily limit | further operations of that type fail until 00:00 UTC |
+
+The pricing page puts the start of storage billing for SQLite-backed objects in January 2026 (no
+earlier than the 7th). At a few KB per record it doesn't matter here. The rows-per-sync figures
+under Risks are estimates for the P2 schema, not measured yet.
+
+### The test
+
+`server/test/stats-merge.test.mjs`, part of `npm test` in `server/`. It plays 40 seeded self-play
+matches (all seats Beginner; `STATS_MATCHES=200` passes too) and adds made-up Genín grades, quizzes,
+questionable plays and suit signals so every stat moves; about one match in seven is abandoned (hands
+count, the match doesn't). Then:
+
+1. **Three devices that sync at random times** (three seeds) end with the same record as one device:
+   every number equal (Your signals within float rounding), streaks included, and every badge one
+   device would earn. Each device's screen shows the same once it has synced.
+2. **Arrival order** doesn't matter: the same matches folded in three shuffled orders give the same
+   totals.
+3. **Reset on one device**, synced at once or arriving late, with older matches from offline devices
+   arriving after it: the same as one device that reset then; badges from before are kept.
+4. **Devices with stats from before linking:** everything but the streaks equals one device; the
+   streaks follow §5.
+5. Unit checks: streaks, badge dates, unknown future fields, an old reset.
+
+Planted bugs each make tests fail: adding a "largest" instead of keeping the max, a loss that doesn't
+break the streak, a reset that keeps older matches, a badge that takes the later date.
+
+### Findings
+
+- **Fixed — the best streak can't be a running max.** With one device offline, the record can hold
+  wins without the losses between them (wins on the phone sync, the laptop's losses come later). A
+  running max kept that too-long streak forever (the test caught 5 against a true 4). Both streaks
+  are now worked out again from all the results on every change, plus the best streak any device
+  brought when it linked (`bestSeed`).
+- **Streak badges can come early** (above, Risks). Accepted.
+- **A late reset needs the stored matches and snapshots** with their times, so the server can add back
+  what came after it (§4, §6).
+- **One row for the record**, so the free plan's rows-read count doesn't grow with the history (§4).
+- `DEFAULT_STATS` moved from `PlayerStats.js` to `StatsMerge.js` (identical; `PlayerStats` imports
+  it). No change in play or stats; the app loads and the Stats screen works.
+- Under the current rules a hand is never `blocked` or tied: four passes means the chain is closed,
+  and the closer wins a tie on pips. Those counters stay at 0.
 
 ---
 
@@ -210,7 +292,7 @@ device catching up); its matches after the reset still count. The two-tap reset 
 
 | Phase | What | Ships as |
 |---|---|---|
-| **P0** | Confirm the free-plan limits. Build `StatsMerge.js` and a test that replays self-play matches **in sequence on one device** and **split at random across 3 "devices" then merged**: every total and badge must match exactly; streaks must match when the split keeps time order. | nothing user-facing |
+| **P0** ✅ 2026-11-25 | Confirm the free-plan limits. Build `StatsMerge.js` and a test that replays self-play matches **in sequence on one device** and **split at random across 3 "devices" then merged**: every total and badge must match exactly; streaks must match when the split keeps time order. | nothing user-facing |
 | **P1** | `PlayerStats` → `base` + `pending` via `StatsMerge`. No network. Stats must be identical before and after (test on a saved real stats object). | patch |
 | **P2** | `StatsRecord` DO + `/records` endpoints + server tests (`server/test/stats-record.test.mjs`), `StatsSync.js` client, Stats screen UI, `#sync=` link, EN/ES strings. | minor |
 | **P3** | QR code for the link, new-code ("rotate") option, delete records idle for 2 years, maybe the `storage` event for multiple tabs. | patch/minor |

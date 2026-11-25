@@ -1,45 +1,8 @@
 import { StorageService } from './StorageService.js';
 import { SignalProfile } from '../ai/SignalProfile.js';
+import { DEFAULT_STATS } from './StatsMerge.js';
 
 const STORAGE_KEY = '7fichas_stats';
-
-const DEFAULT_STATS = {
-    version: 1,
-    since: null, // timestamp of the last reset; null = counting since first play
-    matches: {
-        played: 0, won: 0, lost: 0,
-        currentStreak: 0, bestWinStreak: 0,
-        largestWinMargin: 0, largestDeficitOvercome: 0,
-        zapatosGiven: 0, zapatosReceived: 0
-    },
-    hands: {
-        played: 0, won: 0, lost: 0, tied: 0,
-        byReason: {
-            domino: { won: 0, lost: 0 },
-            closed: { won: 0, lost: 0 },
-            blocked: { won: 0, lost: 0 }
-        },
-        largestScore: 0, largestSurrender: 0
-    },
-    cerrado: {
-        // teamTotal / teamWon: ALL cerrado hands (any closer) and those our team won.
-        // teamClosed / teamClosedWon: closes initiated by our team (you or partner).
-        // youClosed / partnerClosed: closes by that seat that our team WON.
-        teamTotal: 0, teamWon: 0, teamClosed: 0, teamClosedWon: 0,
-        youClosed: 0, partnerClosed: 0,
-        opponentTotal: 0, largestScore: 0, largestSurrender: 0,
-        youClosedLargestScore: 0
-    },
-    coaching: {
-        geninAgreements: 0, geninTotal: 0,
-        handOverridesWon: 0,
-        quizTotalScore: 0, quizAttempts: 0, bestQuizScore: 0
-    },
-    // Your suit signals vs public expectation, per type (ai/SignalProfile.js):
-    // the Stats screen's "Your signals".
-    style: new SignalProfile().toJSON(),
-    badges: []
-};
 
 function deepMerge(defaults, stored) {
     const result = Object.assign({}, defaults);
