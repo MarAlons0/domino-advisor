@@ -17,6 +17,7 @@ _Nothing open — next items come from Medium._
 - [ ] **Pass indicators on UI (5)** — keep showing, next to each player, which numbers they have passed on. Today a "Pass" badge flashes for 4 seconds and after that the pass is only in the log. `[feature]`
 - [ ] **Named AI players (UX-B)** — give the AI opponents names. `[feature]`
 - [ ] **Re-run the max-cerrado harness numbers** — before v1.5.1 the harness dropped every match-ending hand, so the empirical maxima in [docs/MAX_CERRADO.md](docs/MAX_CERRADO.md) and the white paper (≈92 rigged / ≈78 natural) were sampled without the hands most likely to carry big hauls. Re-run `--max-cerrado` (with `--max-disparity-deals`, `--cooperative-losers`, `--random-losers --force-cerrar`) and update both docs if the maxima move. The exhaustive 103-pip ceiling (`tools/cerrado-search.js`) is unaffected. `[chore]`
+- [ ] **Consolidated record across devices** — Games played on different devices should all be counted towards the person's total `[feature]`
 
 ## 🟢 Low / Nice to have
 - [ ] **Harness/production parity for master settings** — make `setupMatch` apply the same per-difficulty configuration that main.js does in real play (currently master gets `randomizeTolerance = 5` in production but 0 in the harness). The v1.2.0 → v1.2.1 freeze bug would have been caught by self-play if this parity existed. `[chore]`
