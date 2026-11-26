@@ -17,144 +17,39 @@ globalThis.localStorage = {
 const { PlayerStats } = await import('../../docs/js/stats/PlayerStats.js');
 const { BadgeSystem } = await import('../../docs/js/stats/BadgeSystem.js');
 const SM = await import('../../docs/js/stats/StatsMerge.js');
-const { SIGNAL_TYPES } = await import('../../docs/js/ai/SignalProfile.js');
-const { SmartAI } = await import('../../docs/js/ai/SmartAI.js');
-const { HandTracker } = await import('../../docs/js/ai/HandTracker.js');
-const { PlayerView } = await import('../../docs/js/ai/PlayerView.js');
-const { Game } = await import('../../docs/js/engine/Game.js');
+const { makeTrace, recordMatch, assertSameStats, seeded, MINUTE } = await import('./helpers/stats-trace.mjs');
 
 const MATCHES = Number(process.env.STATS_MATCHES || 40);
-const realRandom = Math.random;
-const seeded = (a) => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-const withSeed = (seed, fn) => { Math.random = seeded(seed); try { return fn(); } finally { Math.random = realRandom; } };
 const clone = (x) => JSON.parse(JSON.stringify(x));
-const T0 = Date.UTC(2026, 10, 1);
-const MINUTE = 60_000;
-
-// ---- The matches ------------------------------------------------------------
-
-/** One self-play match, all seats Beginner: each hand's end data and the match result. */
-function selfPlayMatch() {
-    const game = new Game();
-    const ai = new SmartAI();
-    const tracker = new HandTracker();
-    ai.setHandTracker(tracker);
-    const views = [0, 1, 2, 3].map(i => new PlayerView(i, tracker));
-    ai.setPlayerViews(views);
-    for (let i = 0; i < 4; i++) ai.setDifficulty(i, 'beginner');
-    game.onPlay = (d) => {
-        const l = d.openEndsBefore?.left ?? null, r = d.openEndsBefore?.right ?? null;
-        ai.recordPlay(d.player, d.tile, d.end, l, r);
-        tracker.recordPlay(d.player, d.tile);
-        for (const v of views) v.recordPlayObservation(d.player, d.tile, d.end, l, r);
-    };
-    game.onPass = (d) => {
-        const s = game.getState();
-        ai.recordPass(d.player, s.chain.leftEnd, s.chain.rightEnd);
-        tracker.recordPass(d.player, s.chain.leftEnd, s.chain.rightEnd);
-    };
-    const hands = [];
-    let end = null;
-    game.onHandEnd = (d) => hands.push({
-        reason: d.reason, winningTeam: d.winningTeam, points: d.points,
-        matchScores: d.matchScores, closingPlayer: d.closingPlayer,
-    });
-    game.onMatchEnd = (d) => { end = { winner: d.winner, finalScores: d.finalScores }; };
-    const startHand = () => {
-        const s = game.getState();
-        tracker.initHand(s.hands[0]);
-        for (let i = 0; i < 4; i++) { views[i].resetAffinities(); views[i].initOwnHand(s.hands[i]); }
-    };
-    ai.resetForNewHand();
-    game.newMatch();
-    startHand();
-    for (let tick = 0; end === null; tick++) {
-        if (tick > 100_000) throw new Error('match did not end');
-        const s = game.getState();
-        if (s.gamePhase === 'playing') {
-            const move = ai.chooseMove(s, s.currentPlayer);
-            if (move === null) game.pass();
-            else game.playTurn(move.tile, move.end, { reasoning: move.reasoning });
-        } else if (s.gamePhase === 'handOver') {
-            ai.resetForNewHand();
-            game.newHand();
-            startHand();
-        } else break;
-    }
-    return { hands, end };
-}
-
-const rng = seeded(20261125);
-const int = (lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
-const pick = (arr) => arr[Math.floor(rng() * arr.length)];
-
-/**
- * The trace: real hands and results, plus made-up signals (Your signals), a
- * questionable play now and then (hands won anyway), Genín grades and quizzes.
- * About one match in seven is abandoned: some hands, no result.
- */
-const TRACE = withSeed(777, () => Array.from({ length: MATCHES }, (_, i) => {
-    const { hands, end } = selfPlayMatch();
-    const abandoned = hands.length > 1 && rng() < 0.15;
-    const kept = abandoned ? hands.slice(0, int(1, hands.length - 1)) : hands;
-    return {
-        at: T0 + (i + 1) * 30 * MINUTE,
-        hands: kept.map(data => ({
-            data,
-            override: rng() < 0.25,
-            signals: Array.from({ length: int(0, 4) }, () => ({
-                type: pick(SIGNAL_TYPES), held: int(0, 4), expected: 0.2 + rng() * 2.8,
-            })),
-        })),
-        end: abandoned ? null : {
-            data: end,
-            humanStats: { optimal: int(0, 15), good: int(0, 8), questionable: int(0, 4), mistake: int(0, 3) },
-            quizStats: rng() < 0.4
-                ? (() => { const n = int(1, 3), total = int(0, 100 * n); return { totalQuizzes: n, totalScore: total, avgScore: total / n }; })()
-                : { totalQuizzes: 0, totalScore: 0, avgScore: 0 },
-        },
-    };
-}));
-
-// ---- Recording, the way main.js does ----------------------------------------
-
+const TRACE = makeTrace(MATCHES);
 const badgeSystem = new BadgeSystem();
-const WITH_OVERRIDE = { currentHand: { plays: [{ isHuman: true, evaluation: 'mistake' }] } };
-const NO_OVERRIDE = { currentHand: { plays: [] } };
 
-function recordMatch(ps, match, { badges = true } = {}) {
-    ps.resetMatchSession();
-    for (const h of match.hands) {
-        ps.recordHandResult(h.data, h.override ? WITH_OVERRIDE : NO_OVERRIDE);
-        if (h.signals.length) ps.recordStyleHand(h.signals);
-        if (badges) badgeSystem.checkHandBadges(ps.get());
-    }
-    if (match.end) {
-        ps.recordCoachingData(match.end.humanStats, match.end.quizStats);
-        ps.recordMatchResult(match.end.data);
-        if (badges) badgeSystem.checkMatchBadges(ps.get());
-    }
+/** A recorder with nothing saved yet. */
+function freshRecorder() {
+    mem.delete('7fichas_stats');
+    const ps = new PlayerStats();
+    ps.load();
+    return ps;
 }
 
 /** A device that never syncs: today's app. */
 function oneDevice(matches, { resetAt = null } = {}) {
-    const ps = new PlayerStats();
-    ps._stats = SM.emptyStats();
+    const ps = freshRecorder();
     for (const m of matches) {
         if (resetAt !== null && m.at > resetAt && ps.get().since !== resetAt) {
             ps.reset();
             ps.get().since = resetAt;
         }
-        recordMatch(ps, m);
+        recordMatch(ps, m, { badgeSystem });
     }
     return ps.get();
 }
 
-/** One match recorded into zeros — that is its delta. */
-function matchEntry(recorder, match) {
-    recorder._stats = SM.emptyStats();
-    recordMatch(recorder, match, { badges: false });
-    return { at: match.at, won: match.end ? match.end.data.winner === 0 : null, delta: recorder.get() };
+/** One match recorded on its own, from nothing — that is its delta. */
+function matchEntry(match) {
+    const ps = freshRecorder();
+    recordMatch(ps, match);
+    return { at: match.at, won: match.end ? match.end.data.winner === 0 : null, delta: ps.get() };
 }
 
 function checkBadges(stats) {
@@ -189,7 +84,6 @@ class ServerSim {
 class Device {
     constructor(server) {
         this.server = server;
-        this.recorder = new PlayerStats();
         this.base = SM.emptyStats();
         this.pending = [];
         this.badges = [];
@@ -204,7 +98,7 @@ class Device {
         return r.totals;
     }
     play(match) {
-        this.pending.push(matchEntry(this.recorder, match));
+        this.pending.push(matchEntry(match));
         const v = this.view();
         checkBadges(v);
         this.badges = v.badges;
@@ -245,21 +139,7 @@ function assertBadges(actual, expected, label) {
     assert.ok(extra.every(id => STREAK_BADGE.test(id)), `${label}: extra badges ${extra.join(', ')}`);
 }
 
-/** Every number equal (Your signals sums within float rounding); badges by id. */
-function assertSameRecord(actual, expected, { skip = [] } = {}) {
-    const walk = (a, e, path) => {
-        for (const key of new Set([...Object.keys(a ?? {}), ...Object.keys(e ?? {})])) {
-            const p = path ? `${path}.${key}` : key;
-            if (p === 'badges' || skip.includes(p)) continue;
-            const x = a?.[key], y = e?.[key];
-            if (y !== null && typeof y === 'object') walk(x, y, p);
-            else if (typeof y === 'number' && !Number.isInteger(y)) {
-                assert.ok(Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(y)), `${p}: ${x} vs ${y}`);
-            } else assert.equal(x, y, p);
-        }
-    };
-    walk(actual, expected, '');
-}
+const assertSameRecord = (actual, expected, opts) => assertSameStats(assert, actual, expected, opts);
 
 // ---- Tests -------------------------------------------------------------------
 
@@ -276,8 +156,8 @@ test('the trace moves every stat', () => {
     walk(s, '');
     // Never happen under the rules: a tie (the closer wins equal pips) and a
     // blocked hand (four passes means the chain is closed). Can be 0 by chance
-    // on a short trace: zapatos, comebacks, the current streak at the end.
-    const allowed = /^(hands\.tied|hands\.byReason\.blocked\.|matches\.(zapatos|largestDeficitOvercome|currentStreak))/;
+    // on a short trace: zapatos, the current streak at the end.
+    const allowed = /^(hands\.tied|hands\.byReason\.blocked\.|matches\.(zapatos|currentStreak))/;
     const unexpected = zero.filter(p => !allowed.test(p));
     assert.deepEqual(unexpected, [], `stats the trace never moved: ${unexpected.join(', ')}`);
     assert.ok(s.matches.played >= MATCHES * 0.7 && s.hands.played > s.matches.played, 'played matches and hands');
@@ -305,8 +185,7 @@ test('three devices that sync now and then end with the same record as one devic
 });
 
 test('the order matches reach the record in does not change it', () => {
-    const recorder = new PlayerStats();
-    const entries = TRACE.map(m => matchEntry(recorder, m));
+    const entries = TRACE.map(m => matchEntry(m));
     const fold = (list) => SM.addEntries(SM.emptyRecord(), clone(list)).totals;
     const inOrder = fold(entries);
     for (const seed of [4, 5, 6]) {

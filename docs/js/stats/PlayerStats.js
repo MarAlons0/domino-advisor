@@ -1,6 +1,6 @@
 import { StorageService } from './StorageService.js';
 import { SignalProfile } from '../ai/SignalProfile.js';
-import { DEFAULT_STATS } from './StatsMerge.js';
+import { emptyStats, recordFrom, addEntries, resetRecord } from './StatsMerge.js';
 
 const STORAGE_KEY = '7fichas_stats';
 
@@ -18,9 +18,21 @@ function deepMerge(defaults, stored) {
     return result;
 }
 
+/**
+ * Your lifetime stats on this device.
+ *
+ * Each thing recorded — a hand, its suit signals, a match's coaching data, a
+ * match result — is first written into an all-zero stats object: that is its
+ * delta. The delta is then added to the totals by StatsMerge (counts add,
+ * "largest" fields keep the max, signal sums add; the win streaks come from
+ * the match results in order). That is how a record from several devices is
+ * put together (docs/CROSS_DEVICE_STATS.md), so one device and several end up
+ * with the same numbers from the same code.
+ */
 export class PlayerStats {
     constructor() {
-        this._stats = null;
+        this._record = null; // StatsMerge record; get() is its totals
+        this._lastAt = 0;
         this._matchSession = { maxDeficit: 0 };
     }
 
@@ -29,8 +41,8 @@ export class PlayerStats {
         // Merge into a copy: sections missing from storage would otherwise be
         // the defaults' own objects, and recording into them would change
         // what reset() starts from.
-        this._stats = deepMerge(JSON.parse(JSON.stringify(DEFAULT_STATS)), stored || {});
-        return this._stats;
+        this._record = recordFrom(deepMerge(emptyStats(), stored || {}));
+        return this._record.totals;
     }
 
     save(stats) {
@@ -38,20 +50,41 @@ export class PlayerStats {
     }
 
     get() {
-        if (!this._stats) this.load();
-        return this._stats;
+        if (!this._record) this.load();
+        return this._record.totals;
     }
 
     /**
      * Start the count over. Earned badges are kept.
      */
     reset() {
-        const badges = this.get().badges;
-        this._stats = JSON.parse(JSON.stringify(DEFAULT_STATS));
-        this._stats.badges = badges;
-        this._stats.since = Date.now();
-        this.save(this._stats);
-        return this._stats;
+        this.get();
+        resetRecord(this._record, this._now());
+        this.save(this._record.totals);
+        return this._record.totals;
+    }
+
+    /**
+     * A time for the next entry: never before the last one or the last reset,
+     * so matches stay in the order they were played even if the clock moves back.
+     */
+    _now() {
+        this._lastAt = Math.max(Date.now(), this._lastAt + 1, (this._record?.resetAt ?? 0) + 1);
+        return this._lastAt;
+    }
+
+    /**
+     * Record one thing: `fill` writes its numbers into an all-zero stats
+     * object, which is added to the totals.
+     * @param {boolean|null} won - a match result (true/false), or null for anything else
+     * @param {(delta: object) => void} fill
+     */
+    _add(won, fill, { save = true } = {}) {
+        this.get();
+        const delta = emptyStats();
+        fill(delta);
+        addEntries(this._record, [{ at: this._now(), won, delta }]);
+        if (save) this.save(this._record.totals);
     }
 
     /**
@@ -59,11 +92,13 @@ export class PlayerStats {
      * @param {Array<{type: string, held: number, expected: number}>} signals
      */
     recordStyleHand(signals) {
-        const stats = this.get();
-        const profile = new SignalProfile(stats.style);
-        for (const { type, held, expected } of signals) profile.observe(type, held, expected);
-        profile.commitHand();
-        stats.style = profile.toJSON();
+        // Saved by the caller, after the hand's badge check (as before).
+        this._add(null, (delta) => {
+            const profile = new SignalProfile();
+            for (const { type, held, expected } of signals) profile.observe(type, held, expected);
+            profile.commitHand();
+            delta.style = profile.toJSON();
+        }, { save: false });
     }
 
     resetMatchSession() {
@@ -76,29 +111,9 @@ export class PlayerStats {
      * @param {object} matchHistory - Current match history object
      */
     recordHandResult(data, matchHistory) {
-        const stats = this.get();
         const { reason, winningTeam, points, matchScores, closingPlayer } = data;
 
-        // Basic hand counts
-        stats.hands.played++;
-        if (winningTeam === 0) stats.hands.won++;
-        else if (winningTeam === 1) stats.hands.lost++;
-        else stats.hands.tied++;
-
-        // By-reason breakdown
-        const reasonKey = reason === 'domino' ? 'domino' : reason === 'closed' ? 'closed' : 'blocked';
-        if (winningTeam === 0) stats.hands.byReason[reasonKey].won++;
-        else if (winningTeam === 1) stats.hands.byReason[reasonKey].lost++;
-
-        // Score records
-        if (winningTeam === 0 && points > 0) {
-            stats.hands.largestScore = Math.max(stats.hands.largestScore, points);
-        }
-        if (winningTeam === 1 && points > 0) {
-            stats.hands.largestSurrender = Math.max(stats.hands.largestSurrender, points);
-        }
-
-        // Deficit tracking
+        // Deficit tracking (for the comeback, recorded with the match result)
         if (matchScores) {
             const opponentLead = matchScores[1] - matchScores[0];
             if (opponentLead > 0) {
@@ -106,89 +121,87 @@ export class PlayerStats {
             }
         }
 
-        // Cerrado stats
-        if (reason === 'closed') {
-            stats.cerrado.teamTotal++;
-            // Closes our team initiated, and how many of them we won
-            if (closingPlayer === 0 || closingPlayer === 2) {
-                stats.cerrado.teamClosed++;
-                if (winningTeam === 0) stats.cerrado.teamClosedWon++;
-            }
-            if (winningTeam === 0) {
-                stats.cerrado.teamWon++;
-                if (closingPlayer === 0) {
-                    stats.cerrado.youClosed++;
-                    if (points > 0) {
-                        stats.cerrado.youClosedLargestScore = Math.max(stats.cerrado.youClosedLargestScore, points);
-                    }
-                } else if (closingPlayer === 2) stats.cerrado.partnerClosed++;
-                if (points > 0) {
-                    stats.cerrado.largestScore = Math.max(stats.cerrado.largestScore, points);
-                }
-            } else if (winningTeam === 1) {
-                if (points > 0) {
-                    stats.cerrado.largestSurrender = Math.max(stats.cerrado.largestSurrender, points);
-                }
-            }
-            // Opponent-initiated cerrados (players 1 or 3 closed)
-            if (closingPlayer === 1 || closingPlayer === 3) {
-                stats.cerrado.opponentTotal++;
-            }
-        }
+        this._add(null, (d) => {
+            // Basic hand counts
+            d.hands.played++;
+            if (winningTeam === 0) d.hands.won++;
+            else if (winningTeam === 1) d.hands.lost++;
+            else d.hands.tied++;
 
-        // Hand overrides won: human team won despite questionable/mistake plays
-        if (winningTeam === 0 && matchHistory) {
-            const currentHand = matchHistory.currentHand;
-            if (currentHand) {
-                const hasQuestionable = currentHand.plays.some(p =>
-                    p.isHuman && (p.evaluation === 'questionable' || p.evaluation === 'mistake')
-                );
-                if (hasQuestionable) stats.coaching.handOverridesWon++;
-            }
-        }
+            // By-reason breakdown
+            const reasonKey = reason === 'domino' ? 'domino' : reason === 'closed' ? 'closed' : 'blocked';
+            if (winningTeam === 0) d.hands.byReason[reasonKey].won++;
+            else if (winningTeam === 1) d.hands.byReason[reasonKey].lost++;
 
-        this.save(stats);
+            // Score records (kept as the max when added up)
+            if (winningTeam === 0 && points > 0) d.hands.largestScore = points;
+            if (winningTeam === 1 && points > 0) d.hands.largestSurrender = points;
+
+            // Cerrado stats
+            if (reason === 'closed') {
+                d.cerrado.teamTotal++;
+                // Closes our team initiated, and how many of them we won
+                if (closingPlayer === 0 || closingPlayer === 2) {
+                    d.cerrado.teamClosed++;
+                    if (winningTeam === 0) d.cerrado.teamClosedWon++;
+                }
+                if (winningTeam === 0) {
+                    d.cerrado.teamWon++;
+                    if (closingPlayer === 0) {
+                        d.cerrado.youClosed++;
+                        if (points > 0) d.cerrado.youClosedLargestScore = points;
+                    } else if (closingPlayer === 2) d.cerrado.partnerClosed++;
+                    if (points > 0) d.cerrado.largestScore = points;
+                } else if (winningTeam === 1) {
+                    if (points > 0) d.cerrado.largestSurrender = points;
+                }
+                // Opponent-initiated cerrados (players 1 or 3 closed)
+                if (closingPlayer === 1 || closingPlayer === 3) d.cerrado.opponentTotal++;
+            }
+
+            // Hand overrides won: human team won despite questionable/mistake plays
+            if (winningTeam === 0 && matchHistory) {
+                const currentHand = matchHistory.currentHand;
+                if (currentHand) {
+                    const hasQuestionable = currentHand.plays.some(p =>
+                        p.isHuman && (p.evaluation === 'questionable' || p.evaluation === 'mistake')
+                    );
+                    if (hasQuestionable) d.coaching.handOverridesWon++;
+                }
+            }
+        });
     }
 
     /**
-     * Record the result of a completed match.
+     * Record the result of a completed match. The win streaks follow from it
+     * (StatsMerge works them out from the match results in order).
      * @param {object} data - Match end data { winner, finalScores }
      */
     recordMatchResult(data) {
-        const stats = this.get();
         const { winner, finalScores } = data;
+        const maxDeficit = this._matchSession.maxDeficit;
 
-        stats.matches.played++;
-        if (winner === 0) {
-            stats.matches.won++;
-            stats.matches.currentStreak++;
-            stats.matches.bestWinStreak = Math.max(stats.matches.bestWinStreak, stats.matches.currentStreak);
+        this._add(winner === 0, (d) => {
+            d.matches.played++;
+            if (winner === 0) {
+                d.matches.won++;
 
-            // Win margin
-            const margin = finalScores[0] - finalScores[1];
-            if (margin > 0) {
-                stats.matches.largestWinMargin = Math.max(stats.matches.largestWinMargin, margin);
+                // Win margin
+                const margin = finalScores[0] - finalScores[1];
+                if (margin > 0) d.matches.largestWinMargin = margin;
+
+                // Comeback
+                if (maxDeficit >= 80) d.matches.largestDeficitOvercome = maxDeficit;
+
+                // Zapato given (opponent scored 0)
+                if (finalScores[1] === 0) d.matches.zapatosGiven++;
+            } else {
+                d.matches.lost++;
+
+                // Zapato received (we scored 0)
+                if (finalScores[0] === 0) d.matches.zapatosReceived++;
             }
-
-            // Comeback
-            if (this._matchSession.maxDeficit >= 80) {
-                stats.matches.largestDeficitOvercome = Math.max(
-                    stats.matches.largestDeficitOvercome,
-                    this._matchSession.maxDeficit
-                );
-            }
-
-            // Zapato given (opponent scored 0)
-            if (finalScores[1] === 0) stats.matches.zapatosGiven++;
-        } else {
-            stats.matches.lost++;
-            stats.matches.currentStreak = 0;
-
-            // Zapato received (we scored 0)
-            if (finalScores[0] === 0) stats.matches.zapatosReceived++;
-        }
-
-        this.save(stats);
+        });
     }
 
     /**
@@ -197,20 +210,18 @@ export class PlayerStats {
      * @param {object} quizStats - From matchHistory.getQuizStats()
      */
     recordCoachingData(humanStats, quizStats) {
-        const stats = this.get();
+        this._add(null, (d) => {
+            // Genín agreement rate
+            d.coaching.geninAgreements = (humanStats.optimal || 0) + (humanStats.good || 0);
+            d.coaching.geninTotal = (humanStats.optimal || 0) + (humanStats.good || 0) +
+                                    (humanStats.questionable || 0) + (humanStats.mistake || 0);
 
-        // Genín agreement rate
-        stats.coaching.geninAgreements += (humanStats.optimal || 0) + (humanStats.good || 0);
-        stats.coaching.geninTotal += (humanStats.optimal || 0) + (humanStats.good || 0) +
-                                      (humanStats.questionable || 0) + (humanStats.mistake || 0);
-
-        // Quiz stats
-        if (quizStats && quizStats.totalQuizzes > 0) {
-            stats.coaching.quizTotalScore += quizStats.totalScore;
-            stats.coaching.quizAttempts += quizStats.totalQuizzes;
-            stats.coaching.bestQuizScore = Math.max(stats.coaching.bestQuizScore, quizStats.avgScore);
-        }
-
-        this.save(stats);
+            // Quiz stats
+            if (quizStats && quizStats.totalQuizzes > 0) {
+                d.coaching.quizTotalScore = quizStats.totalScore;
+                d.coaching.quizAttempts = quizStats.totalQuizzes;
+                d.coaching.bestQuizScore = quizStats.avgScore;
+            }
+        });
     }
 }

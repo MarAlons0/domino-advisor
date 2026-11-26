@@ -1,8 +1,9 @@
 # Consolidated record across devices — Design
 
-**Status:** design agreed 2026-11-25. P0 done 2026-11-25 (`StatsMerge.js` + tests, not shipped
-yet — see [P0 results](#p0-results-2026-11-25)); next: P1. Backlog: 🟡 Medium "Consolidated record
-across devices".
+**Status:** design agreed 2026-11-25. P0 and P1 done 2026-11-25, not shipped yet: `StatsMerge.js`,
+and `PlayerStats` recording through it (see [P0 results](#p0-results-2026-11-25),
+[P1 results](#p1-results-2026-11-25)). Next: ship P0+P1 as a patch, then P2. Backlog: 🟡 Medium
+"Consolidated record across devices".
 
 **Decided:**
 - Devices link with a **sync code + share link** — no accounts, logins or emails.
@@ -95,17 +96,23 @@ which is the request. (See [Alternatives considered](#alternatives-considered).)
 Each device keeps two objects of the same shape as today's stats:
 
 - **`base`** — the last totals it got from the record (or, before linking, its own stats).
-- **`pending`** — what it recorded since then that the record hasn't confirmed yet: a short list
-  of **per-match entries**, each a delta (counts added, maxima kept) with its finish time and result
-  — the hands of an abandoned match make an entry too — plus any newly earned badges. Entries keep
-  their own times so a reset made on another device can drop exactly the matches before it. On a
-  device that stays offline or unlinked a long time, entries past about 50 fold into one.
+- **`pending`** — what it recorded since then that the record hasn't confirmed yet: a list of
+  **entries**, one per thing recorded — a hand, its suit signals, a match's coaching data, a match
+  result — each a delta (counts added, maxima kept) with its time, and the result for a match
+  result. Plus any newly earned badges. (P1 changed this from one entry per match: with one per
+  thing recorded there's no open match entry to close when a match is abandoned or the app reloads
+  mid-match, and a reset in the middle of a match splits exactly as it does today.) Entries keep
+  their own times so a reset made on another device can drop exactly what came before it. About
+  10–15 entries a match; sent with their zero fields dropped. On a device that stays offline a long
+  time, entries past a few hundred fold into one.
 
 The Stats screen shows `merge(base, pending)`. When nothing is linked, `pending` folds straight into
 `base` — the same numbers as today, from the same code path.
 
-**Recording a hand or match** stays in `PlayerStats` with one change: it records into a fresh zero
-object (that *is* the delta — `max(0, x) = x` for the max fields), then merges that into `pending`.
+**Recording a hand or match** stays in `PlayerStats` (same methods, same callers) with one change,
+made in P1: each method writes into a fresh zero object (that *is* the delta — `max(0, x) = x` for
+the max fields), and `StatsMerge.addEntries` adds it to the device's record. Unlinked, that record
+is the saved `7fichas_stats`, as today. In P2, a linked device also keeps the entries in `pending`.
 The pure module `docs/js/stats/StatsMerge.js` (built in P0) holds `DEFAULT_STATS`, the merge rules
 above and the streak calculation: `addStats`, `mergeBadges`, `streaks`, and for a record
 `emptyRecord`, `recordFrom(base)` (base + pending, for the screen), `addSnapshot`, `addEntries`,
@@ -153,8 +160,8 @@ POST /records/sync
   - `/records/sync` — as above.
   - `/records/delete` — wipe the record (Stats screen: **Delete synced record**).
 - **Checks before anything is stored:** body under 64 KB, every number a non-negative integer within
-  sane bounds (a match entry adds one match and at most ~20 hands, a folded entry at most its own
-  match count; a hand is at most a few hundred points), timestamps not in the future. A record nobody has synced for 2 years can be deleted.
+  sane bounds (an entry adds at most one hand or one match, a folded entry at most what it folded; a
+  hand is at most a few hundred points), timestamps not in the future. A record nobody has synced for 2 years can be deleted.
 - Same `ALLOWED_ORIGINS` and CORS as rooms and suggestions.
 
 ### 5. Linking a device that already has stats
@@ -288,12 +295,61 @@ break the streak, a reset that keeps older matches, a badge that takes the later
 
 ---
 
+## P1 results (2026-11-25)
+
+`PlayerStats` now records through `StatsMerge`: each method (`recordHandResult`, `recordStyleHand`,
+`recordCoachingData`, `recordMatchResult`) fills a zero delta and adds it as an entry. Its callers
+(`main.js`, `StatsUI`) and the saved `7fichas_stats` are unchanged: no migration, and an older
+cached copy of the app still reads the same object.
+
+### The test
+
+`server/test/player-stats.test.mjs`, part of `npm test`. A frozen copy of the v1.21.1 recorder
+(`server/test/fixtures/PlayerStats-v1.21.1.mjs`) and today's play the same 40 matches, with a reset
+a third of the way in and an app reload in the middle of a match two thirds in. They start from:
+nothing saved; a stats object the app really saved (`fixtures/stats-saved.json`); and an older saved
+shape, from before Your signals and the newer cerrado and coaching fields. Right after loading and
+after **every** match, all numbers must be equal, the badges equal **with their dates**, and the
+saved object the same as what the screen shows. Also: the streaks follow the matches in the order
+played even when the device clock goes back, and `get()` keeps returning the same object (the Stats
+screen holds it).
+
+The trace (shared with P0's test, `server/test/helpers/stats-trace.mjs`) gained two made-up
+matches. Beginner self-play never came back from 80 down, so the comeback stat and badge were never
+tested: one win from 75 down (not a comeback) and one from 95 down.
+
+Ten planted bugs, six in the recorder and four in `StatsMerge`, each make tests fail. Two only
+failed after the test compared after every match: loading an older shape without filling in its
+missing fields (the first hand recorded fills them with zeros, which hid it), and the comeback
+threshold (hidden behind the larger comeback).
+
+### Findings
+
+- **Entries per thing recorded, not per match** (§2): simpler, and exact around resets and
+  reloads.
+- **Entry times never go backwards on a device:** each entry gets at least the last one's time + 1
+  ms, so a clock moved back can't reorder the streak. The old recorder counted in order of play
+  too.
+- **Adding a delta fills in missing fields**, so a saved object of an older shape repairs itself on
+  the first hand, besides the defaults filled in at load.
+- **Your signals sums** can differ from the old recorder in the last digit of a float: a hand's
+  sum is added at once instead of signal by signal. Invisible on the Stats screen.
+- **In the app:** a full match played through the app's own handlers (timers sped up from the
+  console, the person's moves made by script) recorded 7 hands (2 won, 5 lost), the loss, the
+  streak 2 → 0 with the best staying 2, the Genín grades and the signals. Saved equals shown, the
+  Stats screen after a reload shows the new totals, and there were no console errors.
+- **Shipping:** `StatsMerge.js` is a new file, so a returning visitor's service worker can't serve
+  a stale copy of it. A cached v1.21.1 `PlayerStats.js` stands alone (its defaults are inline). The
+  `domino-rooms` Worker doesn't import either, so it needs no redeploy.
+
+---
+
 ## Phases
 
 | Phase | What | Ships as |
 |---|---|---|
 | **P0** ✅ 2026-11-25 | Confirm the free-plan limits. Build `StatsMerge.js` and a test that replays self-play matches **in sequence on one device** and **split at random across 3 "devices" then merged**: every total and badge must match exactly; streaks must match when the split keeps time order. | nothing user-facing |
-| **P1** | `PlayerStats` → `base` + `pending` via `StatsMerge`. No network. Stats must be identical before and after (test on a saved real stats object). | patch |
+| **P1** ✅ 2026-11-25 | `PlayerStats` records through `StatsMerge` entries. No network. Stats must be identical before and after (test on a saved real stats object). Keeping `pending` for a linked device comes with P2. | patch |
 | **P2** | `StatsRecord` DO + `/records` endpoints + server tests (`server/test/stats-record.test.mjs`), `StatsSync.js` client, Stats screen UI, `#sync=` link, EN/ES strings. | minor |
 | **P3** | QR code for the link, new-code ("rotate") option, delete records idle for 2 years, maybe the `storage` event for multiple tabs. | patch/minor |
 
