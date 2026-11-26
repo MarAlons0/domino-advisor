@@ -7,7 +7,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Partnership Dominoes vs. AI',
-        'app.version': 'v1.21.1',
+        'app.version': 'v1.21.2',
         'app.createdBy': 'Created by',
 
         // Players
@@ -690,7 +690,7 @@ export const translations = {
         // App branding
         'app.title': '7 Fichas',
         'app.subtitle': 'Dominó de Parejas vs. AI',
-        'app.version': 'v1.21.1',
+        'app.version': 'v1.21.2',
         'app.createdBy': 'Creado por',
 
         // Players

@@ -3,6 +3,22 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.21.2] – 2026-11-25
+
+### Changed (internal)
+- **Groundwork for one record across devices.** Nothing changes on screen, and stats count exactly as before. Under the hood, each hand, its suit signals, a match's coaching data and a match result are now recorded as separate entries. Each entry is added to your totals the same way a record from several devices will be combined once devices can be linked. The design is in `docs/CROSS_DEVICE_STATS.md`.
+- New `docs/js/stats/StatsMerge.js` combines entries:
+  - counts add, and "largest" fields keep the maximum
+  - Your signals sums add
+  - badges are combined, keeping the earliest date
+  - the win streaks are worked out from the match results in the order played
+
+  It now holds the stats defaults, moved from `PlayerStats`. `PlayerStats` records through it. The saved `7fichas_stats` object and every caller are unchanged, so there's nothing to migrate.
+- Tests (44 server tests in all):
+  - `server/test/stats-merge.test.mjs` checks that one device and three devices syncing in any order end with the same totals and badges, including through resets, even one that arrives late.
+  - `server/test/player-stats.test.mjs` plays 40 matches on a frozen copy of the v1.21.1 recorder and on the new one. They start from no saved stats, from a real saved object and from an older saved shape, with a reset and a reload in the middle of a match. After every match, every number, badge date and saved object matches.
+- The rooms Worker doesn't use these files, so it needs no redeploy.
+
 ## [1.21.1] – 2026-11-21
 
 ### Changed (internal)

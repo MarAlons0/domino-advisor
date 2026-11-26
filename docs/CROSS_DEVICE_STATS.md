@@ -1,8 +1,8 @@
 # Consolidated record across devices — Design
 
-**Status:** design agreed 2026-11-25. P0 and P1 done 2026-11-25, not shipped yet: `StatsMerge.js`,
+**Status:** design agreed 2026-11-25. P0 and P1 done 2026-11-25, shipped in v1.21.2: `StatsMerge.js`,
 and `PlayerStats` recording through it (see [P0 results](#p0-results-2026-11-25),
-[P1 results](#p1-results-2026-11-25)). Next: ship P0+P1 as a patch, then P2. Backlog: 🟡 Medium
+[P1 results](#p1-results-2026-11-25)). Next: P2. Backlog: 🟡 Medium
 "Consolidated record across devices".
 
 **Decided:**
@@ -349,7 +349,7 @@ threshold (hidden behind the larger comeback).
 | Phase | What | Ships as |
 |---|---|---|
 | **P0** ✅ 2026-11-25 | Confirm the free-plan limits. Build `StatsMerge.js` and a test that replays self-play matches **in sequence on one device** and **split at random across 3 "devices" then merged**: every total and badge must match exactly; streaks must match when the split keeps time order. | nothing user-facing |
-| **P1** ✅ 2026-11-25 | `PlayerStats` records through `StatsMerge` entries. No network. Stats must be identical before and after (test on a saved real stats object). Keeping `pending` for a linked device comes with P2. | patch |
+| **P1** ✅ 2026-11-25 (v1.21.2) | `PlayerStats` records through `StatsMerge` entries. No network. Stats must be identical before and after (test on a saved real stats object). Keeping `pending` for a linked device comes with P2. | patch |
 | **P2** | `StatsRecord` DO + `/records` endpoints + server tests (`server/test/stats-record.test.mjs`), `StatsSync.js` client, Stats screen UI, `#sync=` link, EN/ES strings. | minor |
 | **P3** | QR code for the link, new-code ("rotate") option, delete records idle for 2 years, maybe the `storage` event for multiple tabs. | patch/minor |
 
