@@ -7,6 +7,8 @@
 //
 //   node tools/human-games.js <export.json>          report
 //   node tools/human-games.js <export.json> --json   the same numbers as JSON
+//   node tools/human-games.js a.json b.json ...      several exports, merged; a match
+//                                                    in more than one counts once
 //
 // Definitions
 // - Salida: the first tile of a hand. The first hand of a match must open with
@@ -20,21 +22,53 @@
 // - Showing: S is on at least one board end.
 
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 const args = process.argv.slice(2);
-const file = args.find(a => !a.startsWith('--'));
+const files = args.filter(a => !a.startsWith('--'));
 const asJson = args.includes('--json');
-if (!file) {
-    console.error('Usage: node tools/human-games.js <export.json> [--json]');
+if (!files.length) {
+    console.error('Usage: node tools/human-games.js <export.json> [more exports...] [--json]');
     process.exit(1);
 }
 
-const data = JSON.parse(readFileSync(file, 'utf8'));
-if (data.kind !== 'game-logs' || !Array.isArray(data.matches)) {
-    console.error(`${file} is not a 7 Fichas game-log export.`);
+// Each export is a full copy of what the device holds, so exports overlap.
+// A match never changes once saved, so its ID is its save time (ms) plus a
+// short hash of the hands dealt, which also keeps two devices' matches apart
+// if they ever share a millisecond. Matches seen in an earlier file are skipped.
+const matchId = (m) => `${m.date}|${createHash('sha1').update(JSON.stringify((m.hands || []).map(h => h.start))).digest('hex').slice(0, 12)}`;
+
+const exports = files.map(f => {
+    const d = JSON.parse(readFileSync(f, 'utf8'));
+    if (d.kind !== 'game-logs' || !Array.isArray(d.matches)) {
+        console.error(`${f} is not a 7 Fichas game-log export.`);
+        process.exit(1);
+    }
+    if (d.format !== 1) console.warn(`Warning: ${f} has export format ${d.format}; this reader knows format 1.`);
+    return d;
+});
+const fieldsKey = (d) => JSON.stringify(d.moveFields || null);
+if (new Set(exports.map(fieldsKey)).size > 1) {
+    console.error('These exports use different move layouts (moveFields); read them separately.');
     process.exit(1);
 }
-if (data.format !== 1) console.warn(`Warning: export format ${data.format}; this reader knows format 1.`);
+const seen = new Map();
+let duplicates = 0;
+for (const d of exports) {
+    for (const m of d.matches) {
+        const id = matchId(m);
+        if (seen.has(id)) { duplicates++; continue; }
+        seen.set(id, m);
+    }
+}
+const newest = exports.reduce((a, b) => ((b.exportedAt ?? '') > (a.exportedAt ?? '') ? b : a));
+const data = {
+    exportedAt: newest.exportedAt,
+    version: newest.version,
+    moveFields: exports[0].moveFields,
+    matches: [...seen.values()].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '')),
+};
+const file = files.length === 1 ? files[0] : `${files.length} exports (${data.matches.length} matches, ${duplicates} duplicates skipped)`;
 
 const F = Object.fromEntries((data.moveFields || ['seat', 'tile', 'end', 'leftEnd', 'rightEnd', 'coach']).map((f, i) => [f, i]));
 const parse = (k) => k.split('-').map(Number);           // '6-4' → [6, 4]
@@ -182,7 +216,7 @@ for (const match of data.matches) {
 
 // ── Report ─────────────────────────────────────────────────────────────────
 if (asJson) {
-    console.log(JSON.stringify({ file, exportedAt: data.exportedAt, version: data.version, ...T }, null, 2));
+    console.log(JSON.stringify({ file, files, duplicatesSkipped: duplicates, exportedAt: data.exportedAt, version: data.version, ...T }, null, 2));
     process.exit(0);
 }
 
