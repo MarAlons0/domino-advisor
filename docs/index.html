@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>7 Fichas v1.22.1</title>
+    <title>7 Fichas v1.22.2</title>
     <meta name="theme-color" content="#00d4ff">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-    <link rel="stylesheet" href="css/styles.css?v=50">
+    <link rel="stylesheet" href="css/styles.css?v=51">
 </head>
 <body>
     <header class="app-header">
         <div class="brand">
-            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.22.1</span></h1>
+            <h1><span data-i18n="app.title">7 Fichas</span> <span class="version" data-i18n="app.version">v1.22.2</span></h1>
             <p class="subtitle" data-i18n="app.subtitle">Partnership Dominoes vs. AI</p>
         </div>
         <p class="attribution"><span data-i18n="app.createdBy">Created by</span> <a href="https://looking4nature.com" target="_blank" rel="noopener">Mario Alonso</a></p>
@@ -391,6 +391,19 @@
                 </ul>
             </section>
 
+            <section class="help-section" id="help-devices">
+                <h3><span data-i18n="help.devices.title">Play on more than one device</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
+                <ul>
+                    <li data-i18n="help.devices.link" data-i18n-html><strong>Link them</strong> - On the device you play on most, open Stats (the trophy) and, under <em>Your devices</em>, tap <em>Link my devices</em>. Its stats start one shared record, and you get a sync code like <em>K7QM-4RTX-9HPB</em>. <em>Show code</em> shows it again later.</li>
+                    <li data-i18n="help.devices.join" data-i18n-html><strong>Add another device</strong> - On it, open Stats → <em>Your devices</em> → <em>I have a code</em>, type the code, tap <em>Next</em>, then <em>Link</em>. Or tap <em>Share link</em> on the first device and open the link on the other one. The stats already on the device that joins are added to the record; it tells you how many matches before you confirm.</li>
+                    <li data-i18n="help.devices.ios" data-i18n-html><strong>iPhone and iPad</strong> - 7 Fichas on the Home Screen keeps its own stats, separate from 7 Fichas in Safari. Link from where you play: if that's the Home Screen icon, type the code there, because a shared link opens in Safari.</li>
+                    <li data-i18n="help.devices.what" data-i18n-html><strong>What is combined</strong> - Matches, hands, cerrados, your agreement with Genín and Your signals add up; the "largest" records keep the higher one. Badges from every device are kept, and the combined record can earn badges no device had reached alone. <em>Quiz Me</em> history, settings and the games for <em>Export my games</em> stay on each device.</li>
+                    <li data-i18n="help.devices.streaks" data-i18n-html><strong>Streaks</strong> - When devices link, the best win streak is the highest of theirs, and the current streak carries on from the first device that had matches: the app can't tell the order of earlier games played on different devices. After that, streaks follow your matches in order, whichever device you play on.</li>
+                    <li data-i18n="help.devices.sync" data-i18n-html><strong>Staying in step</strong> - Each match is sent when it ends; the other devices catch up when the app opens or you open Stats. Played offline? It's sent once you're back online. <em>Your devices</em> shows how many devices are linked and when it last synced.</li>
+                    <li data-i18n="help.devices.manage" data-i18n-html><strong>Reset, unlink, delete</strong> - <em>Reset stats</em> on a linked device resets the record on all of them (badges are kept). <em>Unlink this device</em> stops it syncing; it keeps the stats it shows. <em>Delete synced record</em> (tap twice) erases the record from the server; every device keeps the stats it shows.</li>
+                    <li data-i18n="help.devices.privacy" data-i18n-html><strong>What is stored</strong> - The record's totals, badges, Your signals and when each match ended, on the 7 Fichas server under your code. No account, name, email or game moves. Anyone with the code can see and change the record, so keep it to your own devices.</li>
+                </ul>
+            </section>
             <section class="help-section" id="help-strategy">
                 <h3><span data-i18n="help.strategy.title">Strategy Tips</span><a href="#help-index" class="help-top" data-i18n="help.toIndex">↑ Index</a></h3>
                 <ul>
@@ -736,7 +749,7 @@
 
     <div id="badge-toast-container"></div>
 
-    <script type="module" src="js/main.js?v=49"></script>
+    <script type="module" src="js/main.js?v=50"></script>
     <script>
       if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         // On the first visit after a release, the previous version's service worker may have

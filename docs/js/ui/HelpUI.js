@@ -11,7 +11,7 @@ const INDEX = [
     ['play', [['playTile', 'help-play'], ['cantPlay', 'help-play'], ['puntas', 'help-play'], ['whoPlayed', 'help-play']]],
     ['scoring', [['domino', 'help-scoring'], ['cerrado', 'help-scoring'], ['matchPoints', 'help-scoring'], ['moments', 'help-moments']]],
     ['genin', [['askGenin', 'help-genin'], ['handCard', 'help-genin'], ['grades', 'help-grades'], ['quiz', 'help-quiz']]],
-    ['after', [['debrief', 'help-debrief'], ['styleAnalysis', 'help-debrief'], ['stats', 'help-settings']]],
+    ['after', [['debrief', 'help-debrief'], ['styleAnalysis', 'help-debrief'], ['stats', 'help-settings'], ['devices', 'help-devices']]],
     ['friends', [['createRoom', 'help-friends'], ['seats', 'help-friends'], ['reconnect', 'help-friends'], ['reactions', 'help-friends'], ['rematch', 'help-friends']]],
     ['strategy', [['tips', 'help-strategy']]],
     ['feedback', [['suggest', 'help-suggest']]],

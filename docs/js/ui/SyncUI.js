@@ -72,7 +72,9 @@ export class SyncUI {
 
     render() {
         const typed = this.box.querySelector('#stats-sync-input')?.value ?? '';
-        const parts = [`<h3>${t('stats.sync.title')}</h3>`];
+        // The "?" opens Help at "Play on more than one device" (HelpUI handles any [data-help]).
+        const parts = [`<h3 class="stats-sync-head"><span>${t('stats.sync.title')}</span>
+            <button type="button" class="help-ctx" data-help="help-devices" title="${esc(t('help.ctx'))}" aria-label="${esc(t('help.ctx'))}">?</button></h3>`];
         // How the last action went, first: right under the title.
         const message = this.message
             || (!this.sync.linked && this.sync.status === 'deleted' && this.mode === 'idle'

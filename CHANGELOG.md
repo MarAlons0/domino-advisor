@@ -3,6 +3,25 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.22.2] – 2026-11-27
+
+### Added
+- **Help: "Play on more than one device".** A new Help section, in English and Spanish, on keeping one record across your devices:
+  - linking, and adding another device with the code or a shared link
+  - the iPhone and iPad catch: a Home Screen app keeps its own stats, apart from Safari, so type the code there
+  - what is combined and what stays on each device
+  - how streaks combine
+  - how each match reaches the other devices
+  - reset, unlink and delete
+  - what the server stores, and that anyone with the code can see and change the record
+- Ways in:
+  - a "How do I…?" question: "Keep one record on my phone and tablet"
+  - a **?** next to the *Your devices* heading on the Stats screen
+  - a link from the Stats line of Help
+
+### Fixed
+- The English Help heading "Settings, Language & Stats" showed a literal `&amp;`.
+
 ## [1.22.1] – 2026-11-27
 
 ### Fixed
