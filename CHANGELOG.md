@@ -3,6 +3,19 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.22.3] – 2026-11-27
+
+### Fixed
+- **A file the server fails to send no longer leaves the app blank.** Right after the v1.22.2 deploy, GitHub Pages answered "503" for one file (`js/coach/MatchLessons.js`) while the page was reloading onto the new version. With one file missing the app can't start, and the page stayed blank until it was opened again. Now:
+  - The service worker tries a file again, twice, when the server answers with an error (5xx) or doesn't answer, after 0.4 s and then 1.2 s.
+  - The page itself is retried the same way. If the server still fails, the saved copy of the app is shown instead of an error page.
+  - If the app still didn't start, the page reloads once by itself, 1.5 seconds after loading. This covers a first visit, before the service worker is there. It happens at most once a minute, so a real fault can't make it reload over and over.
+- Checked in headless Chrome with a test server answering 503 for that file:
+  - **An update:** without this change, the app didn't start, as on the live site. With it, the app started, with no extra reload.
+  - **A first visit:** without this change, the app didn't start. With it, the page reloaded once and the app started.
+  - **A file that never loads:** exactly one extra reload, then it stops.
+  - **Normal loads:** no extra reload.
+
 ## [1.22.2] – 2026-11-27
 
 ### Added

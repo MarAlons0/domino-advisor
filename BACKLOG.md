@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-11-27 (Help for one record across devices in v1.22.2)_
+_Last updated: 2026-11-27 (retry for files the server fails to send, v1.22.3)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -37,6 +37,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Retry a file the server fails to send** — the service worker retries a 5xx or a failed request twice, and the page reloads once if the app still didn't start (a 503 right after the v1.22.2 deploy left it blank) — v1.22.3
 - [x] **Help for one record across devices** — Help section "Play on more than one device" (linking, the iPhone/iPad Home Screen catch, what combines, streaks, reset/unlink/delete, privacy), with a "How do I…?" question and a **?** on Your devices — v1.22.2
 - [x] **No broken first load after an update** — when a slow connection delays the new version past 30 s, the page now still reloads once if the app never started — v1.22.1
 - [x] **Consolidated record across devices** — Stats → Your devices links devices with a sync code or share link (no accounts) so they keep one record: stats, badges and Your signals; joining adds a device's stats and a reset applies to all. Stored in a `StatsRecord` Durable Object on the `domino-rooms` Worker; design and test results in [docs/CROSS_DEVICE_STATS.md](docs/CROSS_DEVICE_STATS.md) — v1.22.0

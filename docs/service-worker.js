@@ -1,5 +1,5 @@
 // Update CACHE_NAME whenever the app version bumps (keep in sync with index.html and translations.js)
-const CACHE_NAME = '7fichas-v1.22.2';
+const CACHE_NAME = '7fichas-v1.22.3';
 
 const CORE_ASSETS = [
     './',
@@ -43,6 +43,26 @@ self.addEventListener('activate', event => {
 //  - Other assets (CSS/JS/images): cache-first for speed. Only main.js and styles.css
 //    carry ?v=; the other modules rely on CACHE_NAME changing every release (old caches
 //    are dropped on activate) and on index.html reloading once when this worker takes over.
+//  - Both retry a server hiccup (below).
+
+// One file the server fails to send stops the app from starting (GitHub Pages has
+// answered 503 for a module right after a deploy), so a 5xx or no answer at all is
+// tried again, twice, after a short wait. The last answer is used as it is.
+const RETRY_DELAYS_MS = [400, 1200];
+
+async function fetchWithRetry(request, init) {
+    for (let attempt = 0; ; attempt++) {
+        const last = attempt >= RETRY_DELAYS_MS.length;
+        try {
+            const response = await fetch(request, init);
+            if (response.status < 500 || last) return response;
+        } catch (err) {
+            if (last) throw err;
+        }
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+    }
+}
+
 self.addEventListener('fetch', event => {
     const { request } = event;
 
@@ -52,16 +72,19 @@ self.addEventListener('fetch', event => {
 
     // Network-first for navigation requests (the root document).
     if (request.mode === 'navigate') {
+        const cachedShell = () => caches.match(request).then(cached => cached || caches.match('./'));
         event.respondWith(
-            fetch(request)
+            fetchWithRetry(request)
                 .then(response => {
-                    if (response && response.status === 200 && response.type === 'basic') {
+                    // Still a server error: the cached app beats an error page.
+                    if (response.status >= 500) return cachedShell().then(cached => cached || response);
+                    if (response.status === 200 && response.type === 'basic') {
                         const copy = response.clone();
                         caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
                     }
                     return response;
                 })
-                .catch(() => caches.match(request).then(cached => cached || caches.match('./')))
+                .catch(cachedShell)
         );
         return;
     }
@@ -72,7 +95,7 @@ self.addEventListener('fetch', event => {
             if (cached) return cached;
 
             // 'no-cache' revalidates with the server instead of trusting the HTTP cache.
-            return fetch(request, { cache: 'no-cache' }).then(response => {
+            return fetchWithRetry(request, { cache: 'no-cache' }).then(response => {
                 // Only cache valid responses
                 if (!response || response.status !== 200 || response.type !== 'basic') {
                     return response;
