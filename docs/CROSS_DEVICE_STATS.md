@@ -1,9 +1,10 @@
 # Consolidated record across devices — Design
 
 **Status:** design agreed 2026-11-25. P0 and P1 done 2026-11-25, shipped in v1.21.2: `StatsMerge.js`,
-and `PlayerStats` recording through it (see [P0 results](#p0-results-2026-11-25),
-[P1 results](#p1-results-2026-11-25)). Next: P2. Backlog: 🟡 Medium
-"Consolidated record across devices".
+and `PlayerStats` recording through it. P2 built 2026-11-26: the `StatsRecord` Durable Object,
+`StatsSync.js` and **Your devices** on the Stats screen (see [P0 results](#p0-results-2026-11-25),
+[P1 results](#p1-results-2026-11-25), [P2 results](#p2-results-2026-11-26)). Next: deploy the
+Worker, then release P2 as v1.22.0. Backlog: 🟡 Medium "Consolidated record across devices".
 
 **Decided:**
 - Devices link with a **sync code + share link** — no accounts, logins or emails.
@@ -124,9 +125,12 @@ One request does both directions:
 
 ```
 POST /records/sync
-{ code, deviceId, batch: { id, entries:[{ at, won, delta }, …], badges:[…] } | null }
-→ { totals, badges, since, devices, syncedAt }
+{ code, device, leave?, batch: { id, entries:[{ at, won, delta }, …], badges:[…], reset, snapshot } | null }
+→ { totals, resetAt, devices, syncedAt }
 ```
+
+(As built in P2: `totals` carries the badges and `since`; `snapshot` is the device's own stats as it
+links, `reset` a Reset stats made on it, `leave` an unlinking device.)
 
 - The Worker hashes the code and passes the request to that record's Durable Object.
 - The DO checks it hasn't seen `batch.id` before (so a retry after a dropped connection doesn't count
@@ -134,9 +138,10 @@ POST /records/sync
   their results into the streak list, unions badges, and returns the new totals.
 - The device sets `base = totals` and empties `pending`. A batch that's still being sent gets frozen
   with its id; anything recorded in the meantime starts a new `pending`.
-- **When:** after each match ends, when the app opens, and when the browser comes back online
-  (`online` event) if something is pending. Roughly 3 requests per match — far under the free plan's
-  100,000 a day.
+- **When:** after each match ends, when the app opens, when the browser comes back online
+  (`online` event), right after a Reset stats, and — if the last sync was a while ago — when the app
+  comes back to the foreground (1 min) or the Stats screen opens (30 s). Roughly 3 requests per
+  match — far under the free plan's 100,000 a day.
 - **Badges from merging:** after a sync the device runs the badge checks on the merged totals. If
   the combined record crosses a threshold no single device had reached (e.g. 12 + 9 domino wins), the
   badge is earned then and goes up in the next batch. Badges arriving from another device show in the
@@ -150,26 +155,31 @@ POST /records/sync
     the streak seeds, the last reset). One row keeps a sync to a few rows read however long the
     history is (the free plan counts every row read); at ~20 bytes a match the results fit the
     8 MB row limit for hundreds of thousands of matches.
-  - `batches (id, device, receivedAt, json)` — every batch as received, with its entries and their
-    times: de-duplication (`id`), debugging, and **rebuilding after a late reset** (§6).
-  - `snapshots (device, at, json)` — each linking device's stats with the time it linked, for the
-    same rebuild.
-  - `devices (id, firstSeen, lastSeen)` for the "3 devices" line.
+  - `batches (id, device, received_at, with_matches, json)` — every batch as received: its entries
+    with their times, its reset, and the device's stats if it brought them as it linked (its
+    snapshot, dated when it arrived). For de-duplication (`id`) and **rebuilding after a late
+    reset** (§6). `with_matches` marks a snapshot with matches in it (§5). (The design had a
+    separate `snapshots` table; P2 keeps each snapshot in its batch.)
+  - `devices (id, first_seen, last_seen)` for the "3 devices" line.
 - Endpoints (all `POST`, code in the body — never in the URL):
-  - `/records` → `{ code }` — create a record, with the first device's stats as its first batch.
-  - `/records/sync` — as above.
-  - `/records/delete` — wipe the record (Stats screen: **Delete synced record**).
-- **Checks before anything is stored:** body under 64 KB, every number a non-negative integer within
-  sane bounds (an entry adds at most one hand or one match, a folded entry at most what it folded; a
-  hand is at most a few hundred points), timestamps not in the future. A record nobody has synced for 2 years can be deleted.
+  - `/records` → `{ code }` — create an empty record. The device then sends its stats in its first
+    sync, as a batch like any other, so a retry can't count them twice.
+  - `/records/sync` — as above. `404` if there's no record with that code.
+  - `/records/delete` — wipe the record (Stats screen: **Delete synced record**). The other devices
+    learn on their next sync (`404`), unlink and keep the stats they show.
+- **Checks before anything is stored:** body under 64 KB, every number non-negative and finite
+  within sane bounds (an entry adds at most one match and only a match result does, at most 200
+  hands for a folded entry), keys plain names, at most 300 numbers an entry or snapshot. Times later
+  than the server's clock (a device clock running ahead) are **capped** at it, not refused. A code
+  nobody made leaves nothing stored. A record nobody has synced for 2 years can be deleted (P3).
 - Same `ALLOWED_ORIGINS` and CORS as rooms and suggestions.
 
 ### 5. Linking a device that already has stats
 
 | Situation | What happens |
 |---|---|
-| First device creates the record | Its current stats go up as the first batch (`snapshot:<deviceId>`). Its `currentStreak` seeds the record's streak. |
-| Another device joins | Its stats are **added** as a `snapshot:<deviceId>` batch. Its `bestWinStreak` counts as a max; its `currentStreak` is dropped (only one streak can be the current one). |
+| First device creates the record | Its current stats go up as the snapshot in its first batch. The first snapshot **with matches in it** seeds the record's current streak and `since` — so a fresh phone creating the record doesn't take that place from the laptop that joins with a streak running. |
+| Another device joins | Its stats are **added** as the snapshot in its first batch. Its `bestWinStreak` counts as a max; its `currentStreak` is dropped (only one streak can be the current one). |
 | Fresh device joins | Nothing to add; it just downloads the totals. |
 | Device unlinks | It keeps a **copy** of the record's totals as its own stats (nothing disappears from its screen) and remembers which record they came from. |
 | That device re-links to the same record | Only what it played **after** unlinking goes up — its `pending` — not the copy, which would count everything twice. |
@@ -184,8 +194,9 @@ device catching up); its matches after the reset still count. The two-tap reset 
 
 The reset itself can arrive late, from a device that reset while offline after other devices had
 already synced matches played **after** it. So the server rebuilds: `resetRecord`, then adds back
-every stored entry and snapshot dated after the reset (`batches`, `snapshots`). A reset older than
-the record's last one changes nothing. The P0 test covers both orders.
+every stored entry and snapshot dated after the reset (`batches`), and empties what came before it
+from the stored batches (their ids stay, so a retried batch still counts once). A reset older than
+the record's last one changes nothing. The P0 and P2 tests cover both orders.
 
 ### 7. Stats screen
 
@@ -344,13 +355,76 @@ threshold (hidden behind the larger comeback).
 
 ---
 
+## P2 results (2026-11-26)
+
+**Server:** `server/src/StatsRecordStore.js` (the checks and the record, pure logic over SQL like
+`SuggestionStore`, merging with the app's own `StatsMerge.js`), `StatsRecord.js` (the Durable
+Object), `records.js` (the `/records` routes). `wrangler.toml` adds the `RECORDS` binding and
+migration `v3`. **App:** `docs/js/stats/StatsSync.js` (the code, what's unsent, the requests),
+`PlayerStats.attachSync` (a linked device shows the record's totals plus what isn't confirmed yet),
+`docs/js/ui/SyncUI.js` (**Your devices** on the Stats screen), the wiring in `main.js` and 45 strings
+in English and Spanish.
+
+### The test
+
+`server/test/stats-record.test.mjs`, 15 tests, part of `npm test` (59 in all). Each "device" is the
+app's own `PlayerStats` + `StatsSync` + badge checks (as `main.js` wires them) with its own storage,
+talking to the real `/records` routes through a fake Durable Object namespace on Node's SQLite, on
+one shared clock. A device's network can be up, down, lose the answer after the server applied the
+batch, or fail once. They replay the self-play trace and compare with one device that played
+everything:
+
+- three devices that sync now and then, lose answers and reload: the same totals, streaks and badges
+  as one device;
+- linking adds what each device had; the first device's current streak keeps running;
+- a reset synced at once and one arriving late; a reset made while a batch is on its way;
+- a lost answer counts once; a long offline backlog goes up in parts;
+- unlink keeps a copy; linking to the same record again sends only what came since; switching to
+  another record; delete; a code nobody made; joining with no answer;
+- a badge earned only from the combined record;
+- the server's checks: what's refused, times capped, the same batch twice, leaving, origin and CORS;
+- `stripStats` and `foldEntries`.
+
+Also passing with 60 and 120 matches in the trace (`STATS_MATCHES`). Sixteen planted bugs, each
+caught.
+
+### In the browser
+
+`wrangler dev` with the app served locally, two browser origins as two devices (one in Spanish):
+an unlinked device makes no requests; **Link my devices** gave a code; opening `#sync=<code>` on the
+other opened Stats with the question and cleared the link from the address bar; joining added
+5 + 5 matches and 33 + 40 hands, and earned a badge neither device had (with no toast); a full match
+played through the app's handlers went up at match end in one request; a reset on either device
+reached the other, kept the badges and set the same "counting since"; unlink, a mistyped code, an
+unknown code, linking again to the same record ("Linked: 2 devices"), and **Delete synced record**
+(the other device then says so and keeps its stats) all behaved. No console errors apart from the
+two expected `404`s.
+
+### Changes from the design
+
+- **Create, then sync.** `/records` makes an empty record; the device's stats go up in its first
+  sync as a normal batch with a `snapshot` (§4).
+- **Snapshots live in their batches**, no `snapshots` table (§4).
+- **The first snapshot with matches** seeds the current streak and `since`, not simply the creating
+  device (§5).
+- **Times are capped, not refused** (§4).
+- **A long offline backlog:** past 500 unsent entries they fold to one a match (hands with no result,
+  100 at a time), and go up 250 entries / about 40 KB a request, at most 20 requests a sync.
+- **A batch the server refuses** (`400`) is dropped and logged, so a device can't get stuck resending
+  it. A `404` means the record was deleted: the device unlinks and keeps its stats.
+- **Reset syncs at once** instead of waiting for the next match (§3).
+- **Known limit:** when a reset arrives late, a badge other than the streak ones may already have
+  been earned from matches the reset then took out. It stays, as badges always survive a reset.
+
+---
+
 ## Phases
 
 | Phase | What | Ships as |
 |---|---|---|
 | **P0** ✅ 2026-11-25 | Confirm the free-plan limits. Build `StatsMerge.js` and a test that replays self-play matches **in sequence on one device** and **split at random across 3 "devices" then merged**: every total and badge must match exactly; streaks must match when the split keeps time order. | nothing user-facing |
 | **P1** ✅ 2026-11-25 (v1.21.2) | `PlayerStats` records through `StatsMerge` entries. No network. Stats must be identical before and after (test on a saved real stats object). Keeping `pending` for a linked device comes with P2. | patch |
-| **P2** | `StatsRecord` DO + `/records` endpoints + server tests (`server/test/stats-record.test.mjs`), `StatsSync.js` client, Stats screen UI, `#sync=` link, EN/ES strings. | minor |
+| **P2** ✅ 2026-11-26 (to ship as v1.22.0, after the Worker deploy) | `StatsRecord` DO + `/records` endpoints + server tests (`server/test/stats-record.test.mjs`), `StatsSync.js` client, Stats screen UI, `#sync=` link, EN/ES strings. | minor |
 | **P3** | QR code for the link, new-code ("rotate") option, delete records idle for 2 years, maybe the `storage` event for multiple tabs. | patch/minor |
 
 ---

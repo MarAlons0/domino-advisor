@@ -1,6 +1,7 @@
 # 7 Fichas multiplayer rooms — Cloudflare Worker on the FREE plan.
 # Bundles the game engine from ../docs/js (one source of truth with the app).
-# Also takes the app's suggestions & bug reports (src/suggestions.js).
+# Also takes the app's suggestions & bug reports (src/suggestions.js) and keeps
+# the stats records that link a person's devices (src/records.js).
 #
 # Secrets for suggestions (set each once with
 # `npx --yes wrangler@4.61.0 secret put NAME --name domino-rooms`, which works from any folder;
@@ -25,6 +26,11 @@ class_name = "GameRoom"
 name = "SUGGESTIONS"
 class_name = "SuggestionBox"
 
+# One stats record across a person's devices (docs/CROSS_DEVICE_STATS.md).
+[[durable_objects.bindings]]
+name = "RECORDS"
+class_name = "StatsRecord"
+
 # Free plan: SQLite-backed Durable Objects only
 [[migrations]]
 tag = "v1"
@@ -33,6 +39,10 @@ new_sqlite_classes = ["GameRoom"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["SuggestionBox"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["StatsRecord"]
 
 [observability]
 enabled = true

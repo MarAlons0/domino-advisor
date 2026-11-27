@@ -1,6 +1,6 @@
 import { StorageService } from './StorageService.js';
 import { SignalProfile } from '../ai/SignalProfile.js';
-import { emptyStats, recordFrom, addEntries, resetRecord } from './StatsMerge.js';
+import { emptyStats, recordFrom, addEntries, resetRecord, mergeBadges } from './StatsMerge.js';
 
 const STORAGE_KEY = '7fichas_stats';
 
@@ -28,16 +28,23 @@ function deepMerge(defaults, stored) {
  * the match results in order). That is how a record from several devices is
  * put together (docs/CROSS_DEVICE_STATS.md), so one device and several end up
  * with the same numbers from the same code.
+ *
+ * Linked to other devices (attachSync), the totals are the record's as last
+ * received plus what this device recorded since; each entry also goes to the
+ * StatsSync to send. Not linked, nothing changes.
  */
 export class PlayerStats {
-    constructor() {
+    /** @param {object} [opts] - storage: {get, set} (tests give each device its own) */
+    constructor({ storage = StorageService } = {}) {
+        this._storage = storage;
         this._record = null; // StatsMerge record; get() is its totals
         this._lastAt = 0;
         this._matchSession = { maxDeficit: 0 };
+        this._sync = null;
     }
 
     load() {
-        const stored = StorageService.get(STORAGE_KEY);
+        const stored = this._storage.get(STORAGE_KEY);
         // Merge into a copy: sections missing from storage would otherwise be
         // the defaults' own objects, and recording into them would change
         // what reset() starts from.
@@ -46,7 +53,36 @@ export class PlayerStats {
     }
 
     save(stats) {
-        StorageService.set(STORAGE_KEY, stats);
+        this._storage.set(STORAGE_KEY, stats);
+        this._sync?.noteBadges(stats.badges);
+    }
+
+    /**
+     * Keep one record with other devices through `sync` (a StatsSync). The
+     * totals follow it whenever it hears from the record.
+     */
+    attachSync(sync) {
+        this._sync = sync;
+        sync.onView = () => this._rebuild();
+        this._rebuild();
+    }
+
+    /** The totals from the sync's view: the record's plus what's not confirmed yet. */
+    _rebuild() {
+        const view = this._sync?.view();
+        if (!view) return;
+        this.get();
+        const r = recordFrom(deepMerge(emptyStats(), view.base));
+        r.resetAt = view.resetAt;
+        addEntries(r, view.entries);
+        mergeBadges(r.totals, view.badges);
+        // The same object as before: callers hold on to what get() returned.
+        const totals = this._record.totals;
+        for (const key of Object.keys(totals)) delete totals[key];
+        Object.assign(totals, r.totals);
+        r.totals = totals;
+        this._record = r;
+        this._storage.set(STORAGE_KEY, totals);
     }
 
     get() {
@@ -59,7 +95,9 @@ export class PlayerStats {
      */
     reset() {
         this.get();
-        resetRecord(this._record, this._now());
+        const at = this._now();
+        resetRecord(this._record, at);
+        this._sync?.resetLocal(at, this._record.totals);
         this.save(this._record.totals);
         return this._record.totals;
     }
@@ -83,7 +121,9 @@ export class PlayerStats {
         this.get();
         const delta = emptyStats();
         fill(delta);
-        addEntries(this._record, [{ at: this._now(), won, delta }]);
+        const entry = { at: this._now(), won, delta };
+        addEntries(this._record, [entry]);
+        this._sync?.record(entry);
         if (save) this.save(this._record.totals);
     }
 

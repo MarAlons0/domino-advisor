@@ -3499,6 +3499,164 @@ button:disabled {
     margin: 8px 0 0 0;
 }
 
+/* Your devices (one record across them) */
+.stats-sync {
+    margin-top: 16px;
+    margin-bottom: 0;
+    padding-top: 12px;
+    border-top: 1px solid #333;
+}
+
+.stats-sync-text,
+.stats-sync-status {
+    color: #ccc;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin: 0 0 10px 0;
+}
+
+.stats-sync-status {
+    color: #e0e0e0;
+}
+
+.stats-sync-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin: 0 0 10px 0;
+}
+
+.stats-sync-manage {
+    margin-top: 14px;
+}
+
+.stats-sync-btn {
+    background: none;
+    border: 1px solid #00d4ff;
+    border-radius: 6px;
+    color: #00d4ff;
+    font-size: 0.85rem;
+    padding: 8px 14px;
+    cursor: pointer;
+}
+
+.stats-sync-btn:hover {
+    background: rgba(0, 212, 255, 0.1);
+}
+
+.stats-sync-btn.primary {
+    background: #00d4ff;
+    color: #16213e;
+    font-weight: 600;
+}
+
+.stats-sync-btn.primary:hover {
+    background: #33ddff;
+}
+
+.stats-sync-btn.subtle {
+    border-color: #444;
+    color: #888;
+    font-size: 0.8rem;
+}
+
+.stats-sync-btn.subtle:hover {
+    background: none;
+    color: #ccc;
+    border-color: #666;
+}
+
+.stats-sync-btn.danger.armed {
+    color: #ff6b6b;
+    border-color: #ff6b6b;
+}
+
+.stats-sync-form {
+    margin: 0;
+}
+
+.stats-sync-input {
+    display: block;
+    width: 100%;
+    max-width: 260px;
+    margin: 0 auto 10px auto;
+    box-sizing: border-box;
+    background: #0f1a2e;
+    border: 1px solid #2a3a5a;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.1rem;
+    letter-spacing: 0.08em;
+    text-align: center;
+    text-transform: uppercase;
+    padding: 8px 10px;
+}
+
+.stats-sync-input:focus {
+    outline: none;
+    border-color: #00d4ff;
+}
+
+.stats-sync-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.35rem;
+    letter-spacing: 0.1em;
+    color: #00d4ff;
+    text-align: center;
+    background: #0f1a2e;
+    border: 1px solid #2a3a5a;
+    border-radius: 6px;
+    padding: 10px;
+    margin: 0 0 10px 0;
+    user-select: all;
+    -webkit-user-select: all;
+}
+
+.stats-sync-inline-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #00d4ff;
+    white-space: nowrap;
+}
+
+.stats-sync-check {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    color: #ccc;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    margin: 0 0 10px 0;
+    cursor: pointer;
+}
+
+.stats-sync-check input {
+    margin-top: 3px;
+}
+
+.stats-sync-hint {
+    color: #888;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    margin: 0 0 8px 0;
+}
+
+.stats-sync-msg {
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin: 0 0 8px 0;
+    word-break: break-word;
+}
+
+.stats-sync-msg.info {
+    color: #7fe0a0;
+}
+
+.stats-sync-msg.error {
+    color: #ff6b6b;
+}
+
 .stats-section h3 {
     color: #00d4ff;
     font-size: 0.85rem;

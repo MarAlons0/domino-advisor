@@ -9,6 +9,7 @@ import { SettingsUI } from './ui/SettingsUI.js';
 import { StatsUI } from './ui/StatsUI.js';
 import { BadgeToast } from './ui/BadgeToast.js';
 import { PlayerStats } from './stats/PlayerStats.js';
+import { StatsSync } from './stats/StatsSync.js';
 import { BadgeSystem } from './stats/BadgeSystem.js';
 import { QuizStorage } from './services/QuizStorage.js';
 import { StorageService } from './stats/StorageService.js';
@@ -113,15 +114,19 @@ class DominoApp {
         this.settingsUI = new SettingsUI();
         this.playerStats = new PlayerStats();
         this.playerStats.load();
+        // One record across this person's devices, once they link them (Stats screen).
+        this.statsSync = new StatsSync();
+        this.playerStats.attachSync?.(this.statsSync);
         this.badgeSystem = new BadgeSystem();
         this.badgeToast = new BadgeToast();
-        this.statsUI = new StatsUI(this.playerStats);
+        this.statsUI = new StatsUI(this.playerStats, this.statsSync);
 
         this.initElements();
         this.initEventHandlers();
         this.initGameCallbacks();
         this.initUIModules();
         this.initQuizElements();
+        this._initStatsSync();
 
         this.lobbyUI = new LobbyUI(this);
         document.getElementById('mp-btn')?.addEventListener('click', () =>
@@ -1551,8 +1556,38 @@ class DominoApp {
         const mBadges = this.badgeSystem.checkMatchBadges(this.playerStats.get());
         if (mBadges.length) this.badgeToast.showBadges(mBadges);
         this.playerStats.save(this.playerStats.get());
+        this.statsSync.sync();
 
         if (!this.multiplayer) this._saveGameLog(data);
+    }
+
+    /**
+     * Keep the stats in step with this person's other devices, when linked
+     * (docs/CROSS_DEVICE_STATS.md): at start, after each match, back online,
+     * back in view, and when Stats opens. A shared link (…/#sync=CODE) opens
+     * Stats and asks before linking.
+     */
+    _initStatsSync() {
+        const sync = this.statsSync;
+        sync.onChange = () => {
+            // Badges the combined record has earned go in the list, without a
+            // toast: another device may already have celebrated them.
+            const s = this.playerStats.get();
+            this.badgeSystem.checkHandBadges(s);
+            this.badgeSystem.checkMatchBadges(s);
+            this.playerStats.save(s);
+            this.statsUI.refresh?.();
+        };
+        const code = StatsSync.codeFromHash();
+        if (code) {
+            history.replaceState(null, '', location.pathname + location.search);
+            this.statsUI.askJoin?.(code);
+        }
+        sync.sync();
+        window.addEventListener('online', () => sync.sync());
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') sync.syncIfStale(60_000);
+        });
     }
 
     /**

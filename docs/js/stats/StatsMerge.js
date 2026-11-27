@@ -207,6 +207,52 @@ export function addEntries(record, entries) {
 }
 
 /**
+ * The numbers worth sending for an entry or a device's stats: zeros and empty
+ * sections dropped, and the fields the record keeps itself (since, version,
+ * badges) left out.
+ */
+export function stripStats(stats) {
+    const walk = (src) => {
+        const out = {};
+        for (const [key, v] of Object.entries(src)) {
+            if (typeof v === 'number') {
+                if (Number.isFinite(v) && v !== 0) out[key] = v;
+            } else if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+                const inner = walk(v);
+                if (Object.keys(inner).length) out[key] = inner;
+            }
+        }
+        return out;
+    };
+    const { since, version, badges, ...rest } = stats || {};
+    return walk(rest);
+}
+
+/**
+ * Fewer entries, for a device that has been offline a long time: each match's
+ * hands, signals and coaching are folded into its result — one entry a match,
+ * at the result's time (and at most 100 hands an entry). Totals and streaks
+ * come out the same. The only difference: a reset made on another device in
+ * the middle of one of those matches keeps or drops the match whole.
+ */
+export function foldEntries(entries) {
+    const out = [];
+    let run = null;
+    for (const e of entries) {
+        if (!run) run = { at: e.at, won: null, delta: {} };
+        addStats(run.delta, e.delta);
+        run.at = e.at;
+        if (e.won === true || e.won === false) run.won = e.won;
+        if (run.won !== null || (run.delta.hands?.played || 0) >= 100) {
+            out.push(run);
+            run = null;
+        }
+    }
+    if (run) out.push(run);
+    return out;
+}
+
+/**
  * "Reset stats" at time `at`: everything starts over except badges. A reset
  * older than the record's last one changes nothing. Matches that finished
  * after `at` and already reached the record must be added again by the caller

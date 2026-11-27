@@ -29,9 +29,9 @@ export async function senderKey(request) {
     return [...new Uint8Array(hash)].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** The request's JSON, read only up to MAX_BODY bytes. */
-async function readJson(request) {
-    if (Number(request.headers.get('Content-Length') || 0) > MAX_BODY) return { error: 'too-large' };
+/** The request's JSON, read only up to `max` bytes. */
+export async function readJson(request, max = MAX_BODY) {
+    if (Number(request.headers.get('Content-Length') || 0) > max) return { error: 'too-large' };
     const reader = request.body?.getReader();
     if (!reader) return { error: 'bad-request' };
     const chunks = [];
@@ -40,7 +40,7 @@ async function readJson(request) {
         const { done, value } = await reader.read();
         if (done) break;
         size += value.byteLength;
-        if (size > MAX_BODY) {
+        if (size > max) {
             await reader.cancel().catch(() => {});
             return { error: 'too-large' };
         }

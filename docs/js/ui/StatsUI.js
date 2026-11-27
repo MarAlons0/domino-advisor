@@ -2,6 +2,7 @@ import { BADGES } from '../stats/BadgeSystem.js';
 import { SignalProfile, MIN_HANDS } from '../ai/SignalProfile.js';
 import { i18n, t } from '../i18n/i18n.js';
 import { GameLogStore } from '../stats/GameLogStore.js';
+import { SyncUI } from './SyncUI.js';
 
 // "Your signals": the suit signals the Stats screen reports, in order.
 const STYLE_TYPES = ['leadDouble', 'lead', 'newNumber', 'cuadrar'];
@@ -9,8 +10,14 @@ const STYLE_TYPES = ['leadDouble', 'lead', 'newNumber', 'cuadrar'];
 const STYLE_WIDE = 0.6;
 
 export class StatsUI {
-    constructor(playerStats) {
+    /**
+     * @param {object} playerStats
+     * @param {object} [sync] - StatsSync, for "Your devices" (one record across devices)
+     */
+    constructor(playerStats, sync = null) {
         this.playerStats = playerStats;
+        this.sync = sync;
+        this.syncUI = null;
         this.modal = null;
         this.overlay = null;
         this.isInitialized = false;
@@ -38,6 +45,10 @@ export class StatsUI {
         this.exportBtn = document.getElementById('stats-export-btn');
         if (this.exportBtn) this.exportBtn.addEventListener('click', () => this._onExport());
 
+        // Your devices: link them to keep one record.
+        const syncBox = document.getElementById('stats-sync');
+        if (this.sync && syncBox) this.syncUI = new SyncUI(this.sync, this.playerStats, syncBox);
+
         // "Your signals" rows and the export line are built in the current
         // language: rebuild them on a switch.
         i18n.onLanguageChange(() => {
@@ -51,11 +62,26 @@ export class StatsUI {
     show() {
         if (!this.isInitialized) this.init();
         this._render(this.playerStats.get());
+        this.syncUI?.onShow();
         if (this.modal) this.modal.classList.add('visible');
         if (this.overlay) this.overlay.classList.add('visible');
     }
 
+    /** The numbers or the link changed (a sync): redraw if showing. */
+    refresh() {
+        if (!this.modal?.classList.contains('visible')) return;
+        this._render(this.playerStats.get());
+        this.syncUI?.render();
+    }
+
+    /** A shared link was opened (…/#sync=CODE): show Stats and ask whether to link. */
+    askJoin(code) {
+        this.show();
+        this.syncUI?.askJoin(code);
+    }
+
     hide() {
+        this.syncUI?.onHide();
         this._disarmReset();
         if (this.modal) this.modal.classList.remove('visible');
         if (this.overlay) this.overlay.classList.remove('visible');
@@ -63,13 +89,15 @@ export class StatsUI {
 
     _onReset() {
         if (!this._resetTimer) {
-            this.resetBtn.textContent = t('stats.reset.confirm');
+            this.resetBtn.textContent = t(this.sync?.linked ? 'stats.reset.confirmLinked' : 'stats.reset.confirm');
             this.resetBtn.classList.add('armed');
             this._resetTimer = setTimeout(() => this._disarmReset(), 4000);
             return;
         }
         this._disarmReset();
         this._render(this.playerStats.reset());
+        // Linked: the other devices reset too, as soon as this reaches the record.
+        this.sync?.sync();
     }
 
     _disarmReset() {

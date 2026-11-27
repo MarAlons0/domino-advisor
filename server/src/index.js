@@ -3,13 +3,16 @@
 //   GET  /rooms/CODE/info     → { exists, phase, seats }
 //   GET  /rooms/CODE/ws       → WebSocket into that room's GameRoom
 //   /suggestions…             → suggestions & bug reports (suggestions.js)
-// See docs/MULTIPLAYER.md.
+//   /records…                 → one stats record across devices (records.js)
+// See docs/MULTIPLAYER.md and docs/CROSS_DEVICE_STATS.md.
 
 import { GameRoom } from './GameRoom.js';
 import { SuggestionBox } from './SuggestionBox.js';
+import { StatsRecord } from './StatsRecord.js';
 import { handleSuggestions } from './suggestions.js';
+import { handleRecords } from './records.js';
 
-export { GameRoom, SuggestionBox };
+export { GameRoom, SuggestionBox, StatsRecord };
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I
 const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
@@ -76,6 +79,10 @@ export default {
 
         if (url.pathname === '/suggestions' || url.pathname.startsWith('/suggestions/')) {
             return handleSuggestions(request, env, ctx, url, cors);
+        }
+
+        if (url.pathname === '/records' || url.pathname.startsWith('/records/')) {
+            return handleRecords(request, env, url, cors);
         }
 
         return json({ error: 'not-found' }, 404, cors);
