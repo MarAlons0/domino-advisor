@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-11-26 (consolidated record across devices shipped in v1.22.0)_
+_Last updated: 2026-11-27 (first load after an update fixed in v1.22.1)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -37,6 +37,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **No broken first load after an update** — when a slow connection delays the new version past 30 s, the page now still reloads once if the app never started — v1.22.1
 - [x] **Consolidated record across devices** — Stats → Your devices links devices with a sync code or share link (no accounts) so they keep one record: stats, badges and Your signals; joining adds a device's stats and a reset applies to all. Stored in a `StatsRecord` Durable Object on the `domino-rooms` Worker; design and test results in [docs/CROSS_DEVICE_STATS.md](docs/CROSS_DEVICE_STATS.md) — v1.22.0
 - [x] **Export my games** — Stats → Export my games downloads every move of your finished single-player matches (hands dealt, plays and passes with the board ends, Genín's pick, hand results), kept on the device only; `tools/human-games.js` reads an export for the numbers the matar-la-salida work (0l) and the personas need — v1.21.0
 - [x] **Suggestion emails through Brevo** — SendGrid has no free tier any more; Brevo first, SendGrid as fallback — v1.20.1

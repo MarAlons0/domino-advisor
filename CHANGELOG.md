@@ -3,6 +3,15 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.22.1] – 2026-11-27
+
+### Fixed
+- **The app could stay broken on the first visit after an update.** A returning visitor's previous version can serve some of its old files on that visit. When an old file lacks something the new version needs, the app doesn't start (seen on v1.22.0: "StatsMerge.js does not provide an export named 'foldEntries'"). The page was meant to reload once when the new version took over, but only within 30 seconds of loading. On a slow connection the takeover can come later, and the page then stayed broken until the app was opened again. It now reloads whenever the takeover comes if the app never started. A page where the app is running still never reloads after 30 seconds, so a game in progress isn't interrupted.
+- Checked in headless Chrome with a test server that delayed the new version's takeover to about 45 seconds:
+  - v1.22.0 stayed broken
+  - this version reloaded at about 42 seconds and started, three runs out of three
+  - a running app wasn't reloaded
+
 ## [1.22.0] – 2026-11-26
 
 ### Added
