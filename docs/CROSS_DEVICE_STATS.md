@@ -3,8 +3,10 @@
 **Status:** design agreed 2026-11-25. P0 and P1 done 2026-11-25, shipped in v1.21.2: `StatsMerge.js`,
 and `PlayerStats` recording through it. P2 built 2026-11-26: the `StatsRecord` Durable Object,
 `StatsSync.js` and **Your devices** on the Stats screen (see [P0 results](#p0-results-2026-11-25),
-[P1 results](#p1-results-2026-11-25), [P2 results](#p2-results-2026-11-26)). Next: deploy the
-Worker, then release P2 as v1.22.0. Backlog: 🟡 Medium "Consolidated record across devices".
+[P1 results](#p1-results-2026-11-25), [P2 results](#p2-results-2026-11-26)). P2 shipped in
+v1.22.0 (Worker deployed the same day). Next: P3, optional extras.
+Backlog: ✅ Shipped "Consolidated record across devices"; P3 is 🟢 Low "Cross-device record
+extras (P3)".
 
 **Decided:**
 - Devices link with a **sync code + share link** — no accounts, logins or emails.
@@ -424,7 +426,7 @@ two expected `404`s.
 |---|---|---|
 | **P0** ✅ 2026-11-25 | Confirm the free-plan limits. Build `StatsMerge.js` and a test that replays self-play matches **in sequence on one device** and **split at random across 3 "devices" then merged**: every total and badge must match exactly; streaks must match when the split keeps time order. | nothing user-facing |
 | **P1** ✅ 2026-11-25 (v1.21.2) | `PlayerStats` records through `StatsMerge` entries. No network. Stats must be identical before and after (test on a saved real stats object). Keeping `pending` for a linked device comes with P2. | patch |
-| **P2** ✅ 2026-11-26 (to ship as v1.22.0, after the Worker deploy) | `StatsRecord` DO + `/records` endpoints + server tests (`server/test/stats-record.test.mjs`), `StatsSync.js` client, Stats screen UI, `#sync=` link, EN/ES strings. | minor |
+| **P2** ✅ 2026-11-26 (v1.22.0) | `StatsRecord` DO + `/records` endpoints + server tests (`server/test/stats-record.test.mjs`), `StatsSync.js` client, Stats screen UI, `#sync=` link, EN/ES strings. | minor |
 | **P3** | QR code for the link, new-code ("rotate") option, delete records idle for 2 years, maybe the `storage` event for multiple tabs. | patch/minor |
 
 ---

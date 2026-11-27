@@ -1,5 +1,5 @@
 # Domino Coach — Backlog
-_Last updated: 2026-11-25 (cross-device record: P0 + P1 shipped in v1.21.2)_
+_Last updated: 2026-11-26 (consolidated record across devices shipped in v1.22.0)_
 
 > Deep specs (stats schemas, AI/ML experiments, UX details) live in [docs/DESIGN.md](docs/DESIGN.md).
 
@@ -17,11 +17,9 @@ _Nothing open — next items come from Medium._
 - [ ] **Pass indicators on UI (5)** — keep showing, next to each player, which numbers they have passed on. Today a "Pass" badge flashes for 4 seconds and after that the pass is only in the log. `[feature]`
 - [ ] **Named AI players (UX-B)** — give the AI opponents names. `[feature]`
 - [ ] **Re-run the max-cerrado harness numbers** — before v1.5.1 the harness dropped every match-ending hand, so the empirical maxima in [docs/MAX_CERRADO.md](docs/MAX_CERRADO.md) and the white paper (≈92 rigged / ≈78 natural) were sampled without the hands most likely to carry big hauls. Re-run `--max-cerrado` (with `--max-disparity-deals`, `--cooperative-losers`, `--random-losers --force-cerrar`) and update both docs if the maxima move. The exhaustive 103-pip ceiling (`tools/cerrado-search.js`) is unaffected. `[chore]`
-- [ ] 🚧 **Consolidated record across devices** — Games played on different devices should all be counted towards the person's total `[feature]`
-  - Design agreed: [docs/CROSS_DEVICE_STATS.md](docs/CROSS_DEVICE_STATS.md) — sync code + share link (no accounts); stats, badges and signals merge on the existing Worker; joining adds a device's stats; reset applies to all linked devices.
-  - P0 + P1 shipped in v1.21.2 (no visible change): `StatsMerge.js` (one device = three syncing devices, any order, late resets; fixed a best-streak bug its test found) and `PlayerStats` recording through it (same numbers as v1.21.1, checked match by match and in the app). P2 built (to ship as v1.22.0 after the Worker deploy): the `StatsRecord` Durable Object and `/records` routes, `StatsSync.js`, and **Your devices** on the Stats screen (sync code, share link, unlink, delete); 15 new server tests and a check in two browsers against `wrangler dev`.
 
 ## 🟢 Low / Nice to have
+- [ ] **Cross-device record extras (P3)** — a QR code for the sync link, a "new code" option, deleting records nobody has synced for 2 years, and keeping several open tabs in step (`storage` event). See [docs/CROSS_DEVICE_STATS.md](docs/CROSS_DEVICE_STATS.md). `[feature]`
 - [ ] **Harness/production parity for master settings** — make `setupMatch` apply the same per-difficulty configuration that main.js does in real play (currently master gets `randomizeTolerance = 5` in production but 0 in the harness). The v1.2.0 → v1.2.1 freeze bug would have been caught by self-play if this parity existed. `[chore]`
   - Note (2026-10-28): `randomizeTolerance` has no effect at Master — the ISMCTS pick is scored 1e6, so the 5-point band only contains it. The parity gap doesn't change play today; see the side finding in the 0h section of [docs/DESIGN.md](docs/DESIGN.md).
 - [ ] **Suit-consistency vs. opportunistic play** — when both your signaled suit and another value are playable on the open ends, is it better to stay in suit (preserving the signal your partner is reading) or take the locally-optimal move? Example: you opened `[3|3]` and played `[3|0]` (signal: 3s). Later the ends show 1 and 3; you have a 3-tile but also several 1-tiles. Play the 3 to stay consistent, or the 1 to keep your hand flexible? `[idea]`
@@ -39,6 +37,7 @@ _Nothing open — next items come from Medium._
 
 ## ✅ Shipped
 _Full history in [CHANGELOG.md](CHANGELOG.md). Notable:_
+- [x] **Consolidated record across devices** — Stats → Your devices links devices with a sync code or share link (no accounts) so they keep one record: stats, badges and Your signals; joining adds a device's stats and a reset applies to all. Stored in a `StatsRecord` Durable Object on the `domino-rooms` Worker; design and test results in [docs/CROSS_DEVICE_STATS.md](docs/CROSS_DEVICE_STATS.md) — v1.22.0
 - [x] **Export my games** — Stats → Export my games downloads every move of your finished single-player matches (hands dealt, plays and passes with the board ends, Genín's pick, hand results), kept on the device only; `tools/human-games.js` reads an export for the numbers the matar-la-salida work (0l) and the personas need — v1.21.0
 - [x] **Suggestion emails through Brevo** — SendGrid has no free tier any more; Brevo first, SendGrid as fallback — v1.20.1
 - [x] **Suggestions** — 💬 button to send an idea or report a bug (💡 Idea / 🐞 Bug, message, optional name), emailed to the organizers and saved for an admin inbox with Mark done / Reopen (Settings, admin PIN); Help section and "How do I…?" entry; en/es. Stored in a SQLite Durable Object on the `domino-rooms` Worker — v1.20.0

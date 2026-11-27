@@ -3,6 +3,32 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.22.0] – 2026-11-26
+
+### Added
+- **One record across your devices.** Stats → **Your devices** links your phone, tablet and computer so they keep one lifetime record: stats, badges and Your signals, counting the matches played on all of them. There's no account:
+  - **Link my devices** gives a sync code (12 letters and numbers, like `K7QM-4RTX-9HPB`).
+  - **Share** sends a link that opens the question on the other device. You can also type the code under **I have a code**.
+  - A device that already has stats adds them to the record. One that was linked to the same record before sends only what it played since.
+  - **Reset stats** on a linked device resets the record on every device, and keeps the badges. The two-tap button says so.
+  - **Unlink this device** keeps a copy of the record's stats on it.
+  - **Delete synced record** (two taps) wipes the record from the server. Every device keeps the stats it shows, and the others say the record was deleted.
+  - Badges that only the combined record earns are added without a toast.
+  - Matches played offline go up when the device is back online.
+  - Quiz history, settings and saved games stay on the device.
+  - English and Spanish. The Help page's Stats line mentions it.
+- What the server keeps for a record: the totals, the match results (for the streaks) and what each device sent, under a hash of the code. No name, email or game moves.
+
+### Changed (internal)
+- `domino-rooms` Worker:
+  - new SQLite Durable Object `StatsRecord` (migration v3) and `POST /records`, `/records/sync`, `/records/delete`, with the same origins and CORS as rooms and suggestions
+  - a batch counts once by its id, and times ahead of the server's clock are capped
+  - a reset that arrives late rebuilds the record from the stored batches
+  - deployed before this release
+- New `docs/js/stats/StatsSync.js` keeps the code, what's unsent and the batch on its way. While a device is linked, `PlayerStats` shows the record's totals plus what isn't confirmed yet. It syncs at match end, when the app opens, when it comes back online, right after a reset, and when the app or the Stats screen comes back after a while.
+- New `docs/js/ui/SyncUI.js`. `StatsMerge` gained `stripStats` and `foldEntries`: a long offline backlog folds to one entry a match and goes up in parts.
+- Tests: `server/test/stats-record.test.mjs`, 15 tests (59 server tests in all). Devices, each with its own storage, run the app's own recorder and sync against the real routes on Node's SQLite. They drop answers, go offline, reload, reset, unlink, re-link and delete, and must end with the same totals, streaks and badges as one device that played everything. Details in `docs/CROSS_DEVICE_STATS.md` (P2 results).
+
 ## [1.21.2] – 2026-11-25
 
 ### Changed (internal)
