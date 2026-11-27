@@ -4312,8 +4312,10 @@ body.multiplayer .react-btn:disabled { opacity: 0.5; }
 }
 
 .help-ctx {
+    position: relative;
     width: 24px;
     height: 24px;
+    min-height: 0;          /* stays a circle on phones (buttons get min-height: 44px there)… */
     padding: 0;
     flex-shrink: 0;
     border-radius: 50%;
@@ -4324,10 +4326,13 @@ body.multiplayer .react-btn:disabled { opacity: 0.5; }
     background: transparent;
     border: 1px solid rgba(0, 212, 255, 0.5);
 }
+/* …and keeps a tap area as tall as other buttons there: 44px for the 24px circle. Only 4px
+   wider on each side, so it doesn't reach a button next to it (gap 8px). */
+.help-ctx::after { content: ''; position: absolute; inset: -11px -4px; }
 .help-ctx:hover, .help-ctx:focus-visible { background: rgba(0, 212, 255, 0.12); }
 .hand-feedback-head .help-ctx { width: 20px; height: 20px; font-size: 11px; line-height: 18px; }
 .stats-sync-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.stats-sync-head .help-ctx { width: 20px; height: 20px; min-height: 0; font-size: 11px; line-height: 18px; text-transform: none; letter-spacing: 0; }
+.stats-sync-head .help-ctx { width: 20px; height: 20px; font-size: 11px; line-height: 18px; text-transform: none; letter-spacing: 0; }
 
 @media (prefers-reduced-motion: reduce) {
     .help-section { transition: none; }

@@ -3,6 +3,11 @@
 All notable changes to 7 Fichas are documented in this file.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Versioning: [SemVer](https://semver.org/) — see [VERSIONING.md](VERSIONING.md).
 
+## [1.22.4] – 2026-11-27
+
+### Fixed
+- **The ? help buttons are round on phones.** They showed as tall ovals (24×44) on narrow screens, because every button there gets a minimum height of 44 px to be easy to tap. They're circles again, and an invisible area around each one keeps the tap target 44 px tall. It reaches only 4 px to the sides, so the × close button next to it still works to its edge. Checked at phone width on Settings, Play with friends, Suggestions and Stats → Your devices; desktop is unchanged.
+
 ## [1.22.3] – 2026-11-27
 
 ### Fixed
